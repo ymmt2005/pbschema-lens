@@ -1,14 +1,16 @@
 ---
-import type { DocField, SchemaModel } from "../../../src/core/types.ts";
-import { isValidationRenderer, validationChips } from "pbschema-lens/core";
+import type { DocField, DocOneof, SchemaModel } from "../../../src/core/types.ts";
+import { fieldTableEntries, isValidationRenderer, validationChips } from "pbschema-lens/core";
 import { typeHref } from "../lib/format.ts";
 
 interface Props {
   fields: DocField[];
+  oneofs?: DocOneof[];
   model: SchemaModel;
 }
 
-const { fields } = Astro.props;
+const { fields, oneofs = [] } = Astro.props;
+const entries = fieldTableEntries(fields, oneofs);
 
 function typeLabel(field: DocField): string {
   if (field.cardinality === "map") {
@@ -21,6 +23,10 @@ function otherAnnotationBadges(field: DocField): string[] {
   return field.options.flatMap((option) =>
     option.semantic && !isValidationRenderer(option.semantic.rendererId) ? (option.semantic.badges ?? []) : [],
   );
+}
+
+function oneofRequired(oneof: DocOneof): boolean {
+  return validationChips(oneof.options).includes("required");
 }
 ---
 
@@ -38,7 +44,109 @@ function otherAnnotationBadges(field: DocField): string[] {
     </thead>
     <tbody>
       {
-        fields.map((field) => {
+        entries.map((entry) => {
+          if (entry.kind === "oneof") {
+            const { oneof, members } = entry;
+            const chips = validationChips(oneof.options);
+            const required = oneofRequired(oneof);
+            return (
+              <>
+                <tr id={oneof.anchor} class="oneof">
+                  <td>
+                    <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${oneof.anchor}`}>
+                      {oneof.shortName}
+                    </a>
+                    <div class="text-[11px] text-[color:var(--fg-muted)]">oneof</div>
+                  </td>
+                  <td class="text-[color:var(--fg-muted)]">—</td>
+                  <td class="font-mono text-xs">oneof</td>
+                  <td class="text-xs">{required ? "required" : "optional"}</td>
+                  <td>
+                    {chips.length ? (
+                      <div class="flex flex-wrap gap-1">
+                        {chips.map((chip) => (
+                          <span class="validation-chip">{chip}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span class="text-[color:var(--fg-muted)]">—</span>
+                    )}
+                  </td>
+                  <td>
+                    {oneof.comments?.markdownHtml ? <div class="prose-doc text-sm" set:html={oneof.comments.markdownHtml} /> : null}
+                    <p class="text-sm text-[color:var(--fg-muted)]">
+                      {required ? "Exactly one of " : "At most one of "}
+                      {members.map((member, index) => (
+                        <>
+                          {index > 0 ? ", " : null}
+                          <a href={`#${member.anchor}`}>{member.shortName}</a>
+                        </>
+                      ))}
+                      .
+                    </p>
+                    {oneof.options.length > 0 && (
+                      <details class="mt-2 text-xs">
+                        <summary class="cursor-pointer text-[color:var(--fg-muted)]">Details</summary>
+                        <pre class="option mt-2">{oneof.options.map((option) => option.textProto).join("\n")}</pre>
+                      </details>
+                    )}
+                  </td>
+                </tr>
+                {members.map((field) => {
+                  const href = field.cardinality === "map" ? typeHref(field.mapValue) : typeHref(field.type);
+                  const memberChips = validationChips(field.options);
+                  const annotations = otherAnnotationBadges(field);
+                  return (
+                    <tr id={field.anchor} class="oneof-member">
+                      <td>
+                        <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${field.anchor}`}>
+                          {field.shortName}
+                        </a>
+                        {field.deprecated ? <span class="ml-2 text-xs text-red-700">deprecated</span> : null}
+                        <div class="text-[11px] text-[color:var(--fg-muted)]">
+                          in <a href={`#${oneof.anchor}`}>{oneof.shortName}</a>
+                        </div>
+                      </td>
+                      <td class="num">{field.number}</td>
+                      <td class="font-mono text-xs">
+                        {href ? <a href={href}>{typeLabel(field)}</a> : typeLabel(field)}
+                      </td>
+                      <td class="text-xs">{field.cardinality}</td>
+                      <td>
+                        {memberChips.length ? (
+                          <div class="flex flex-wrap gap-1">
+                            {memberChips.map((chip) => (
+                              <span class="validation-chip">{chip}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span class="text-[color:var(--fg-muted)]">—</span>
+                        )}
+                      </td>
+                      <td>
+                        {field.comments?.markdownHtml ? <div class="prose-doc text-sm" set:html={field.comments.markdownHtml} /> : <span class="text-[color:var(--fg-muted)]">—</span>}
+                        <details class="mt-2 text-xs">
+                          <summary class="cursor-pointer text-[color:var(--fg-muted)]">Details</summary>
+                          <ul class="mt-2 space-y-1 text-[color:var(--fg-muted)]">
+                            <li>JSON name: <code>{field.jsonName}</code></li>
+                            <li>Presence: {field.presence}</li>
+                            {field.packed !== undefined ? <li>Packed: {String(field.packed)}</li> : null}
+                            {field.defaultValue ? <li>Default: {field.defaultValue}</li> : null}
+                            {annotations.length ? <li>Annotations: {annotations.join(", ")}</li> : null}
+                          </ul>
+                          {field.options.length > 0 && (
+                            <pre class="option mt-2">{field.options.map((option) => option.textProto).join("\n")}</pre>
+                          )}
+                        </details>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </>
+            );
+          }
+
+          const field = entry.field;
           const href = field.cardinality === "map" ? typeHref(field.mapValue) : typeHref(field.type);
           const chips = validationChips(field.options);
           const annotations = otherAnnotationBadges(field);
@@ -49,7 +157,6 @@ function otherAnnotationBadges(field: DocField): string[] {
                   {field.shortName}
                 </a>
                 {field.deprecated ? <span class="ml-2 text-xs text-red-700">deprecated</span> : null}
-                {field.oneofId ? <div class="text-[11px] text-[color:var(--fg-muted)]">oneof</div> : null}
               </td>
               <td class="num">{field.number}</td>
               <td class="font-mono text-xs">

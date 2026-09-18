@@ -7,7 +7,6 @@ import FeatureList from "../../../components/FeatureList.astro";
 import FieldTable from "../../../components/FieldTable.astro";
 import { loadModel, withBase } from "../../../lib/data.ts";
 import { symbolHref } from "../../../lib/format.ts";
-import { validationChips } from "pbschema-lens/core";
 
 export function getStaticPaths() {
   return loadModel()
@@ -34,31 +33,7 @@ const note = model.wktNotes[message.fullName];
     </p>
   )}
   <h2 class="text-lg font-semibold mb-3">Fields</h2>
-  <FieldTable fields={fields} model={model} />
-  {oneofs.length > 0 && (
-    <section class="mt-8">
-      <h2 class="text-lg font-semibold mb-3">Oneofs</h2>
-      {oneofs.map((oneof) => {
-        const chips = validationChips(oneof.options);
-        return (
-          <div id={oneof.anchor} class="mb-4">
-            <h3 class="font-mono">
-              {oneof.shortName}
-              {chips.map((chip) => (
-                <span class="validation-chip ml-2 align-middle">{chip}</span>
-              ))}
-            </h3>
-            <ul class="text-sm">
-              {oneof.fieldIds.map((id) => {
-                const field = model.fields.find((item) => item.id === id);
-                return field ? <li><a href={`#${field.anchor}`}>{field.shortName}</a></li> : null;
-              })}
-            </ul>
-          </div>
-        );
-      })}
-    </section>
-  )}
+  <FieldTable fields={fields} oneofs={oneofs} model={model} />
   {message.nestedMessageIds.length > 0 && (
     <section class="mt-8">
       <h2 class="text-lg font-semibold mb-2">Nested messages</h2>
