@@ -182,9 +182,24 @@ function builtinFieldValue(
   field: DescField,
   registry: FileRegistry,
 ): OptionValue | undefined {
+  return toOptionValue(field, fieldRaw(message, field), registry);
+}
+
+function fieldRaw(message: Message, field: DescField): unknown {
   const record = message as unknown as Record<string, unknown>;
-  const raw = record[field.localName];
-  return toOptionValue(field, raw, registry);
+  if (field.oneof) {
+    const selected = record[field.oneof.localName];
+    if (
+      selected &&
+      typeof selected === "object" &&
+      "case" in selected &&
+      (selected as { case?: string }).case === field.localName
+    ) {
+      return (selected as { value?: unknown }).value;
+    }
+    return undefined;
+  }
+  return record[field.localName];
 }
 
 function extensionToOptionValue(
@@ -286,11 +301,10 @@ function messageToOptionValue(
     if (!isFieldSet(message, field)) {
       continue;
     }
-    const record = message as unknown as Record<string, unknown>;
     fields.push({
       name: field.name,
       number: field.number,
-      value: toOptionValue(field, record[field.localName], registry),
+      value: toOptionValue(field, fieldRaw(message, field), registry),
     });
   }
   for (const unknown of message.$unknown ?? []) {

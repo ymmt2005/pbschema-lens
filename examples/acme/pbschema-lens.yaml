@@ -13,6 +13,7 @@ documentation:
   exclude:
     - "google/api/**"
     - "buf/validate/**"
+    - "cybozu/validate/**"
 
 wellKnownTypes:
   enabled: true

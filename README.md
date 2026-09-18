@@ -97,7 +97,7 @@ Every important flag also has a CLI equivalent (`--out`, `--base`, `--title`, `-
 - Built-in documentation for Protocol Buffers well-known types
 - Forward links and reverse "Used by" references
 - Editions effective-feature display
-- Specialized renderers for `google.api.http`, validation options, field behavior, and `deprecated`
+- Specialized renderers for `google.api.http`, `buf.validate`, `cybozu.validate`, field behavior, and `deprecated`
 - Symbol search (exact / prefix / fuzzy) plus Pagefind full-text search
 - Optional embedded source browser
 - Schema diff + `buf breaking` integration when `--against` is set

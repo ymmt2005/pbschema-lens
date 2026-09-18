@@ -1,6 +1,8 @@
 version: v2
 modules:
   - path: proto
+deps:
+  - buf.build/cybozu/protobuf
 lint:
   use:
     - STANDARD
