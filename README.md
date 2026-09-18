@@ -6,6 +6,19 @@ Point it at a Buf workspace, a directory of `.proto` files, or a `FileDescriptor
 
 The generated site is a graph over the schema: services, RPCs, messages, fields, enums, extensions, custom options, well-known types, reverse "used by" references, and two-layer search.
 
+These screenshots are from the bundled `examples/acme` API:
+
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="Home page of the generated Acme Protobuf API docs" width="900">
+</p>
+<p align="center">
+  <img src="docs/screenshots/user-service.png" alt="UserService reference with RPC table and HTTP mappings" width="49%">
+  <img src="docs/screenshots/user-message.png" alt="User message field table with oneofs and source links" width="49%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/source.png" alt="Embedded source browser for acme/user/v1/user.proto" width="900">
+</p>
+
 ## Quick start
 
 ```bash
