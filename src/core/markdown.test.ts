@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { commentsToMarkdown, escapeHtml, renderSafeMarkdown } from "./markdown.js";
 import { searchSymbols } from "./search.js";
 import { slug, symbolId } from "./ids.js";
-import { urlPathFor } from "./urls.js";
+import { urlPathFor, fileSourcePath, repositoryBlobUrl } from "./urls.js";
 import { diffModels } from "./diff.js";
 import type { SchemaModel, DocSymbol } from "./types.js";
 
@@ -44,6 +44,17 @@ describe("identity and URLs", () => {
       "/reference/messages/google.protobuf.Timestamp/",
     );
     expect(urlPathFor("field", "acme.user.v1.User.email", "acme.user.v1.User").anchor).toBe("email");
+  });
+
+  it("builds in-site source paths with line anchors", () => {
+    expect(fileSourcePath("acme/user/v1/user.proto", 36)).toBe("/source/acme/user/v1/user.proto/#L36");
+  });
+
+  it("only builds repository blob URLs for GitHub and GitLab", () => {
+    expect(
+      repositoryBlobUrl({ repository: "github:acme/apis", commit: "abc" }, "user.proto", 3),
+    ).toBe("https://github.com/acme/apis/blob/abc/user.proto#L3");
+    expect(repositoryBlobUrl({ repository: "https://origin.example/git/repo.git" }, "user.proto", 3)).toBeUndefined();
   });
 
   it("slugs mixed-case names", () => {

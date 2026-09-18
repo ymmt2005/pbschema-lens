@@ -63,4 +63,25 @@ describe("schema fixtures", () => {
     expect(() => sanitizeOutputPath("../../etc/passwd")).toThrow();
     expect(sanitizeOutputPath("acme/user.proto")).toBe("acme/user.proto");
   });
+
+  it("points View source at the in-site browser even when a repository is configured", async () => {
+    const dir = new URL("../fixtures/options", import.meta.url).pathname;
+    const compiled = await compileInput(dir);
+    const registry = loadRegistryFromBytes(compiled.bytes);
+    const fileName = "options.proto";
+    const model = buildModel(registry, {
+      title: "test",
+      inputLabel: dir,
+      classification: {},
+      source: { repository: "github:acme/apis", commit: "deadbeef" },
+      sourceTexts: { [fileName]: 'syntax = "proto3";\n' },
+    });
+    const message = model.messages.find((item) => item.fullName === "fixtures.options.Item");
+    expect(message?.sourceLink?.url).toMatch(/^\/source\/options\.proto\/#L\d+$/);
+    expect(message?.sourceLink?.url).not.toContain("github.com");
+    expect(message?.repositoryLink?.url).toBe(
+      "https://github.com/acme/apis/blob/deadbeef/options.proto#L" +
+        (message?.source?.startLine ?? 1),
+    );
+  });
 });

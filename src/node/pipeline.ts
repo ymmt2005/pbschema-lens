@@ -55,7 +55,7 @@ export async function buildDocumentation(options: BuildOptions): Promise<SchemaM
       externalLinks: options.config.externalLinks,
     },
     source: {
-      repository: options.config.source?.repository ?? git.repository,
+      repository: options.config.source?.repository,
       commit: options.config.source?.commit ?? git.commit,
       urlTemplate: options.config.source?.urlTemplate,
     },

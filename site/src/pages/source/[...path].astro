@@ -13,6 +13,7 @@ const model = loadModel();
 const pathParam = Astro.params.path;
 const path = Array.isArray(pathParam) ? pathParam.join("/") : pathParam;
 const file = path ? model.files.find((item) => item.fullName === path) : undefined;
+const lines = file?.sourceText?.split(/\r?\n/) ?? [];
 ---
 
 <Layout title={file ? file.fullName : "Source"}>
@@ -40,8 +41,23 @@ const file = path ? model.files.find((item) => item.fullName === path) : undefin
         <p class="text-sm text-[color:var(--fg-muted)] mt-2">
           {file.syntax}{file.edition ? ` · edition ${file.edition}` : ""} · package {file.packageName || "(unnamed)"}
         </p>
-        <pre class="proto mt-6" set:html={highlightProto(file.sourceText ?? "")} />
+        <div class="source-view mt-6 font-mono text-[0.8rem] leading-6 border border-[color:var(--line)] rounded-xl overflow-x-auto bg-[color:var(--bg-raised)]">
+          {lines.map((line, index) => (
+            <div id={`L${index + 1}`} class="source-line flex gap-3 px-3 hover:bg-[color:var(--bg-muted)]">
+              <a class="w-10 shrink-0 text-right text-[color:var(--fg-muted)] no-underline select-none" href={`#L${index + 1}`}>
+                {index + 1}
+              </a>
+              <code class="whitespace-pre grow" set:html={highlightProto(line.length ? line : " ")} />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
 </Layout>
+
+<style>
+  .source-line:target {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+</style>

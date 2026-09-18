@@ -9,7 +9,8 @@ output: "dist"
 base: "/"
 
 source:
-  repository: "github:org/repo"
+  # Set this to emit "View on GitHub" links, e.g. github:org/repo
+  # repository: "github:org/repo"
 
 documentation:
   include: []

@@ -168,6 +168,7 @@ export interface DocSymbol {
   comments?: DocComment;
   source?: SourceLocation;
   sourceLink?: SourceLink;
+  repositoryLink?: SourceLink;
   options: DocOption[];
   references: SymbolReference[];
   referencedBy: SymbolReference[];

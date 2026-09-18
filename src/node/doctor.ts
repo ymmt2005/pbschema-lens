@@ -70,7 +70,7 @@ export async function doctor(cwd: string, input: string, config: ProtolensConfig
       findings.push({
         level: "warn",
         code: "source-links",
-        message: "No source.repository configured; View source links will be omitted unless git remote is detected.",
+        message: "No source.repository configured. In-site View source still works when .proto files are available.",
       });
     }
     const editions = model.files.filter((file) => file.syntax === "editions");

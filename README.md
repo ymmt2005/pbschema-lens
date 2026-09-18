@@ -51,8 +51,10 @@ input: "."
 output: "dist"
 base: "/"            # use "/repo-name/" on GitHub Pages project sites
 
+# Optional. Adds a separate "View on GitHub" link.
+# View source always uses the embedded browser when .proto files are present.
 source:
-  repository: "github:acme/apis"
+  repository: "github:org/repo"
 
 documentation:
   include:

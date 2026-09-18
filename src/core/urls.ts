@@ -38,6 +38,46 @@ export function urlPathFor(
   }
 }
 
+export interface SourceLinkConfig {
+  repository?: string;
+  commit?: string;
+  urlTemplate?: string;
+}
+
+export function fileSourcePath(fileName: string, line?: number): string {
+  const { urlPath } = urlPathFor("file", fileName);
+  return line ? `${urlPath}#L${line}` : urlPath;
+}
+
+export function repositoryBlobUrl(
+  config: SourceLinkConfig | undefined,
+  fileName: string,
+  line: number,
+): string | undefined {
+  if (!config) {
+    return undefined;
+  }
+  if (config.urlTemplate) {
+    return config.urlTemplate
+      .replaceAll("{file}", fileName)
+      .replaceAll("{line}", String(line))
+      .replaceAll("{commit}", config.commit ?? "HEAD");
+  }
+  const repo = config.repository ?? "";
+  const commit = config.commit ?? "HEAD";
+  const github =
+    repo.match(/^github:([^/]+\/[^/]+)$/) ?? repo.match(/^https?:\/\/github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/);
+  if (github) {
+    return `https://github.com/${github[1]}/blob/${commit}/${fileName}#L${line}`;
+  }
+  const gitlab =
+    repo.match(/^gitlab:([^/]+\/.+)$/) ?? repo.match(/^https?:\/\/gitlab\.com\/(.+?)(?:\.git)?\/?$/);
+  if (gitlab) {
+    return `https://gitlab.com/${gitlab[1].replace(/\/$/, "")}/-/blob/${commit}/${fileName}#L${line}`;
+  }
+  return undefined;
+}
+
 export function href(urlPath: string, anchor?: string): string {
   return anchor ? `${urlPath}#${anchor}` : urlPath;
 }

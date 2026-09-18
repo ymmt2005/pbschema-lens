@@ -3,8 +3,9 @@ input: "."
 output: "dist"
 base: "/"
 
-source:
-  repository: "github:acme/apis"
+# Optional. Adds a separate "View on GitHub" link; View source always uses the in-site browser.
+# source:
+#   repository: "github:org/repo"
 
 documentation:
   include:

@@ -39,18 +39,14 @@ import { commentsFor, indexLocations, locationToComment, locationToSource } from
 import { editionLabel, enumFeatures, extensionFeatures, fieldFeatures, fileSyntax, messageFeatures } from "./editions.js";
 import { buildExampleJson, buildExampleTextProto } from "./examples.js";
 import { enumValueId, fieldId, fileId, methodId, oneofId, packageId, symbolId } from "./ids.js";
-import { href, urlPathFor } from "./urls.js";
+import { href, urlPathFor, fileSourcePath, repositoryBlobUrl, type SourceLinkConfig } from "./urls.js";
 import { collectOptionExtensions, extractOptions } from "./options.js";
 import { builtinPlugins } from "./plugins.js";
 import { addReference, attachReferences } from "./references.js";
 import { renderSafeMarkdown } from "./markdown.js";
 import { WKT_NOTES } from "./wkt.js";
 
-export interface SourceLinkConfig {
-  repository?: string;
-  commit?: string;
-  urlTemplate?: string;
-}
+export type { SourceLinkConfig };
 
 export interface BuildModelOptions {
   title: string;
@@ -112,6 +108,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
 
     const locIndex = indexLocations(file.proto.sourceCodeInfo?.location);
     const fileName = file.proto.name || `${file.name}.proto`;
+    const hasLocalSource = Boolean(options.sourceTexts?.[fileName]);
     const fileComments = locationToComment(locIndex.get("")) ?? locationToComment(locIndex.get("2"));
     const syntax = fileSyntax(file);
     const { urlPath } = urlPathFor("file", fileName);
@@ -128,7 +125,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
       deprecated: file.deprecated,
       comments: fileComments,
       source: locationToSource(fileName, locIndex.get("")),
-      sourceLink: sourceLinkFor(fileName, locationToSource(fileName, locIndex.get("")), options.source),
+      ...sourceRefs(fileName, locationToSource(fileName, locIndex.get("")), options.source, hasLocalSource),
       options: extractOptions(file.proto.options, "file", optionExtensions, registry, renderers, {
         id: fileId(fileName),
       }),
@@ -191,7 +188,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
         deprecated: message.deprecated,
         comments: loc.comments,
         source: loc.source ? { ...loc.source, fileName } : undefined,
-        sourceLink: sourceLinkFor(fileName, loc.source ? { ...loc.source, fileName } : undefined, options.source),
+        ...sourceRefs(fileName, loc.source ? { ...loc.source, fileName } : undefined, options.source, hasLocalSource),
         options: extractOptions(message.proto.options, "message", optionExtensions, registry, renderers, { id }),
         references: [],
         referencedBy: [],
@@ -272,10 +269,11 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
           deprecated: field.deprecated,
           comments: fieldLoc.comments,
           source: fieldLoc.source ? { ...fieldLoc.source, fileName } : undefined,
-          sourceLink: sourceLinkFor(
+          ...sourceRefs(
             fileName,
             fieldLoc.source ? { ...fieldLoc.source, fileName } : undefined,
             options.source,
+            hasLocalSource,
           ),
           options: extractOptions(field.proto.options, "field", optionExtensions, registry, renderers, { id: fid }),
           references: [],
@@ -350,7 +348,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
         deprecated: enumDesc.deprecated,
         comments: loc.comments,
         source: loc.source ? { ...loc.source, fileName } : undefined,
-        sourceLink: sourceLinkFor(fileName, loc.source ? { ...loc.source, fileName } : undefined, options.source),
+        ...sourceRefs(fileName, loc.source ? { ...loc.source, fileName } : undefined, options.source, hasLocalSource),
         options: extractOptions(enumDesc.proto.options, "enum", optionExtensions, registry, renderers, { id }),
         references: [],
         referencedBy: [],
@@ -436,7 +434,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
         deprecated: ext.deprecated,
         comments: loc.comments,
         source: loc.source ? { ...loc.source, fileName } : undefined,
-        sourceLink: sourceLinkFor(fileName, loc.source ? { ...loc.source, fileName } : undefined, options.source),
+        ...sourceRefs(fileName, loc.source ? { ...loc.source, fileName } : undefined, options.source, hasLocalSource),
         options: extractOptions(ext.proto.options, "field", optionExtensions, registry, renderers, { id }),
         references: [],
         referencedBy: [],
@@ -473,7 +471,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
         deprecated: service.deprecated,
         comments: loc.comments,
         source: loc.source ? { ...loc.source, fileName } : undefined,
-        sourceLink: sourceLinkFor(fileName, loc.source ? { ...loc.source, fileName } : undefined, options.source),
+        ...sourceRefs(fileName, loc.source ? { ...loc.source, fileName } : undefined, options.source, hasLocalSource),
         options: extractOptions(service.proto.options, "service", optionExtensions, registry, renderers, { id }),
         references: [],
         referencedBy: [],
@@ -504,10 +502,11 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
           deprecated: method.deprecated,
           comments: methodLoc.comments,
           source: methodLoc.source ? { ...methodLoc.source, fileName } : undefined,
-          sourceLink: sourceLinkFor(
+          ...sourceRefs(
             fileName,
             methodLoc.source ? { ...methodLoc.source, fileName } : undefined,
             options.source,
+            hasLocalSource,
           ),
           options: extractOptions(method.proto.options, "method", optionExtensions, registry, renderers, { id: mid }),
           references: [],
@@ -742,7 +741,7 @@ function promoteReferencedPages(model: SchemaModel): void {
     });
     if (referencedFromDocumented && symbol.domain !== "external-documented" && symbol.domain !== "well-known") {
       symbol.generatePage = true;
-      symbol.inNav = symbol.domain === "well-known" ? true : false;
+      symbol.inNav = false;
     }
   }
 }
@@ -875,43 +874,22 @@ function idempotencyName(value: MethodOptions_IdempotencyLevel): string | undefi
   }
 }
 
-function sourceLinkFor(
+function sourceRefs(
   fileName: string,
   source: { startLine: number; fileName?: string } | undefined,
-  config?: SourceLinkConfig,
-): SourceLink | undefined {
-  if (!config?.repository && !config?.urlTemplate) {
-    return undefined;
-  }
+  config: SourceLinkConfig | undefined,
+  hasLocalSource: boolean,
+): { sourceLink?: SourceLink; repositoryLink?: SourceLink } {
   const line = source?.startLine ?? 1;
-  const url = buildSourceUrl(config, fileName, line);
-  if (!url) {
-    return undefined;
+  const repoUrl = repositoryBlobUrl(config, fileName, line);
+  const repositoryLink = repoUrl ? { label: `${fileName}:${line}`, url: repoUrl } : undefined;
+  if (hasLocalSource) {
+    return {
+      sourceLink: { label: `${fileName}:${line}`, url: fileSourcePath(fileName, line) },
+      repositoryLink,
+    };
   }
-  return { label: `${fileName}:${line}`, url };
-}
-
-function buildSourceUrl(config: SourceLinkConfig, fileName: string, line: number): string | undefined {
-  if (config.urlTemplate) {
-    return config.urlTemplate
-      .replaceAll("{file}", fileName)
-      .replaceAll("{line}", String(line))
-      .replaceAll("{commit}", config.commit ?? "HEAD");
-  }
-  const repo = config.repository ?? "";
-  const commit = config.commit ?? "HEAD";
-  const github = repo.match(/^github:([^/]+\/[^/]+)$/) ?? repo.match(/^https?:\/\/github\.com\/([^/]+\/[^/]+?)(?:\.git)?$/);
-  if (github) {
-    return `https://github.com/${github[1]}/blob/${commit}/${fileName}#L${line}`;
-  }
-  const gitlab = repo.match(/^https?:\/\/gitlab\.com\/([^/]+\/[^/]+?)(?:\.git)?$/);
-  if (gitlab) {
-    return `https://gitlab.com/${gitlab[1]}/-/blob/${commit}/${fileName}#L${line}`;
-  }
-  if (repo.startsWith("http")) {
-    return `${repo.replace(/\/$/, "")}/${fileName}#L${line}`;
-  }
-  return undefined;
+  return { sourceLink: repositoryLink };
 }
 
 function sortByName<T extends { fullName: string }>(items: T[]): T[] {

@@ -37,8 +37,19 @@ const { symbol } = Astro.props;
     }
     {
       symbol.sourceLink && (
-        <a class="rounded-full border border-[color:var(--line)] px-2 py-0.5 no-underline text-[color:var(--fg)]" href={symbol.sourceLink.url}>
+        <a class="rounded-full border border-[color:var(--line)] px-2 py-0.5 no-underline text-[color:var(--fg)]" href={symbol.sourceLink.url.startsWith("http") ? symbol.sourceLink.url : withBase(symbol.sourceLink.url)}>
           View source
+        </a>
+      )
+    }
+    {
+      symbol.repositoryLink && (
+        <a
+          class="rounded-full border border-[color:var(--line)] px-2 py-0.5 no-underline text-[color:var(--fg)]"
+          href={symbol.repositoryLink.url}
+          rel="noopener noreferrer"
+        >
+          {symbol.repositoryLink.url.includes("gitlab") ? "View on GitLab" : "View on GitHub"}
         </a>
       )
     }
