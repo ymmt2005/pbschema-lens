@@ -3,12 +3,12 @@ import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import type { SchemaModel } from "../core/types.js";
 import { packageRoot } from "./compile.js";
-import type { ProtolensConfig } from "./config.js";
+import type { PbSchemaLensConfig } from "./config.js";
 
 export interface GenerateSiteOptions {
   model: SchemaModel;
   outDir: string;
-  config: ProtolensConfig;
+  config: PbSchemaLensConfig;
   descriptorBytes?: Uint8Array;
   timings: Record<string, number>;
 }
@@ -35,13 +35,13 @@ export async function generateSite(options: GenerateSiteOptions): Promise<void> 
   await writeArtifacts(outDir, options);
 }
 
-async function runAstro(siteRoot: string, outDir: string, config: ProtolensConfig): Promise<void> {
+async function runAstro(siteRoot: string, outDir: string, config: PbSchemaLensConfig): Promise<void> {
   const env = {
     ...process.env,
-    PROTOLENS_OUT: outDir,
-    PROTOLENS_BASE: config.base || "/",
-    PROTOLENS_SITE_URL: config.siteUrl ?? "",
-    PROTOLENS_DATA_FILE: join(siteRoot, "src/data/generated.json"),
+    PBSCHEMA_LENS_OUT: outDir,
+    PBSCHEMA_LENS_BASE: config.base || "/",
+    PBSCHEMA_LENS_SITE_URL: config.siteUrl ?? "",
+    PBSCHEMA_LENS_DATA_FILE: join(siteRoot, "src/data/generated.json"),
   };
   const bin = join(packageRoot(), "node_modules/.bin/astro");
   await new Promise<void>((resolvePromise, reject) => {

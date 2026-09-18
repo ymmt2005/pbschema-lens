@@ -114,7 +114,7 @@ describe("diff", () => {
       buildInfo: {
         title: "t",
         generatedAt: "",
-        generator: "protolens",
+        generator: "pbschema-lens",
         input: ".",
         symbolCount: 1,
         fileCount: 1,

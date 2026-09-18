@@ -10,11 +10,11 @@ export function loadModel(): SchemaModel {
     return cache;
   }
   const local = join(dirname(fileURLToPath(import.meta.url)), "../data/generated.json");
-  const path = process.env.PROTOLENS_DATA_FILE && existsSync(process.env.PROTOLENS_DATA_FILE)
-    ? process.env.PROTOLENS_DATA_FILE
+  const path = process.env.PBSCHEMA_LENS_DATA_FILE && existsSync(process.env.PBSCHEMA_LENS_DATA_FILE)
+    ? process.env.PBSCHEMA_LENS_DATA_FILE
     : local;
   if (!existsSync(path)) {
-    throw new Error(`Protolens model not found at ${path}. Run the CLI build first.`);
+    throw new Error(`pbschema-lens model not found at ${path}. Run the CLI build first.`);
   }
   cache = JSON.parse(readFileSync(path, "utf8")) as SchemaModel;
   return cache;

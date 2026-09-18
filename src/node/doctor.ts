@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { compileInput, resolveBufBin, runBuf } from "./compile.js";
-import { loadConfig, type ProtolensConfig } from "./config.js";
+import { loadConfig, type PbSchemaLensConfig } from "./config.js";
 import { loadRegistryFromBytes } from "../core/registry.js";
 import { buildModel } from "../core/model.js";
 
@@ -11,7 +11,7 @@ export interface DoctorFinding {
   message: string;
 }
 
-export async function doctor(cwd: string, input: string, config: ProtolensConfig): Promise<DoctorFinding[]> {
+export async function doctor(cwd: string, input: string, config: PbSchemaLensConfig): Promise<DoctorFinding[]> {
   const findings: DoctorFinding[] = [];
   const buf = resolveBufBin();
   if (buf) {

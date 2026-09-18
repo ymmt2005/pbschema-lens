@@ -4,10 +4,10 @@ import { pathToFileURL } from "node:url";
 import { buildModel } from "../core/model.js";
 import { loadRegistryFromBytes } from "../core/registry.js";
 import { diffModels } from "../core/diff.js";
-import type { ProtolensPlugin, SchemaModel } from "../core/types.js";
+import type { PbSchemaLensPlugin, SchemaModel } from "../core/types.js";
 import { collectBreaking } from "./breaking.js";
 import { compileInput } from "./compile.js";
-import type { ProtolensConfig } from "./config.js";
+import type { PbSchemaLensConfig } from "./config.js";
 import { generateSite } from "./generate-site.js";
 import { detectGitInfo } from "./git.js";
 import { loadSourceTexts } from "./sources.js";
@@ -15,7 +15,7 @@ import { loadSourceTexts } from "./sources.js";
 export interface BuildOptions {
   input: string;
   outDir: string;
-  config: ProtolensConfig;
+  config: PbSchemaLensConfig;
   against?: string;
   againstLabel?: string;
   cwd: string;
@@ -105,11 +105,11 @@ export async function buildDocumentation(options: BuildOptions): Promise<SchemaM
   return model;
 }
 
-async function loadPlugins(specs: string[], cwd: string): Promise<ProtolensPlugin[]> {
-  const plugins: ProtolensPlugin[] = [];
+async function loadPlugins(specs: string[], cwd: string): Promise<PbSchemaLensPlugin[]> {
+  const plugins: PbSchemaLensPlugin[] = [];
   for (const spec of specs) {
     const url = spec.startsWith("file:") ? spec : pathToFileURL(resolve(cwd, spec)).href;
-    const mod = (await import(url)) as { default?: ProtolensPlugin; plugin?: ProtolensPlugin };
+    const mod = (await import(url)) as { default?: PbSchemaLensPlugin; plugin?: PbSchemaLensPlugin };
     const plugin = mod.default ?? mod.plugin;
     if (!plugin) {
       throw new Error(`Plugin ${spec} did not export a plugin`);

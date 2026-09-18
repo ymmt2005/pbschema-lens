@@ -18,7 +18,7 @@ import Layout from "../layouts/Layout.astro";
       if (!file) return;
       const bytes = new Uint8Array(await file.arrayBuffer());
       try {
-        const { loadRegistryFromBytes, buildModel } = await import("protolens/core");
+        const { loadRegistryFromBytes, buildModel } = await import("pbschema-lens/core");
         const registry = loadRegistryFromBytes(bytes);
         const model = buildModel(registry, {
           title: file.name,

@@ -3,7 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "protolens/core": ["../src/core/index.ts"]
+      "pbschema-lens/core": ["../src/core/index.ts"]
     }
   }
 }

@@ -25,7 +25,7 @@ import type {
   DocPackage,
   DocService,
   DocSymbol,
-  ProtolensPlugin,
+  PbSchemaLensPlugin,
   ScalarName,
   SchemaModel,
   SourceLink,
@@ -54,7 +54,7 @@ export interface BuildModelOptions {
   classification: ClassificationConfig;
   source?: SourceLinkConfig;
   sourceTexts?: Record<string, string>;
-  plugins?: ProtolensPlugin[];
+  plugins?: PbSchemaLensPlugin[];
   timings?: Record<string, number>;
   warnings?: string[];
   commit?: string;
@@ -646,7 +646,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
     buildInfo: {
       title: options.title,
       generatedAt: new Date().toISOString(),
-      generator: "protolens",
+      generator: "pbschema-lens",
       input: options.inputLabel,
       commit: options.commit,
       repository: options.source?.repository,

@@ -1,4 +1,4 @@
-import type { DocOption, ProtolensPlugin, SemanticPresentation, SemanticOptionRenderer } from "./types.js";
+import type { DocOption, PbSchemaLensPlugin, SemanticPresentation, SemanticOptionRenderer } from "./types.js";
 
 const httpRenderer: SemanticOptionRenderer = {
   id: "google.api.http",
@@ -70,7 +70,7 @@ const fieldBehaviorRenderer: SemanticOptionRenderer = {
   },
 };
 
-export const builtinPlugins: ProtolensPlugin[] = [
+export const builtinPlugins: PbSchemaLensPlugin[] = [
   {
     name: "builtin",
     semanticOptionRenderers: [httpRenderer, validationRenderer, fieldBehaviorRenderer, deprecatedRenderer],

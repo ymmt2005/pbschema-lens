@@ -391,7 +391,7 @@ export interface PageContributor {
   contribute(symbol: DocSymbol, model: SchemaModel): PageContribution[];
 }
 
-export interface ProtolensPlugin {
+export interface PbSchemaLensPlugin {
   name: string;
   semanticOptionRenderers?: SemanticOptionRenderer[];
   externalLinkResolvers?: ExternalLinkResolver[];

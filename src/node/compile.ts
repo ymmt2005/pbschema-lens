@@ -42,7 +42,7 @@ export async function compileInput(input: string): Promise<CompiledSchema> {
     };
   }
   const workDir = kind === "buf" ? abs : await materializeBufWorkspace(abs);
-  const out = join(await mkdtemp(join(tmpdir(), "protolens-")), "schema.binpb");
+  const out = join(await mkdtemp(join(tmpdir(), "pbschema-lens-")), "schema.binpb");
   await runBuf(workDir, ["build", "--as-file-descriptor-set", "-o", out]);
   const localFiles = await listProtoFiles(kind === "buf" ? abs : abs);
   return {
@@ -78,7 +78,7 @@ async function materializeBufWorkspace(protoDir: string): Promise<string> {
   if (existsSync(join(abs, "buf.yaml"))) {
     return abs;
   }
-  const temp = await mkdtemp(join(tmpdir(), "protolens-mod-"));
+  const temp = await mkdtemp(join(tmpdir(), "pbschema-lens-mod-"));
   const yaml = `version: v2\nmodules:\n  - path: proto\n`;
   await writeFile(join(temp, "buf.yaml"), yaml);
   const protoRoot = join(temp, "proto");

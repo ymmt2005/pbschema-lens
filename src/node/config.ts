@@ -47,9 +47,16 @@ export const ConfigSchema = z.object({
   playground: z.boolean().default(false),
 });
 
-export type ProtolensConfig = z.infer<typeof ConfigSchema>;
+export type PbSchemaLensConfig = z.infer<typeof ConfigSchema>;
 
-export const CONFIG_FILENAMES = ["protolens.yaml", "protolens.yml", "protodoc.yaml", "protodoc.yml"];
+export const CONFIG_FILENAMES = [
+  "pbschema-lens.yaml",
+  "pbschema-lens.yml",
+  "protolens.yaml",
+  "protolens.yml",
+  "protodoc.yaml",
+  "protodoc.yml",
+];
 
 export function findConfigFile(cwd: string): string | undefined {
   for (const name of CONFIG_FILENAMES) {
@@ -61,7 +68,7 @@ export function findConfigFile(cwd: string): string | undefined {
   return undefined;
 }
 
-export function loadConfig(cwd: string, explicit?: string, extraDirs: string[] = []): { path?: string; config: ProtolensConfig } {
+export function loadConfig(cwd: string, explicit?: string, extraDirs: string[] = []): { path?: string; config: PbSchemaLensConfig } {
   const path = explicit
     ? resolve(cwd, explicit)
     : extraDirs.concat(cwd).map(findConfigFile).find(Boolean);

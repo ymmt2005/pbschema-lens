@@ -10,7 +10,7 @@ import { doctor } from "./node/doctor.js";
 import { initProject } from "./node/init.js";
 
 const program = new Command();
-program.name("protolens").description("Static schema explorer for Protocol Buffers").version("0.1.0");
+program.name("pbschema-lens").description("Static schema explorer for Protocol Buffers").version("0.1.0");
 
 program
   .command("build")
@@ -54,7 +54,7 @@ program
     const port = Number(flags.port);
     await serve(outDir, port);
     console.log(`Preview: http://127.0.0.1:${port}/`);
-    watch(["**/*.proto", "buf.yaml", "buf.lock", "protolens.yaml"], {
+    watch(["**/*.proto", "buf.yaml", "buf.lock", "pbschema-lens.yaml", "protolens.yaml"], {
       cwd: input,
       ignoreInitial: true,
     }).on("all", () => {
@@ -124,7 +124,7 @@ function resolveRuntime(inputArg: string | undefined, flags: { config?: string; 
 }
 
 function banner(): string {
-  return "protolens — static protobuf schema explorer\n";
+  return "pbschema-lens — static protobuf schema explorer\n";
 }
 
 function printSummary(

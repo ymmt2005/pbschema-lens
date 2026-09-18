@@ -1,4 +1,4 @@
-# Protolens
+# pbschema-lens
 
 An open-source **static schema explorer for Protocol Buffers**.
 
@@ -29,11 +29,11 @@ npx tsx src/cli.ts build schema.binpb --out dist
 
 | Command | Purpose |
 |---|---|
-| `protolens build [input]` | Compile the schema and emit a static site |
-| `protolens dev [input]` | Rebuild on proto changes and preview locally |
-| `protolens doctor [input]` | Check Buf, compilation, options, and source-link config |
-| `protolens diff --against <file>` | Compare two schemas and attach a diff page |
-| `protolens init [--github-pages]` | Write `protolens.yaml` and an optional Pages workflow |
+| `pbschema-lens build [input]` | Compile the schema and emit a static site |
+| `pbschema-lens dev [input]` | Rebuild on proto changes and preview locally |
+| `pbschema-lens doctor [input]` | Check Buf, compilation, options, and source-link config |
+| `pbschema-lens diff --against <file>` | Compare two schemas and attach a diff page |
+| `pbschema-lens init [--github-pages]` | Write `pbschema-lens.yaml` and an optional Pages workflow |
 
 `input` can be:
 
@@ -43,7 +43,7 @@ npx tsx src/cli.ts build schema.binpb --out dist
 
 ## Configuration
 
-`protolens.yaml`:
+`pbschema-lens.yaml` (legacy `protolens.yaml` / `protodoc.yaml` filenames are still read):
 
 ```yaml
 title: "Acme Protobuf API"
@@ -96,7 +96,7 @@ Every important flag also has a CLI equivalent (`--out`, `--base`, `--title`, `-
 
 ## Architecture
 
-Compilation is Buf's job. Protolens consumes `google.protobuf.FileDescriptorSet`, builds a renderer-independent symbol model with Protobuf-ES, then emits an Astro static site. Starlight is not used: pages are generated from the model via `getStaticPaths()`, not from markdown files.
+Compilation is Buf's job. pbschema-lens consumes `google.protobuf.FileDescriptorSet`, builds a renderer-independent symbol model with Protobuf-ES, then emits an Astro static site. Starlight is not used: pages are generated from the model via `getStaticPaths()`, not from markdown files.
 
 Comments are treated as untrusted data. They are rendered as Markdown with a sanitized HTML allowlist. They are never compiled as MDX or JavaScript.
 

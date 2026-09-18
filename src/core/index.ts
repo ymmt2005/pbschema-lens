@@ -3,7 +3,7 @@ export type {
   SymbolKind,
   SchemaModel,
   DocSymbol,
-  ProtolensPlugin,
+  PbSchemaLensPlugin,
   SemanticOptionRenderer,
   SchemaDiff,
 } from "./types.js";

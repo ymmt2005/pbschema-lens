@@ -35,8 +35,8 @@ artifacts:
 #   - package: "acme.identity.**"
 #     urlTemplate: "https://docs.example.com/identity/reference/{symbol}"
 `;
-  await writeFile(join(cwd, "protolens.yaml"), config);
-  written.push("protolens.yaml");
+  await writeFile(join(cwd, "pbschema-lens.yaml"), config);
+  written.push("pbschema-lens.yaml");
 
   if (options.githubPages) {
     const workflowDir = join(cwd, ".github/workflows");
@@ -50,7 +50,7 @@ on:
       - "**/*.proto"
       - "buf.yaml"
       - "buf.lock"
-      - "protolens.yaml"
+      - "pbschema-lens.yaml"
       - ".github/workflows/protobuf-docs.yml"
 
 permissions:
@@ -69,7 +69,7 @@ jobs:
       - name: Install
         run: npm ci
       - name: Build protobuf documentation
-        run: npx protolens build . --out dist
+        run: npx pbschema-lens build . --out dist
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

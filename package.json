@@ -1,10 +1,10 @@
 {
-  "name": "protolens",
+  "name": "pbschema-lens",
   "version": "0.1.0",
   "description": "Open-source static schema explorer for Protocol Buffers",
   "type": "module",
   "bin": {
-    "protolens": "./dist/cli.js"
+    "pbschema-lens": "./dist/cli.js"
   },
   "exports": {
     ".": {
