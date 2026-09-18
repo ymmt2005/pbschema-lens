@@ -6,6 +6,14 @@ Point it at a Buf workspace, a directory of `.proto` files, or a `FileDescriptor
 
 The generated site is a graph over the schema: services, RPCs, messages, fields, enums, extensions, custom options, well-known types, reverse "used by" references, and two-layer search.
 
+A live build of the bundled [`examples/acme`](examples/acme) API is on [GitHub Pages](https://ymmt2005.github.io/pbschema-lens/):
+
+<p align="center">
+  <a href="https://ymmt2005.github.io/pbschema-lens/">
+    <img src="docs/screenshots/home.png" alt="Home page of the generated Acme Protobuf API docs" width="900">
+  </a>
+</p>
+
 ## Quick start
 
 ```bash
@@ -114,4 +122,4 @@ npx tsc -p tsconfig.json --noEmit
 npx tsx src/cli.ts doctor examples/acme
 ```
 
-The example API lives in `examples/acme`. GitHub Pages wiring is in `examples/github-pages`.
+The example API lives in `examples/acme` and is published to [GitHub Pages](https://ymmt2005.github.io/pbschema-lens/) after CI tests pass. The `pbschema-lens init --github-pages` template is documented in `examples/github-pages`.
