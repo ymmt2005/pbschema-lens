@@ -1,7 +1,6 @@
 node_modules/
 dist/
 .pbschema-lens/
-.protolens/
 examples/acme/dist/
 *.tsbuildinfo
 .DS_Store

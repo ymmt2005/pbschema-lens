@@ -54,7 +54,7 @@ program
     const port = Number(flags.port);
     await serve(outDir, port);
     console.log(`Preview: http://127.0.0.1:${port}/`);
-    watch(["**/*.proto", "buf.yaml", "buf.lock", "pbschema-lens.yaml", "protolens.yaml"], {
+    watch(["**/*.proto", "buf.yaml", "buf.lock", "pbschema-lens.yaml", "pbschema-lens.yml"], {
       cwd: input,
       ignoreInitial: true,
     }).on("all", () => {

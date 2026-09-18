@@ -49,14 +49,7 @@ export const ConfigSchema = z.object({
 
 export type PbSchemaLensConfig = z.infer<typeof ConfigSchema>;
 
-export const CONFIG_FILENAMES = [
-  "pbschema-lens.yaml",
-  "pbschema-lens.yml",
-  "protolens.yaml",
-  "protolens.yml",
-  "protodoc.yaml",
-  "protodoc.yml",
-];
+export const CONFIG_FILENAMES = ["pbschema-lens.yaml", "pbschema-lens.yml"];
 
 export function findConfigFile(cwd: string): string | undefined {
   for (const name of CONFIG_FILENAMES) {

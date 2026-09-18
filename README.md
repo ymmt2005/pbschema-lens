@@ -43,7 +43,7 @@ npx tsx src/cli.ts build schema.binpb --out dist
 
 ## Configuration
 
-`pbschema-lens.yaml` (legacy `protolens.yaml` / `protodoc.yaml` filenames are still read):
+`pbschema-lens.yaml`:
 
 ```yaml
 title: "Acme Protobuf API"
