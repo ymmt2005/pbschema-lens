@@ -1,0 +1,10 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { withBase } from "../lib/data.ts";
+---
+
+<Layout title="Not found">
+  <h1 class="text-3xl font-semibold mb-3">Page not found</h1>
+  <p class="text-[color:var(--fg-muted)] mb-4">That protobuf symbol is not in this documentation build.</p>
+  <p><a href={withBase("/")}>Back to the catalog</a></p>
+</Layout>

@@ -1,0 +1,24 @@
+syntax = "proto2";
+
+package fixtures.proto2;
+
+// A proto2 message with required fields and extensions.
+message LegacyUser {
+  required string id = 1;
+  optional string name = 2 [default = "anonymous"];
+  optional bool active = 3 [default = true];
+  extensions 100 to 199;
+  reserved 10 to 20;
+  reserved "legacy_token";
+}
+
+extend LegacyUser {
+  optional int32 extra_id = 100;
+}
+
+enum LegacyState {
+  option allow_alias = true;
+  LEGACY_STATE_UNSPECIFIED = 0;
+  LEGACY_STATE_OK = 1;
+  LEGACY_STATE_GOOD = 1;
+}

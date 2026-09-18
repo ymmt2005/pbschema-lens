@@ -1,0 +1,15 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { loadModel } from "../lib/data.ts";
+
+const model = loadModel();
+---
+
+<Layout title="Search">
+  <h1 class="text-3xl font-semibold mb-3">Search</h1>
+  <p class="text-[color:var(--fg-muted)] mb-6">
+    Symbol search ranks exact protobuf names first. Full-text search covers comments, option values, and semantic notes.
+    Use <kbd class="border border-[color:var(--line)] rounded px-1">/</kbd> from any page.
+  </p>
+  <p class="text-sm">This schema indexes {model.symbolIndex.length} symbols across {model.packages.length} packages.</p>
+</Layout>

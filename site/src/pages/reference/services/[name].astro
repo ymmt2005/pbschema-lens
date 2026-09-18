@@ -1,0 +1,65 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import SymbolHeader from "../../../components/SymbolHeader.astro";
+import OptionList from "../../../components/OptionList.astro";
+import UsedBy from "../../../components/UsedBy.astro";
+import FeatureList from "../../../components/FeatureList.astro";
+import { loadModel } from "../../../lib/data.ts";
+import { symbolHref, typeHref } from "../../../lib/format.ts";
+
+export function getStaticPaths() {
+  return loadModel()
+    .services.filter((item) => item.generatePage)
+    .map((item) => ({ params: { name: item.fullName } }));
+}
+
+const model = loadModel();
+const service = model.services.find((item) => item.fullName === Astro.params.name);
+if (!service) throw new Error("Missing service");
+const methods = service.methodIds.map((id) => model.methods.find((item) => item.id === id)!).filter(Boolean);
+---
+
+<Layout title={service.fullName}>
+  <SymbolHeader symbol={service} />
+  <div class="table-wrap mb-8">
+    <table class="fields">
+      <thead>
+        <tr>
+          <th>RPC</th>
+          <th>Request</th>
+          <th>Response</th>
+          <th>Streaming</th>
+        </tr>
+      </thead>
+      <tbody>
+        {methods.map((method) => (
+          <tr id={method.anchor}>
+            <td>
+              <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${method.anchor}`}>{method.shortName}</a>
+              {method.deprecated ? <div class="text-xs text-red-700">deprecated</div> : null}
+            </td>
+            <td class="font-mono text-xs">{typeHref(method.input) ? <a href={typeHref(method.input)}>{method.input.name}</a> : method.input.name}</td>
+            <td class="font-mono text-xs">{typeHref(method.output) ? <a href={typeHref(method.output)}>{method.output.name}</a> : method.output.name}</td>
+            <td class="text-xs">{method.streamingKind.replaceAll("_", " ")}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  {methods.map((method) => (
+    <article id={method.anchor} class="mb-8 rounded-xl border border-[color:var(--line)] p-4 bg-[color:var(--bg-raised)]">
+      <h2 class="font-semibold">{method.shortName}</h2>
+      <pre class="proto mt-3">{method.signature}</pre>
+      {method.comments?.markdownHtml && <div class="prose-doc mt-3 text-sm" set:html={method.comments.markdownHtml} />}
+      <p class="text-sm mt-3">
+        Request: {typeHref(method.input) ? <a href={typeHref(method.input)}>{method.input.name}</a> : method.input.name}
+        {" · "}
+        Response: {typeHref(method.output) ? <a href={typeHref(method.output)}>{method.output.name}</a> : method.output.name}
+      </p>
+      {method.idempotency && <p class="text-xs text-[color:var(--fg-muted)]">Idempotency: {method.idempotency}</p>}
+      <OptionList options={method.options} />
+    </article>
+  ))}
+  <OptionList options={service.options} />
+  <UsedBy symbol={service} model={model} />
+</Layout>

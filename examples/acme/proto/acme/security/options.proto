@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package acme.security;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "acme.example/security;security";
+
+// Classification for fields that store personally identifiable information.
+enum Redaction {
+  REDACTION_UNSPECIFIED = 0;
+  REDACTION_MASK = 1;
+  REDACTION_HASH = 2;
+  REDACTION_DROP = 3;
+}
+
+message PiiRule {
+  bool sensitive = 1;
+  Redaction redaction = 2;
+  string policy = 3;
+}
+
+// Marks a field as personally identifiable information.
+//
+// Apply this option to any field that must be treated as PII in logs,
+// analytics exports, and support tooling.
+extend google.protobuf.FieldOptions {
+  PiiRule pii = 50001;
+}
+
+extend google.protobuf.MessageOptions {
+  bool audit_required = 50002;
+}
+
+extend google.protobuf.FileOptions {
+  string owner = 50003;
+}

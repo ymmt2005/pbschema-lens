@@ -1,0 +1,58 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import OptionList from "../../../components/OptionList.astro";
+import UsedBy from "../../../components/UsedBy.astro";
+import { loadModel, withBase } from "../../../lib/data.ts";
+import { symbolHref } from "../../../lib/format.ts";
+
+export function getStaticPaths() {
+  const model = loadModel();
+  return model.packages
+    .filter((item) => item.generatePage)
+    .map((pkg) => ({ params: { pkg: pkg.fullName } }));
+}
+
+const model = loadModel();
+const pkg = model.packages.find((item) => item.fullName === Astro.params.pkg);
+if (!pkg) {
+  throw new Error("Missing package");
+}
+const services = pkg.serviceIds.map((id) => model.symbols[id]).filter((item) => item?.generatePage);
+const messages = pkg.messageIds.map((id) => model.symbols[id]).filter((item) => item?.generatePage);
+const enums = pkg.enumIds.map((id) => model.symbols[id]).filter((item) => item?.generatePage);
+const extensions = pkg.extensionIds.map((id) => model.symbols[id]).filter((item) => item?.generatePage);
+---
+
+<Layout title={pkg.fullName} description={`Package ${pkg.fullName}`}>
+  <p class="text-xs uppercase tracking-wider text-[color:var(--accent)] font-semibold">Package</p>
+  <h1 class="text-3xl font-semibold mt-1 break-all">{pkg.fullName}</h1>
+  {pkg.comments?.markdownHtml && <div class="prose-doc mt-4" set:html={pkg.comments.markdownHtml} />}
+
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold mb-2">Services</h2>
+    {services.length === 0 ? <p class="text-sm text-[color:var(--fg-muted)]">No services in this package.</p> : (
+      <ul class="space-y-1">{services.map((item) => <li><a href={symbolHref(item)}>{item.shortName}</a></li>)}</ul>
+    )}
+  </section>
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold mb-2">Messages</h2>
+    <ul class="columns-1 sm:columns-2 gap-6 space-y-1">
+      {messages.map((item) => <li><a href={symbolHref(item)}>{item.fullName.replace(`${pkg.fullName}.`, "")}</a></li>)}
+    </ul>
+    {messages.length === 0 && <p class="text-sm text-[color:var(--fg-muted)]">No messages in this package.</p>}
+  </section>
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold mb-2">Enums</h2>
+    {enums.length === 0 ? <p class="text-sm text-[color:var(--fg-muted)]">No enums in this package.</p> : (
+      <ul class="space-y-1">{enums.map((item) => <li><a href={symbolHref(item)}>{item.shortName}</a></li>)}</ul>
+    )}
+  </section>
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold mb-2">Extensions</h2>
+    {extensions.length === 0 ? <p class="text-sm text-[color:var(--fg-muted)]">No extensions in this package.</p> : (
+      <ul class="space-y-1">{extensions.map((item) => <li><a href={symbolHref(item)}>{item.fullName}</a></li>)}</ul>
+    )}
+  </section>
+  <OptionList options={pkg.options} />
+  <UsedBy symbol={pkg} model={model} />
+</Layout>

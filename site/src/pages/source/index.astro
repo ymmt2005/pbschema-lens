@@ -1,0 +1,26 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { loadModel, withBase } from "../../lib/data.ts";
+
+const model = loadModel();
+---
+
+<Layout title="Source">
+  <h1 class="text-3xl font-semibold mb-4">Source</h1>
+  <p class="text-[color:var(--fg-muted)] mb-4">Embedded .proto sources for this schema.</p>
+  <ul class="space-y-1">
+    {
+      model.files.filter((item) => item.sourceText).map((item) => (
+        <li>
+          <a href={withBase(item.urlPath)}>{item.fullName}</a>
+          <span class="text-xs text-[color:var(--fg-muted)]"> · {item.syntax}{item.edition ? ` ${item.edition}` : ""}</span>
+        </li>
+      ))
+    }
+  </ul>
+  {
+    model.files.every((item) => !item.sourceText) && (
+      <p>No source text was available. Descriptor-only builds omit the source browser.</p>
+    )
+  }
+</Layout>

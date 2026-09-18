@@ -1,0 +1,88 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { loadModel, withBase } from "../lib/data.ts";
+
+const model = loadModel();
+const local = model.packages.filter((item) => item.domain === "local" && item.inNav);
+const wkt = model.packages.filter((item) => item.domain === "well-known");
+---
+
+<Layout description="Static Protocol Buffers schema explorer">
+  <p class="text-xs uppercase tracking-[0.18em] text-[color:var(--accent)] font-semibold">Static schema explorer</p>
+  <h1 class="text-4xl font-semibold mt-2 mb-4">{model.title}</h1>
+  <p class="text-lg text-[color:var(--fg-muted)] max-w-2xl">
+    Browse services, messages, enums, and custom options as a fully static site. No schema registry or documentation
+    server is required.
+  </p>
+
+  <dl class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-8">
+    <div class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4">
+      <dt class="text-xs text-[color:var(--fg-muted)]">Symbols</dt>
+      <dd class="text-2xl font-semibold">{model.buildInfo.symbolCount}</dd>
+    </div>
+    <div class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4">
+      <dt class="text-xs text-[color:var(--fg-muted)]">Files</dt>
+      <dd class="text-2xl font-semibold">{model.buildInfo.fileCount}</dd>
+    </div>
+    <div class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4">
+      <dt class="text-xs text-[color:var(--fg-muted)]">Services</dt>
+      <dd class="text-2xl font-semibold">{model.services.filter((item) => item.domain === "local").length}</dd>
+    </div>
+    <div class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4">
+      <dt class="text-xs text-[color:var(--fg-muted)]">Custom options</dt>
+      <dd class="text-2xl font-semibold">{model.extensions.filter((item) => item.optionTarget).length}</dd>
+    </div>
+  </dl>
+
+  <section class="mb-10">
+    <h2 class="text-xl font-semibold mb-3">Packages</h2>
+    {
+      local.length === 0 ? (
+        <p class="text-[color:var(--fg-muted)]">No project packages matched the documentation include rules.</p>
+      ) : (
+        <ul class="grid sm:grid-cols-2 gap-3">
+          {local.map((pkg) => (
+            <li class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4">
+              <a class="font-semibold no-underline text-[color:var(--fg)]" href={withBase(pkg.urlPath)}>
+                {pkg.fullName}
+              </a>
+              <p class="text-sm text-[color:var(--fg-muted)] mt-1">
+                {pkg.serviceIds.length} services · {pkg.messageIds.length} messages · {pkg.enumIds.length} enums
+              </p>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+
+  {
+    wkt.length > 0 && (
+      <section>
+        <h2 class="text-xl font-semibold mb-3">Protobuf standard library</h2>
+        <ul class="flex flex-wrap gap-2">
+          {wkt.map((pkg) => (
+            <li>
+              <a class="rounded-full border border-[color:var(--line)] px-3 py-1 text-sm no-underline text-[color:var(--fg)]" href={withBase(pkg.urlPath)}>
+                {pkg.fullName}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  {
+    model.buildInfo.warnings.length > 0 && (
+      <section class="mt-10">
+        <h2 class="text-xl font-semibold mb-3">Build warnings</h2>
+        <ul class="text-sm text-amber-800 dark:text-amber-200 space-y-1">
+          {model.buildInfo.warnings.map((warning) => (
+            <li>{warning}</li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+</Layout>

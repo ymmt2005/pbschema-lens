@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.protolens/
+examples/acme/dist/
+*.tsbuildinfo
+.DS_Store
+site/src/data/generated.json
+site/src/data/generated-diff.json
+site/dist/
+.astro/
+agent-tools/
+uploads/

@@ -1,0 +1,281 @@
+---
+import "../styles/global.css";
+import { loadModel, withBase } from "../lib/data.ts";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const model = loadModel();
+const pageTitle = title ? `${title} · ${model.title}` : model.title;
+const localPackages = model.packages.filter((item) => item.inNav && item.domain === "local");
+const wktPackages = model.packages.filter((item) => item.domain === "well-known");
+const current = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      try {
+        if (localStorage.getItem("protolens-theme") === "dark") {
+          document.documentElement.classList.add("dark");
+        }
+      } catch {}
+    </script>
+  </head>
+  <body class="min-h-screen">
+    <div class="lg:grid lg:grid-cols-[18rem_1fr] min-h-screen">
+      <aside
+        id="sidebar"
+        class="hidden lg:flex flex-col border-r border-[color:var(--line)] bg-[color:var(--bg-raised)] px-4 py-5 gap-6"
+      >
+        <a href={withBase("/")} class="no-underline text-[color:var(--fg)]">
+          <div class="text-[11px] uppercase tracking-[0.18em] text-[color:var(--accent)] font-semibold">Protolens</div>
+          <div class="text-lg font-semibold leading-tight mt-1">{model.title}</div>
+        </a>
+        <nav class="text-sm space-y-4 overflow-y-auto">
+          <div>
+            <div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div>
+            <ul class="space-y-1">
+              {
+                localPackages.map((pkg) => (
+                  <li>
+                    <a
+                      class:list={[
+                        "block rounded-md px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)]",
+                        current.includes(`/packages/${encodeURIComponent(pkg.fullName)}/`) && "bg-[color:var(--bg-muted)]",
+                      ]}
+                      href={withBase(pkg.urlPath)}
+                    >
+                      {pkg.fullName}
+                    </a>
+                  </li>
+                ))
+              }
+            </ul>
+            {
+              localPackages.length === 0 && (
+                <p class="text-[color:var(--fg-muted)] px-2">No local packages in this build.</p>
+              )
+            }
+          </div>
+          {
+            wktPackages.length > 0 && (
+              <div>
+                <div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">
+                  Protobuf standard library
+                </div>
+                <ul class="space-y-1">
+                  {wktPackages.map((pkg) => (
+                    <li>
+                      <a class="block rounded-md px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)]" href={withBase(pkg.urlPath)}>
+                        {pkg.fullName}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          }
+          <div>
+            <div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Explore</div>
+            <ul class="space-y-1">
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href={withBase("/explore/")}>Used-by explorer</a></li>
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href={withBase("/graph/")}>Package graph</a></li>
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href={withBase("/search/")}>Search</a></li>
+              {model.files.some((file) => file.sourceText) && (
+                <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href={withBase("/source/")}>Source</a></li>
+              )}
+              {model.diff && (
+                <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href={withBase("/diff/")}>Schema diff</a></li>
+              )}
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href={withBase("/playground/")}>Descriptor playground</a></li>
+            </ul>
+          </div>
+        </nav>
+      </aside>
+      <div class="min-w-0">
+        <header class="sticky top-0 z-20 border-b border-[color:var(--line)] bg-[color:var(--bg)]/90 backdrop-blur">
+          <div class="flex items-center gap-3 px-4 py-3">
+            <button
+              id="menu-btn"
+              class="lg:hidden rounded-md border border-[color:var(--line)] px-2 py-1 text-sm"
+              type="button"
+            >
+              Menu
+            </button>
+            <button
+              id="search-open"
+              class="flex-1 text-left rounded-md border border-[color:var(--line)] bg-[color:var(--bg-raised)] px-3 py-2 text-sm text-[color:var(--fg-muted)]"
+              type="button"
+            >
+              Search symbols and comments…
+              <kbd class="hidden sm:inline float-right text-[11px] border border-[color:var(--line)] rounded px-1">/</kbd>
+            </button>
+            <button id="theme-toggle" class="rounded-md border border-[color:var(--line)] px-2 py-1 text-sm" type="button">
+              Theme
+            </button>
+          </div>
+        </header>
+    <main class="px-4 py-8 sm:px-8 max-w-5xl" data-pagefind-body>
+          <slot />
+        </main>
+      </div>
+    </div>
+
+    <div id="mobile-nav" class="hidden fixed inset-0 z-30 bg-black/50 lg:hidden">
+      <div class="h-full w-72 bg-[color:var(--bg-raised)] p-4 overflow-y-auto">
+        <button id="menu-close" class="mb-4 text-sm" type="button">Close</button>
+        <a href={withBase("/")} class="block font-semibold mb-4 no-underline text-[color:var(--fg)]">{model.title}</a>
+        {
+          localPackages.map((pkg) => (
+            <a class="block py-1 no-underline text-[color:var(--fg)]" href={withBase(pkg.urlPath)}>
+              {pkg.fullName}
+            </a>
+          ))
+        }
+      </div>
+    </div>
+
+    <dialog id="search-dialog" class="w-[min(720px,92vw)] rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-0 text-[color:var(--fg)] shadow-[var(--shadow)]">
+      <div class="p-3 border-b border-[color:var(--line)]">
+        <input
+          id="search-input"
+          class="w-full bg-transparent outline-none text-base"
+          placeholder="Search symbols, comments, options…"
+        />
+        <div id="search-filters" class="flex flex-wrap gap-1 mt-2 text-xs"></div>
+      </div>
+      <div id="search-results" class="max-h-[60vh] overflow-y-auto p-2 text-sm"></div>
+    </dialog>
+
+    <script define:vars={{ base: import.meta.env.BASE_URL }}>
+      const html = document.documentElement;
+      document.getElementById("theme-toggle")?.addEventListener("click", () => {
+        html.classList.toggle("dark");
+        localStorage.setItem("protolens-theme", html.classList.contains("dark") ? "dark" : "light");
+      });
+      const mobile = document.getElementById("mobile-nav");
+      document.getElementById("menu-btn")?.addEventListener("click", () => mobile?.classList.remove("hidden"));
+      document.getElementById("menu-close")?.addEventListener("click", () => mobile?.classList.add("hidden"));
+      const dialog = document.getElementById("search-dialog");
+      const input = document.getElementById("search-input");
+      const results = document.getElementById("search-results");
+      const filters = document.getElementById("search-filters");
+      const kinds = ["all", "service", "method", "message", "field", "enum", "extension", "package"];
+      let activeKind = "all";
+      let symbols = [];
+      const prefix = base.endsWith("/") ? base.slice(0, -1) : base;
+
+      kinds.forEach((kind) => {
+        const btn = document.createElement("button");
+        btn.textContent = kind;
+        btn.className = "rounded-full border border-[color:var(--line)] px-2 py-0.5 capitalize";
+        btn.dataset.kind = kind;
+        btn.addEventListener("click", () => {
+          activeKind = kind;
+          [...filters.children].forEach((child) => child.classList.toggle("bg-[color:var(--bg-muted)]", child.dataset.kind === kind));
+          runSearch();
+        });
+        filters?.append(btn);
+      });
+      filters?.querySelector("button")?.classList.add("bg-[color:var(--bg-muted)]");
+
+      async function ensureIndex() {
+        if (symbols.length) return;
+        const res = await fetch(`${prefix}/assets/protobuf/symbols.json`);
+        symbols = await res.json();
+      }
+
+      function rank(entry, q) {
+        const lower = q.toLowerCase();
+        if (entry.fullName === q) return 100;
+        if (entry.name === q) return 90;
+        if (entry.fullName.toLowerCase() === lower) return 95;
+        if (entry.name.toLowerCase() === lower) return 88;
+        if (entry.fullName.toLowerCase().startsWith(lower) || entry.name.toLowerCase().startsWith(lower)) return 70;
+        if (entry.fullName.toLowerCase().includes(lower) || entry.name.toLowerCase().includes(lower)) return 40;
+        return 0;
+      }
+
+      async function runSearch() {
+        const q = input.value.trim();
+        results.innerHTML = "";
+        if (!q) {
+          results.innerHTML = `<p class="p-3 text-[color:var(--fg-muted)]">Type a protobuf name, or search comments.</p>`;
+          return;
+        }
+        await ensureIndex();
+        const hits = symbols
+          .filter((entry) => activeKind === "all" || entry.kind === activeKind)
+          .map((entry) => ({ entry, score: rank(entry, q) }))
+          .filter((hit) => hit.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 20);
+        if (!hits.length) {
+          results.innerHTML = `<p class="p-3">No symbol matches.</p>`;
+        } else {
+          for (const hit of hits) {
+            const a = document.createElement("a");
+            a.href = `${prefix}${hit.entry.urlPath}`;
+            a.className = "block rounded-md px-3 py-2 hover:bg-[color:var(--bg-muted)] no-underline text-[color:var(--fg)]";
+            a.innerHTML = `<div class="font-mono text-xs text-[color:var(--fg-muted)]">${hit.entry.kind}</div><div>${hit.entry.fullName}</div>`;
+            results.append(a);
+          }
+        }
+        try {
+          const pagefind = await import(`${prefix}/pagefind/pagefind.js`);
+          await pagefind.init();
+          const found = await pagefind.search(q);
+          const data = await Promise.all((found.results ?? []).slice(0, 8).map((item) => item.data()));
+          if (data.length) {
+            const heading = document.createElement("div");
+            heading.className = "px-3 pt-3 text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)]";
+            heading.textContent = "Full-text";
+            results.append(heading);
+            for (const item of data) {
+              const a = document.createElement("a");
+              a.href = item.url;
+              a.className = "block rounded-md px-3 py-2 hover:bg-[color:var(--bg-muted)] no-underline text-[color:var(--fg)]";
+              a.innerHTML = `<div>${item.meta?.title ?? item.url}</div><div class="text-xs text-[color:var(--fg-muted)]">${item.excerpt ?? ""}</div>`;
+              results.append(a);
+            }
+          }
+        } catch {
+          // Pagefind is optional until the index exists.
+        }
+      }
+
+      function openSearch() {
+        dialog.showModal();
+        input.focus();
+        runSearch();
+      }
+      document.getElementById("search-open")?.addEventListener("click", openSearch);
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "/" && event.target === document.body || (event.key === "/" && !(event.target instanceof HTMLInputElement))) {
+          event.preventDefault();
+          openSearch();
+        }
+        if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
+          event.preventDefault();
+          openSearch();
+        }
+      });
+      input?.addEventListener("input", () => runSearch());
+    </script>
+  </body>
+</html>

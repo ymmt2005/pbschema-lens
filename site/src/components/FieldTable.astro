@@ -1,0 +1,81 @@
+---
+import type { DocField, SchemaModel } from "../../../src/core/types.ts";
+import { typeHref } from "../lib/format.ts";
+
+interface Props {
+  fields: DocField[];
+  model: SchemaModel;
+}
+
+const { fields } = Astro.props;
+
+function typeLabel(field: DocField): string {
+  if (field.cardinality === "map") {
+    return `map<${field.mapKey?.name ?? "string"}, ${field.mapValue?.name ?? "string"}>`;
+  }
+  return field.type.name;
+}
+---
+
+<div class="table-wrap">
+  <table class="fields">
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Number</th>
+        <th>Type</th>
+        <th>Cardinality</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        fields.map((field) => {
+          const href = field.cardinality === "map" ? typeHref(field.mapValue) : typeHref(field.type);
+          const badges = field.options.flatMap((option) => option.semantic?.badges ?? []);
+          return (
+            <tr id={field.anchor}>
+              <td>
+                <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${field.anchor}`}>
+                  {field.shortName}
+                </a>
+                {field.deprecated ? <span class="ml-2 text-xs text-red-700">deprecated</span> : null}
+                {field.oneofId ? <div class="text-[11px] text-[color:var(--fg-muted)]">oneof</div> : null}
+              </td>
+              <td class="num">{field.number}</td>
+              <td class="font-mono text-xs">
+                {href ? <a href={href}>{typeLabel(field)}</a> : typeLabel(field)}
+              </td>
+              <td class="text-xs">{field.cardinality}</td>
+              <td>
+                {field.comments?.markdownHtml ? <div class="prose-doc text-sm" set:html={field.comments.markdownHtml} /> : <span class="text-[color:var(--fg-muted)]">—</span>}
+                <details class="mt-2 text-xs">
+                  <summary class="cursor-pointer text-[color:var(--fg-muted)]">Details</summary>
+                  <ul class="mt-2 space-y-1 text-[color:var(--fg-muted)]">
+                    <li>JSON name: <code>{field.jsonName}</code></li>
+                    <li>Presence: {field.presence}</li>
+                    {field.packed !== undefined ? <li>Packed: {String(field.packed)}</li> : null}
+                    {field.defaultValue ? <li>Default: {field.defaultValue}</li> : null}
+                    {badges.length ? <li>Annotations: {badges.join(", ")}</li> : null}
+                  </ul>
+                  {field.options.length > 0 && (
+                    <pre class="option mt-2">{field.options.map((option) => option.textProto).join("\n")}</pre>
+                  )}
+                </details>
+              </td>
+            </tr>
+          );
+        })
+      }
+      {
+        fields.length === 0 && (
+          <tr>
+            <td colspan="5" class="text-[color:var(--fg-muted)]">
+              This message has no fields.
+            </td>
+          </tr>
+        )
+      }
+    </tbody>
+  </table>
+</div>

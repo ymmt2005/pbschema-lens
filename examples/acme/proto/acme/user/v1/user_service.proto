@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package acme.user.v1;
+
+import "acme/user/v1/user.proto";
+import "google/api/annotations.proto";
+
+option go_package = "acme.example/user/v1;userv1";
+
+// Manages user accounts for the Acme identity platform.
+service UserService {
+  // Fetch a user by id.
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option (google.api.http) = {
+      get: "/v1/users/{id}"
+    };
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+
+  // List users with optional server-side filtering.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
+    option (google.api.http) = {
+      get: "/v1/users"
+    };
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+
+  // Create a user.
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {
+    option (google.api.http) = {
+      post: "/v1/users"
+      body: "user"
+      additional_bindings: {
+        put: "/v1/users/{user.id}"
+        body: "user"
+      }
+    };
+  }
+
+  // Stream user change events. Intended for internal projectors.
+  rpc WatchUsers(ListUsersRequest) returns (stream GetUserResponse) {}
+}

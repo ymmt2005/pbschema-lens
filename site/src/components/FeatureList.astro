@@ -1,0 +1,33 @@
+---
+import type { EffectiveFeature } from "../../../src/core/types.ts";
+
+interface Props {
+  features: EffectiveFeature[];
+}
+
+const { features } = Astro.props;
+---
+
+{
+  features.length > 0 && (
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold mb-3">Effective features</h2>
+      <ul class="text-sm space-y-2">
+        {features.map((feature) => (
+          <li class="rounded-lg border border-[color:var(--line)] px-3 py-2 bg-[color:var(--bg-raised)]">
+            <div class="font-medium">
+              {feature.name}: <span class="font-mono">{feature.effective}</span>
+            </div>
+            <div class="text-[color:var(--fg-muted)] text-xs mt-1">
+              {feature.source === "declared" && feature.declared
+                ? `declared ${feature.declared}`
+                : feature.source === "inherited"
+                  ? `inherited from ${feature.inheritedFrom ?? "parent"}`
+                  : `default for this edition`}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}

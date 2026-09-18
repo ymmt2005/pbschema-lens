@@ -1,0 +1,43 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import SymbolHeader from "../../../components/SymbolHeader.astro";
+import OptionList from "../../../components/OptionList.astro";
+import UsedBy from "../../../components/UsedBy.astro";
+import FeatureList from "../../../components/FeatureList.astro";
+import { loadModel } from "../../../lib/data.ts";
+
+export function getStaticPaths() {
+  return loadModel()
+    .enums.filter((item) => item.generatePage)
+    .map((item) => ({ params: { name: item.fullName } }));
+}
+
+const model = loadModel();
+const docEnum = model.enums.find((item) => item.fullName === Astro.params.name);
+if (!docEnum) throw new Error("Missing enum");
+const values = docEnum.valueIds.map((id) => model.enumValues.find((item) => item.id === id)!).filter(Boolean);
+const note = model.wktNotes[docEnum.fullName];
+---
+
+<Layout title={docEnum.fullName}>
+  <SymbolHeader symbol={docEnum} />
+  {note && <aside class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-muted)] p-4 mb-6 prose-doc text-sm" set:html={note} />}
+  <p class="text-sm text-[color:var(--fg-muted)] mb-4">{docEnum.open ? "Open enum" : "Closed enum"}{docEnum.allowAlias ? " · aliases allowed" : ""}</p>
+  <div class="table-wrap">
+    <table class="fields">
+      <thead><tr><th>Value</th><th>Number</th><th>Description</th></tr></thead>
+      <tbody>
+        {values.map((value) => (
+          <tr id={value.anchor}>
+            <td class="font-mono">{value.shortName}{value.deprecated ? <span class="text-xs text-red-700 ml-2">deprecated</span> : null}</td>
+            <td class="num">{value.number}</td>
+            <td>{value.comments?.markdownHtml ? <div class="prose-doc text-sm" set:html={value.comments.markdownHtml} /> : "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <OptionList options={docEnum.options} />
+  <FeatureList features={docEnum.features} />
+  <UsedBy symbol={docEnum} model={model} />
+</Layout>

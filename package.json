@@ -1,0 +1,63 @@
+{
+  "name": "protolens",
+  "version": "0.1.0",
+  "description": "Open-source static schema explorer for Protocol Buffers",
+  "type": "module",
+  "bin": {
+    "protolens": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "site",
+    "bundled"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "example": "tsx src/cli.ts build examples/acme --out examples/acme/dist",
+    "preview": "tsx src/cli.ts build examples/acme --out examples/acme/dist && astro preview --root site --port 43147 --host 127.0.0.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "protobuf",
+    "protocol-buffers",
+    "documentation",
+    "static-site",
+    "grpc",
+    "buf"
+  ],
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@bufbuild/buf": "^1.73.0",
+    "@bufbuild/protobuf": "^2.15.0",
+    "astro": "^5.13.10",
+    "chokidar": "^4.0.3",
+    "commander": "^14.0.0",
+    "marked": "^16.3.0",
+    "minimatch": "^10.0.3",
+    "pagefind": "^1.4.0",
+    "sanitize-html": "^2.17.0",
+    "tailwindcss": "^4.1.13",
+    "@tailwindcss/vite": "^4.1.13",
+    "yaml": "^2.8.1",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "@types/sanitize-html": "^2.16.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

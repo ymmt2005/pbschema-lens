@@ -1,0 +1,51 @@
+---
+import type { DocOption } from "../../../src/core/types.ts";
+import { withBase } from "../lib/data.ts";
+
+interface Props {
+  options: DocOption[];
+}
+
+const { options } = Astro.props;
+const visible = options.filter((option) => !(option.name === "deprecated" && option.value.kind === "scalar"));
+---
+
+{
+  visible.length > 0 && (
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold mb-3">Options</h2>
+      <div class="space-y-3">
+        {visible.map((option) => (
+          <details class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4" open={Boolean(option.semantic)}>
+            <summary class="cursor-pointer font-medium">
+              {option.semantic ? (
+                <span>
+                  {option.semantic.title}
+                  <span class="text-[color:var(--fg-muted)] font-normal"> — {option.semantic.summary}</span>
+                </span>
+              ) : (
+                <span class="font-mono text-sm">
+                  {option.extension ? `(${option.fullName})` : option.name}
+                </span>
+              )}
+            </summary>
+            {option.semantic?.badges?.length ? (
+              <div class="flex flex-wrap gap-1 mt-2">
+                {option.semantic.badges.map((badge) => (
+                  <span class="text-xs rounded-full bg-[color:var(--bg-muted)] px-2 py-0.5">{badge}</span>
+                ))}
+              </div>
+            ) : null}
+            {option.definitionId ? (
+              <p class="text-sm mt-2">
+                Defined by{" "}
+                <a href={withBase(`/reference/extensions/${encodeURIComponent(option.fullName)}/`)}>{option.fullName}</a>
+              </p>
+            ) : null}
+            <pre class="option mt-3">{option.textProto}</pre>
+          </details>
+        ))}
+      </div>
+    </section>
+  )
+}

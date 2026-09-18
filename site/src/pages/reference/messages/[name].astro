@@ -1,0 +1,83 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import SymbolHeader from "../../../components/SymbolHeader.astro";
+import OptionList from "../../../components/OptionList.astro";
+import UsedBy from "../../../components/UsedBy.astro";
+import FeatureList from "../../../components/FeatureList.astro";
+import FieldTable from "../../../components/FieldTable.astro";
+import { loadModel, withBase } from "../../../lib/data.ts";
+import { symbolHref } from "../../../lib/format.ts";
+
+export function getStaticPaths() {
+  return loadModel()
+    .messages.filter((item) => item.generatePage)
+    .map((item) => ({ params: { name: item.fullName } }));
+}
+
+const model = loadModel();
+const message = model.messages.find((item) => item.fullName === Astro.params.name);
+if (!message) throw new Error("Missing message");
+const fields = message.fieldIds.map((id) => model.fields.find((item) => item.id === id)!).filter(Boolean);
+const oneofs = message.oneofIds.map((id) => model.oneofs.find((item) => item.id === id)!).filter(Boolean);
+const note = model.wktNotes[message.fullName];
+---
+
+<Layout title={message.fullName}>
+  <SymbolHeader symbol={message} />
+  {note && (
+    <aside class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-muted)] p-4 mb-6 prose-doc text-sm" set:html={note} />
+  )}
+  {message.parentId && (
+    <p class="text-sm mb-4">
+      Nested in <a href={symbolHref(model.symbols[message.parentId])}>{model.symbols[message.parentId]?.fullName}</a>
+    </p>
+  )}
+  <h2 class="text-lg font-semibold mb-3">Fields</h2>
+  <FieldTable fields={fields} model={model} />
+  {oneofs.length > 0 && (
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold mb-3">Oneofs</h2>
+      {oneofs.map((oneof) => (
+        <div id={oneof.anchor} class="mb-4">
+          <h3 class="font-mono">{oneof.shortName}</h3>
+          <ul class="text-sm">
+            {oneof.fieldIds.map((id) => {
+              const field = model.fields.find((item) => item.id === id);
+              return field ? <li><a href={`#${field.anchor}`}>{field.shortName}</a></li> : null;
+            })}
+          </ul>
+        </div>
+      ))}
+    </section>
+  )}
+  {message.nestedMessageIds.length > 0 && (
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold mb-2">Nested messages</h2>
+      <ul>{message.nestedMessageIds.map((id) => <li><a href={symbolHref(model.symbols[id])}>{model.symbols[id]?.shortName}</a></li>)}</ul>
+    </section>
+  )}
+  {message.nestedEnumIds.length > 0 && (
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold mb-2">Nested enums</h2>
+      <ul>{message.nestedEnumIds.map((id) => <li><a href={symbolHref(model.symbols[id])}>{model.symbols[id]?.shortName}</a></li>)}</ul>
+    </section>
+  )}
+  {(message.reservedNames.length > 0 || message.reservedRanges.length > 0) && (
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold mb-2">Reserved</h2>
+      <p class="text-sm font-mono">
+        {message.reservedRanges.map((range) => `${range.start} to ${range.end - 1}`).join(", ")}
+        {message.reservedNames.join(", ")}
+      </p>
+    </section>
+  )}
+  {message.exampleJson && (
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold mb-2">Example JSON</h2>
+      <pre class="option">{JSON.stringify(message.exampleJson, null, 2)}</pre>
+    </section>
+  )}
+  <OptionList options={message.options} />
+  <FeatureList features={message.features} />
+  <UsedBy symbol={message} model={model} />
+</Layout>

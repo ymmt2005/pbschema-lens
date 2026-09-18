@@ -1,0 +1,35 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { loadModel, withBase } from "../lib/data.ts";
+
+const model = loadModel();
+const edges = model.files.flatMap((file) =>
+  file.dependencyIds.map((depId) => {
+    const dep = model.symbols[depId];
+    return {
+      from: file.packageName || file.fullName,
+      to: dep?.packageName || dep?.fullName || depId,
+    };
+  }),
+);
+const packages = [...new Set(edges.flatMap((edge) => [edge.from, edge.to]))].sort();
+---
+
+<Layout title="Package graph">
+  <h1 class="text-3xl font-semibold mb-3">Package graph</h1>
+  <p class="text-[color:var(--fg-muted)] mb-6">Imports between files, rolled up by package.</p>
+  <ul class="space-y-4">
+    {packages.map((name) => {
+      const imports = [...new Set(edges.filter((edge) => edge.from === name).map((edge) => edge.to))].filter((item) => item !== name);
+      const importedBy = [...new Set(edges.filter((edge) => edge.to === name).map((edge) => edge.from))].filter((item) => item !== name);
+      const pkg = model.packages.find((item) => item.fullName === name);
+      return (
+        <li class="rounded-xl border border-[color:var(--line)] p-4 bg-[color:var(--bg-raised)]">
+          <h2 class="font-semibold">{pkg ? <a href={withBase(pkg.urlPath)}>{name}</a> : name}</h2>
+          <p class="text-sm mt-2"><span class="text-[color:var(--fg-muted)]">Imports:</span> {imports.length ? imports.join(", ") : "none"}</p>
+          <p class="text-sm"><span class="text-[color:var(--fg-muted)]">Imported by:</span> {importedBy.length ? importedBy.join(", ") : "none"}</p>
+        </li>
+      );
+    })}
+  </ul>
+</Layout>

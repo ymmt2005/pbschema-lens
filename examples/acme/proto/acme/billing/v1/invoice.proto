@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package acme.billing.v1;
+
+import "acme/security/options.proto";
+import "acme/user/v1/user.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "acme.example/billing/v1;billingv1";
+option (acme.security.owner) = "billing";
+
+enum InvoiceState {
+  INVOICE_STATE_UNSPECIFIED = 0;
+  INVOICE_STATE_DRAFT = 1;
+  INVOICE_STATE_OPEN = 2;
+  INVOICE_STATE_PAID = 3;
+  INVOICE_STATE_VOID = 4;
+}
+
+message Money {
+  string currency_code = 1 [(buf.validate.field).string = { min_len: 3, max_len: 3 }];
+  int64 units = 2;
+  int32 nanos = 3 [(buf.validate.field).int32 = { gte: -999999999, lte: 999999999 }];
+}
+
+message LineItem {
+  string description = 1;
+  int32 quantity = 2 [(buf.validate.field).int32.gte = 1];
+  Money unit_amount = 3;
+}
+
+// An invoice issued to a customer.
+message Invoice {
+  string id = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string customer_id = 2 [(google.api.field_behavior) = REQUIRED];
+  acme.user.v1.User customer = 3;
+  InvoiceState state = 4;
+  repeated LineItem lines = 5 [(buf.validate.field).repeated.min_items = 1];
+  Money total = 6;
+  google.protobuf.Timestamp issued_at = 7;
+  string memo = 8;
+}
+
+message GetInvoiceRequest {
+  string id = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetInvoiceResponse {
+  Invoice invoice = 1;
+}
+
+message ListInvoicesRequest {
+  string customer_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListInvoicesResponse {
+  repeated Invoice invoices = 1;
+  string next_page_token = 2;
+}
+
+// Billing RPCs for invoices and collections.
+service BillingService {
+  rpc GetInvoice(GetInvoiceRequest) returns (GetInvoiceResponse) {
+    option (google.api.http) = { get: "/v1/invoices/{id}" };
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+
+  rpc ListInvoices(ListInvoicesRequest) returns (ListInvoicesResponse) {
+    option (google.api.http) = { get: "/v1/invoices" };
+  }
+}

@@ -1,0 +1,45 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { loadModel, withBase } from "../lib/data.ts";
+import { symbolHref } from "../lib/format.ts";
+
+const model = loadModel();
+const pageable = Object.values(model.symbols).filter((item) => item.generatePage);
+---
+
+<Layout title="Used-by explorer">
+  <h1 class="text-3xl font-semibold mb-3">Used-by explorer</h1>
+  <p class="text-[color:var(--fg-muted)] mb-6 max-w-2xl">
+    Pick a documented symbol to see reverse references. This is the same graph used on each symbol page, without
+    dumping thousands of Timestamp users into a single HTML blob.
+  </p>
+  <label class="text-sm block mb-2" for="symbol-select">Symbol</label>
+  <select id="symbol-select" class="w-full max-w-xl rounded-md border border-[color:var(--line)] bg-[color:var(--bg-raised)] px-3 py-2">
+    <option value="">Choose a symbol…</option>
+    {pageable.map((item) => (
+      <option value={item.id}>{item.kind} · {item.fullName}</option>
+    ))}
+  </select>
+  <div id="explorer-out" class="mt-6 text-sm"></div>
+  <script define:vars={{ payload: pageable.map((item) => ({ id: item.id, fullName: item.fullName, url: symbolHref(item), refs: item.referencedBy.map((ref) => ({ fromId: ref.fromId, kind: ref.kind, label: ref.label })) })), names: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, item.fullName])), hrefs: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, item.urlPath])) , base: import.meta.env.BASE_URL }}>
+    const select = document.getElementById("symbol-select");
+    const out = document.getElementById("explorer-out");
+    const byId = Object.fromEntries(payload.map((item) => [item.id, item]));
+    const prefix = base.endsWith("/") ? base.slice(0, -1) : base;
+    select?.addEventListener("change", () => {
+      const item = byId[select.value];
+      if (!item) {
+        out.innerHTML = "";
+        return;
+      }
+      if (!item.refs.length) {
+        out.innerHTML = `<p>No incoming references for <strong>${item.fullName}</strong>.</p>`;
+        return;
+      }
+      out.innerHTML = `<p class="mb-3">${item.refs.length} incoming reference(s)</p><ul class="space-y-1">${item.refs
+        .slice(0, 200)
+        .map((ref) => `<li><a href="${prefix}${hrefs[ref.fromId] ?? ""}">${names[ref.fromId] ?? ref.fromId}</a> <span class="text-[color:var(--fg-muted)]">· ${ref.kind}</span></li>`)
+        .join("")}</ul>`;
+    });
+  </script>
+</Layout>

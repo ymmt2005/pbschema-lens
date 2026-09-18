@@ -1,0 +1,57 @@
+---
+import type { DocSymbol, SchemaModel, SymbolReference } from "../../../src/core/types.ts";
+import { relationLabel, symbolHref } from "../lib/format.ts";
+
+interface Props {
+  symbol: DocSymbol;
+  model: SchemaModel;
+  limit?: number;
+}
+
+const { symbol, model, limit = 40 } = Astro.props;
+const grouped = new Map<string, SymbolReference[]>();
+for (const ref of symbol.referencedBy) {
+  const list = grouped.get(ref.kind) ?? [];
+  list.push(ref);
+  grouped.set(ref.kind, list);
+}
+const groups = [...grouped.entries()];
+---
+
+{
+  groups.length > 0 ? (
+    <section class="mt-10">
+      <h2 class="text-lg font-semibold mb-3">Used by</h2>
+      <p class="text-sm text-[color:var(--fg-muted)] mb-4">What will be affected if this symbol changes.</p>
+      {groups.map(([kind, refs]) => (
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold mb-2">{relationLabel(kind as never)}</h3>
+          <ul class="space-y-1 text-sm">
+            {refs.slice(0, limit).map((ref) => {
+              const from = model.symbols[ref.fromId];
+              if (!from) {
+                return <li class="font-mono">{ref.fromId}</li>;
+              }
+              return (
+                <li>
+                  <a href={symbolHref(from)}>{from.fullName}</a>
+                  {ref.label ? <span class="text-[color:var(--fg-muted)]"> · {ref.label}</span> : null}
+                </li>
+              );
+            })}
+          </ul>
+          {refs.length > limit ? (
+            <p class="text-xs text-[color:var(--fg-muted)] mt-2">
+              Showing {limit} of {refs.length} references. Use the explorer to filter by package.
+            </p>
+          ) : null}
+        </div>
+      ))}
+    </section>
+  ) : (
+    <section class="mt-10">
+      <h2 class="text-lg font-semibold mb-2">Used by</h2>
+      <p class="text-sm text-[color:var(--fg-muted)]">No incoming references in this schema.</p>
+    </section>
+  )
+}

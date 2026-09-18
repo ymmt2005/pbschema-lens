@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+package acme.user.v1;
+
+import "acme/security/options.proto";
+import "buf/validate/validate.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "acme.example/user/v1;userv1";
+option java_package = "com.acme.user.v1";
+option (acme.security.owner) = "identity-platform";
+
+// Lifecycle state of a user account.
+enum UserState {
+  USER_STATE_UNSPECIFIED = 0;
+  USER_STATE_ACTIVE = 1;
+  USER_STATE_SUSPENDED = 2;
+  USER_STATE_DELETED = 3 [deprecated = true];
+}
+
+// Postal or billing address nested on a user.
+message Address {
+  string line1 = 1 [(buf.validate.field).string.min_len = 1];
+  string line2 = 2;
+  string city = 3;
+  string region = 4;
+  string postal_code = 5;
+  string country_code = 6 [(buf.validate.field).string = { min_len: 2, max_len: 2 }];
+}
+
+// A user account in the Acme identity platform.
+//
+// Users are the primary subject of authentication, billing, and support
+// workflows. Changing the shape of this message is a PACKAGE-breaking change.
+message User {
+  option (acme.security.audit_required) = true;
+
+  reserved 3, 15 to 20;
+  reserved "legacy_id";
+
+  // Stable identifier. Never reused.
+  string id = 1 [
+    (google.api.field_behavior) = IDENTIFIER,
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (buf.validate.field).string.uuid = true
+  ];
+
+  // Login email. Treated as PII.
+  string email = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (acme.security.pii) = {
+      sensitive: true
+      redaction: REDACTION_MASK
+      policy: "identity/email"
+    },
+    (buf.validate.field).string.email = true
+  ];
+
+  string display_name = 4 [
+    (buf.validate.field).string = { min_len: 1, max_len: 80 }
+  ];
+
+  optional string nickname = 5;
+
+  UserState state = 6;
+
+  google.protobuf.Timestamp created_at = 7 [
+    (google.api.field_behavior) = OUTPUT_ONLY
+  ];
+
+  google.protobuf.Timestamp updated_at = 8 [
+    (google.api.field_behavior) = OUTPUT_ONLY
+  ];
+
+  oneof contact {
+    string phone = 9 [
+      (acme.security.pii) = {
+        sensitive: true
+        redaction: REDACTION_HASH
+        policy: "identity/phone"
+      }
+    ];
+    string pager = 10 [deprecated = true];
+  }
+
+  map<string, string> labels = 11;
+
+  repeated Address addresses = 12 [(buf.validate.field).repeated.max_items = 5];
+
+  // Nested profile preferences.
+  message Preferences {
+    bool marketing_opt_in = 1;
+    string locale = 2;
+    string time_zone = 3;
+  }
+
+  Preferences preferences = 13;
+}
+
+message GetUserRequest {
+  string id = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.uuid = true
+  ];
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message ListUsersRequest {
+  int32 page_size = 1 [(buf.validate.field).int32 = { gte: 0, lte: 100 }];
+  string page_token = 2;
+  string filter = 3;
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  string next_page_token = 2;
+}
+
+message CreateUserRequest {
+  User user = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message CreateUserResponse {
+  User user = 1;
+}

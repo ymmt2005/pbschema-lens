@@ -1,0 +1,21 @@
+edition = "2023";
+package acme.experiment.v1;
+
+option go_package = "acme.example/experiment/v1;experimentv1";
+
+// Feature flags used by the experimental rollout pipeline.
+// This file is compiled as Protobuf Editions 2023 so effective feature
+// inheritance shows up in the generated docs.
+message Flag {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  map<string, string> metadata = 4;
+}
+
+enum FlagState {
+  FLAG_STATE_UNSPECIFIED = 0;
+  FLAG_STATE_DRAFT = 1;
+  FLAG_STATE_LIVE = 2;
+  FLAG_STATE_RETIRED = 3;
+}

@@ -1,0 +1,43 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import SymbolHeader from "../../../components/SymbolHeader.astro";
+import OptionList from "../../../components/OptionList.astro";
+import UsedBy from "../../../components/UsedBy.astro";
+import { loadModel } from "../../../lib/data.ts";
+import { typeHref } from "../../../lib/format.ts";
+
+export function getStaticPaths() {
+  return loadModel()
+    .extensions.filter((item) => item.generatePage)
+    .map((item) => ({ params: { name: item.fullName } }));
+}
+
+const model = loadModel();
+const extension = model.extensions.find((item) => item.fullName === Astro.params.name);
+if (!extension) throw new Error("Missing extension");
+---
+
+<Layout title={extension.fullName}>
+  <SymbolHeader symbol={extension} />
+  <dl class="grid sm:grid-cols-2 gap-3 text-sm mb-6">
+    <div class="rounded-xl border border-[color:var(--line)] p-3 bg-[color:var(--bg-raised)]">
+      <dt class="text-[color:var(--fg-muted)]">Kind</dt>
+      <dd>{extension.optionTarget ? `${extension.optionTarget} option` : "extension"}</dd>
+    </div>
+    <div class="rounded-xl border border-[color:var(--line)] p-3 bg-[color:var(--bg-raised)]">
+      <dt class="text-[color:var(--fg-muted)]">Field number</dt>
+      <dd class="font-mono">{extension.number}</dd>
+    </div>
+    <div class="rounded-xl border border-[color:var(--line)] p-3 bg-[color:var(--bg-raised)]">
+      <dt class="text-[color:var(--fg-muted)]">Extends</dt>
+      <dd>{typeHref(extension.extendee) ? <a href={typeHref(extension.extendee)}>{extension.extendee.name}</a> : extension.extendee.name}</dd>
+    </div>
+    <div class="rounded-xl border border-[color:var(--line)] p-3 bg-[color:var(--bg-raised)]">
+      <dt class="text-[color:var(--fg-muted)]">Type</dt>
+      <dd>{typeHref(extension.type) ? <a href={typeHref(extension.type)}>{extension.type.name}</a> : extension.type.name}</dd>
+    </div>
+  </dl>
+  <pre class="proto">{extension.declaration}</pre>
+  <OptionList options={extension.options} />
+  <UsedBy symbol={extension} model={model} />
+</Layout>

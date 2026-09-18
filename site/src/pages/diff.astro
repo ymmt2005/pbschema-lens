@@ -1,0 +1,63 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { loadModel, withBase } from "../lib/data.ts";
+import { symbolHref } from "../lib/format.ts";
+
+const model = loadModel();
+const diff = model.diff;
+---
+
+<Layout title="Schema diff">
+  <h1 class="text-3xl font-semibold mb-3">Schema diff</h1>
+  {
+    !diff ? (
+      <p class="text-[color:var(--fg-muted)]">
+        No comparison was attached to this build. Run <code>protolens diff --against previous.binpb</code> to generate
+        this page.
+      </p>
+    ) : (
+      <div>
+        <p class="text-[color:var(--fg-muted)] mb-6">Compared against {diff.againstLabel}.</p>
+        <p class="mb-6 text-sm">
+          <span class="text-emerald-700">+ {diff.added.length}</span>
+          {" · "}
+          <span>~ {diff.modified.length}</span>
+          {" · "}
+          <span class="text-red-700">- {diff.removed.length}</span>
+          {" · "}
+          breaking {diff.breaking.length}
+        </p>
+        {diff.breaking.length > 0 && (
+          <section class="mb-8">
+            <h2 class="text-lg font-semibold mb-2">Compatibility</h2>
+            <ul class="text-sm space-y-2">
+              {diff.breaking.map((item) => (
+                <li class="rounded-lg border border-red-300 p-3">
+                  <div class="font-mono text-xs">{item.rule} · {item.categories.join(", ")}</div>
+                  <div>{item.message}</div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {[["Added", diff.added, "text-emerald-800"], ["Modified", diff.modified, ""], ["Removed", diff.removed, "text-red-800"]].map(([title, items, cls]) => (
+          <section class="mb-8">
+            <h2 class="text-lg font-semibold mb-2">{title}</h2>
+            {items.length === 0 ? <p class="text-sm text-[color:var(--fg-muted)]">None.</p> : (
+              <ul class="text-sm space-y-2">
+                {items.map((item) => (
+                  <li class={`rounded-lg border border-[color:var(--line)] p-3 ${cls}`}>
+                    <div class="font-medium">{item.kind} {item.fullName}</div>
+                    <ul class="mt-1 text-[color:var(--fg-muted)]">
+                      {item.details.map((detail) => <li>{detail}</li>)}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+      </div>
+    )
+  }
+</Layout>

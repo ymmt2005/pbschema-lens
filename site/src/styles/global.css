@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-ink: #1c1917;
+  --color-paper: #f4efe6;
+  --color-copper: #c45c26;
+  --color-pine: #2f5d50;
+}
+
+:root {
+  color-scheme: light;
+  --bg: #f4efe6;
+  --bg-raised: #fffaf3;
+  --bg-muted: #eae3d6;
+  --fg: #1c1917;
+  --fg-muted: #57534e;
+  --line: #d6cbb8;
+  --accent: #c45c26;
+  --accent-2: #2f5d50;
+  --link: #9a3412;
+  --shadow: 0 18px 40px -28px rgb(28 25 23 / 0.45);
+}
+
+html.dark {
+  color-scheme: dark;
+  --bg: #161412;
+  --bg-raised: #1f1c19;
+  --bg-muted: #2a2622;
+  --fg: #f5f0e8;
+  --fg-muted: #a8a29e;
+  --line: #3f3a34;
+  --accent: #e0894f;
+  --accent-2: #7dbaa5;
+  --link: #f0b429;
+  --shadow: 0 22px 50px -30px rgb(0 0 0 / 0.7);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+
+a {
+  color: var(--link);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.prose-doc a {
+  color: var(--link);
+}
+
+.kind-message { color: #b45309; }
+.kind-service { color: #0369a1; }
+.kind-enum { color: #7c3aed; }
+.kind-extension { color: #047857; }
+.kind-method { color: #0f766e; }
+.kind-field { color: #57534e; }
+.kind-package { color: #9a3412; }
+
+html.dark .kind-message { color: #fbbf24; }
+html.dark .kind-service { color: #7dd3fc; }
+html.dark .kind-enum { color: #c4b5fd; }
+html.dark .kind-extension { color: #6ee7b7; }
+html.dark .kind-method { color: #5eead4; }
+html.dark .kind-field { color: #d6d3d1; }
+html.dark .kind-package { color: #fdba74; }
+
+pre.proto,
+pre.option {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  background: var(--bg-muted);
+  border: 1px solid var(--line);
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  border-radius: 0.6rem;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--bg-raised);
+}
+
+table.fields {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+table.fields th {
+  text-align: left;
+  font-weight: 600;
+  padding: 0.65rem 0.85rem;
+  background: var(--bg-muted);
+  border-bottom: 1px solid var(--line);
+}
+
+table.fields td {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+table.fields tr:last-child td {
+  border-bottom: 0;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}

@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package fixtures.security;
+
+// This comment contains <script>alert("xss")</script> and <img src=x onerror="alert(1)"> plus MDX {2 * 2}.
+message Nasty {
+  // Field comment with <a href="javascript:alert(1)">click</a> and **bold**.
+  string name = 1;
+}

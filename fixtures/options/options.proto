@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package fixtures.options;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  bool sensitive = 50011;
+  string note = 50012;
+}
+
+message Item {
+  string secret = 1 [(sensitive) = true, (note) = "do not log"];
+  string public_id = 2;
+}
