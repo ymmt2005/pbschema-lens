@@ -57,7 +57,7 @@ npx tsx src/cli.ts build schema.binpb --out dist
 title: "Acme Protobuf API"
 input: "."
 output: "dist"
-base: "/"            # use "/repo-name/" on GitHub Pages project sites
+base: "/"            # public project Pages: "/repo-name/"; private Pages and custom domains: "/"
 
 # Optional. Adds a separate "View on GitHub" link.
 # View source always uses the embedded browser when .proto files are present.
