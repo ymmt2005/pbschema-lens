@@ -127,3 +127,14 @@ table.fields tr:last-child td {
   font-family: var(--font-mono);
   font-size: 0.8rem;
 }
+
+.validation-chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-2) 14%, var(--bg-muted));
+  color: var(--fg);
+  padding: 0.12rem 0.5rem;
+}

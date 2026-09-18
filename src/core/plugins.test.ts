@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { builtinPlugins } from "./plugins.js";
+import { builtinPlugins, isValidationRenderer, validationChips } from "./plugins.js";
 import { compileInput } from "../node/compile.js";
 import { loadRegistryFromBytes } from "./registry.js";
 import { buildModel } from "./model.js";
@@ -105,7 +105,72 @@ describe("cybozu.validate renderer", () => {
     const rules = email?.options.find((option) => option.fullName === "cybozu.validate.rules");
     expect(rules?.semantic?.rendererId).toBe("cybozu.validate");
     expect(rules?.semantic?.summary).toContain("email");
+    expect(validationChips(email?.options ?? [])).toEqual(expect.arrayContaining(["string.email", "string.min_length=3"]));
     const contact = model.oneofs.find((item) => item.fullName === "fixtures.sample.Profile.contact");
     expect(contact?.options.some((option) => option.semantic?.badges?.includes("required"))).toBe(true);
+  });
+
+  it("exposes every constraint as a badge instead of truncating", () => {
+    const fields = ["email", "uri", "uuid", "e164", "min_length", "max_length", "prefix", "suffix"].map((name) => ({
+      name,
+      value: {
+        kind: "scalar" as const,
+        scalar: name.endsWith("length") ? ("int32" as const) : ("bool" as const),
+        value: name.endsWith("length") ? 3 : true,
+      },
+    }));
+    const semantic = present({
+      name: "field",
+      fullName: "buf.validate.field",
+      textProto: "",
+      value: {
+        kind: "message",
+        typeName: "buf.validate.FieldConstraints",
+        textProto: "",
+        fields: [
+          {
+            name: "string",
+            value: {
+              kind: "message",
+              typeName: "buf.validate.StringRules",
+              textProto: "",
+              fields,
+            },
+          },
+        ],
+      },
+    });
+    expect(semantic?.badges).toHaveLength(8);
+    expect(semantic?.badges?.[0]).toBe("string.email");
+    expect(semantic?.badges?.[7]).toBe("string.suffix");
+  });
+
+  it("collects validation chips and ignores other semantic badges", () => {
+    expect(isValidationRenderer("validation")).toBe(true);
+    expect(isValidationRenderer("cybozu.validate")).toBe(true);
+    expect(isValidationRenderer("google.api.field_behavior")).toBe(false);
+    const chips = validationChips([
+      {
+        name: "field_behavior",
+        fullName: "google.api.field_behavior",
+        extension: true,
+        builtIn: false,
+        target: "field",
+        value: { kind: "enum", enumType: "google.api.FieldBehavior", name: "REQUIRED", number: 1 },
+        textProto: "",
+        semantic: { rendererId: "google.api.field_behavior", title: "Field behavior", summary: "REQUIRED", badges: ["REQUIRED"] },
+      },
+      {
+        name: "field",
+        fullName: "buf.validate.field",
+        extension: true,
+        builtIn: false,
+        target: "field",
+        value: { kind: "scalar", scalar: "bool", value: true },
+        textProto: "",
+        semantic: { rendererId: "validation", title: "Validation", summary: "string.email", badges: ["string.email", "string.min_len=1"] },
+      },
+    ]);
+    expect(chips).toEqual(["string.email", "string.min_len=1"]);
   });
 });

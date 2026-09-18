@@ -98,6 +98,7 @@ Every important flag also has a CLI equivalent (`--out`, `--base`, `--title`, `-
 - Forward links and reverse "Used by" references
 - Editions effective-feature display
 - Specialized renderers for `google.api.http`, `buf.validate`, `cybozu.validate`, field behavior, and `deprecated`
+- Field tables show `buf.validate` and `cybozu.validate` rules in a dedicated Validation column
 - Symbol search (exact / prefix / fuzzy) plus Pagefind full-text search
 - Optional embedded source browser
 - Schema diff + `buf breaking` integration when `--against` is set

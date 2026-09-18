@@ -7,6 +7,7 @@ import FeatureList from "../../../components/FeatureList.astro";
 import FieldTable from "../../../components/FieldTable.astro";
 import { loadModel, withBase } from "../../../lib/data.ts";
 import { symbolHref } from "../../../lib/format.ts";
+import { validationChips } from "pbschema-lens/core";
 
 export function getStaticPaths() {
   return loadModel()
@@ -37,17 +38,25 @@ const note = model.wktNotes[message.fullName];
   {oneofs.length > 0 && (
     <section class="mt-8">
       <h2 class="text-lg font-semibold mb-3">Oneofs</h2>
-      {oneofs.map((oneof) => (
-        <div id={oneof.anchor} class="mb-4">
-          <h3 class="font-mono">{oneof.shortName}</h3>
-          <ul class="text-sm">
-            {oneof.fieldIds.map((id) => {
-              const field = model.fields.find((item) => item.id === id);
-              return field ? <li><a href={`#${field.anchor}`}>{field.shortName}</a></li> : null;
-            })}
-          </ul>
-        </div>
-      ))}
+      {oneofs.map((oneof) => {
+        const chips = validationChips(oneof.options);
+        return (
+          <div id={oneof.anchor} class="mb-4">
+            <h3 class="font-mono">
+              {oneof.shortName}
+              {chips.map((chip) => (
+                <span class="validation-chip ml-2 align-middle">{chip}</span>
+              ))}
+            </h3>
+            <ul class="text-sm">
+              {oneof.fieldIds.map((id) => {
+                const field = model.fields.find((item) => item.id === id);
+                return field ? <li><a href={`#${field.anchor}`}>{field.shortName}</a></li> : null;
+              })}
+            </ul>
+          </div>
+        );
+      })}
     </section>
   )}
   {message.nestedMessageIds.length > 0 && (

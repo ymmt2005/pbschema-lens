@@ -1,5 +1,6 @@
 ---
 import type { DocField, SchemaModel } from "../../../src/core/types.ts";
+import { isValidationRenderer, validationChips } from "pbschema-lens/core";
 import { typeHref } from "../lib/format.ts";
 
 interface Props {
@@ -15,6 +16,12 @@ function typeLabel(field: DocField): string {
   }
   return field.type.name;
 }
+
+function otherAnnotationBadges(field: DocField): string[] {
+  return field.options.flatMap((option) =>
+    option.semantic && !isValidationRenderer(option.semantic.rendererId) ? (option.semantic.badges ?? []) : [],
+  );
+}
 ---
 
 <div class="table-wrap">
@@ -25,6 +32,7 @@ function typeLabel(field: DocField): string {
         <th>Number</th>
         <th>Type</th>
         <th>Cardinality</th>
+        <th>Validation</th>
         <th>Description</th>
       </tr>
     </thead>
@@ -32,7 +40,8 @@ function typeLabel(field: DocField): string {
       {
         fields.map((field) => {
           const href = field.cardinality === "map" ? typeHref(field.mapValue) : typeHref(field.type);
-          const badges = field.options.flatMap((option) => option.semantic?.badges ?? []);
+          const chips = validationChips(field.options);
+          const annotations = otherAnnotationBadges(field);
           return (
             <tr id={field.anchor}>
               <td>
@@ -48,6 +57,17 @@ function typeLabel(field: DocField): string {
               </td>
               <td class="text-xs">{field.cardinality}</td>
               <td>
+                {chips.length ? (
+                  <div class="flex flex-wrap gap-1">
+                    {chips.map((chip) => (
+                      <span class="validation-chip">{chip}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <span class="text-[color:var(--fg-muted)]">—</span>
+                )}
+              </td>
+              <td>
                 {field.comments?.markdownHtml ? <div class="prose-doc text-sm" set:html={field.comments.markdownHtml} /> : <span class="text-[color:var(--fg-muted)]">—</span>}
                 <details class="mt-2 text-xs">
                   <summary class="cursor-pointer text-[color:var(--fg-muted)]">Details</summary>
@@ -56,7 +76,7 @@ function typeLabel(field: DocField): string {
                     <li>Presence: {field.presence}</li>
                     {field.packed !== undefined ? <li>Packed: {String(field.packed)}</li> : null}
                     {field.defaultValue ? <li>Default: {field.defaultValue}</li> : null}
-                    {badges.length ? <li>Annotations: {badges.join(", ")}</li> : null}
+                    {annotations.length ? <li>Annotations: {annotations.join(", ")}</li> : null}
                   </ul>
                   {field.options.length > 0 && (
                     <pre class="option mt-2">{field.options.map((option) => option.textProto).join("\n")}</pre>
@@ -70,7 +90,7 @@ function typeLabel(field: DocField): string {
       {
         fields.length === 0 && (
           <tr>
-            <td colspan="5" class="text-[color:var(--fg-muted)]">
+            <td colspan="6" class="text-[color:var(--fg-muted)]">
               This message has no fields.
             </td>
           </tr>
