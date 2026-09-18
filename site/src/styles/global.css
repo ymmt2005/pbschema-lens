@@ -122,6 +122,14 @@ table.fields tr:last-child td {
   border-bottom: 0;
 }
 
+table.fields tr.oneof td {
+  background: color-mix(in srgb, var(--bg-muted) 65%, var(--bg-raised));
+}
+
+table.fields tr.oneof-member td:first-child {
+  padding-left: 1.85rem;
+}
+
 .num {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
