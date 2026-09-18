@@ -17,15 +17,48 @@ const httpRenderer: SemanticOptionRenderer = {
   },
 };
 
+const cybozuValidateRenderer: SemanticOptionRenderer = {
+  id: "cybozu.validate",
+  matches(option) {
+    return option.fullName === "cybozu.validate.rules"
+      || option.fullName === "cybozu.validate.ignored"
+      || option.fullName === "cybozu.validate.required"
+      || option.fullName.startsWith("cybozu.validate.");
+  },
+  render(option): SemanticPresentation {
+    if (option.fullName === "cybozu.validate.ignored") {
+      return {
+        rendererId: "cybozu.validate",
+        title: "Cybozu validate",
+        summary: "Skip generated Validate() for this message",
+        badges: ["ignored"],
+        details: option.textProto,
+      };
+    }
+    if (option.fullName === "cybozu.validate.required") {
+      return {
+        rendererId: "cybozu.validate",
+        title: "Cybozu validate",
+        summary: "Oneof must be set",
+        badges: ["required"],
+        details: option.textProto,
+      };
+    }
+    const constraints = collectConstraints(option);
+    return {
+      rendererId: "cybozu.validate",
+      title: "Cybozu validate",
+      summary: constraints.join(", ") || "Normalization and validation rules",
+      badges: constraints.slice(0, 6),
+      details: option.textProto,
+    };
+  },
+};
+
 const validationRenderer: SemanticOptionRenderer = {
   id: "validation",
   matches(option) {
-    return (
-      option.fullName.includes("validate") ||
-      option.fullName === "buf.validate.field" ||
-      option.fullName === "buf.validate.message" ||
-      option.name === "field" && option.fullName.includes("validate")
-    );
+    return option.fullName.startsWith("buf.validate.") || option.fullName.startsWith("validate.");
   },
   render(option): SemanticPresentation {
     const constraints = collectConstraints(option);
@@ -73,7 +106,7 @@ const fieldBehaviorRenderer: SemanticOptionRenderer = {
 export const builtinPlugins: PbSchemaLensPlugin[] = [
   {
     name: "builtin",
-    semanticOptionRenderers: [httpRenderer, validationRenderer, fieldBehaviorRenderer, deprecatedRenderer],
+    semanticOptionRenderers: [httpRenderer, cybozuValidateRenderer, validationRenderer, fieldBehaviorRenderer, deprecatedRenderer],
   },
 ];
 

@@ -1,16 +1,30 @@
 edition = "2023";
 package acme.experiment.v1;
 
+import "cybozu/validate/options.proto";
+
 option go_package = "acme.example/experiment/v1;experimentv1";
 
 // Feature flags used by the experimental rollout pipeline.
 // This file is compiled as Protobuf Editions 2023 so effective feature
 // inheritance shows up in the generated docs.
 message Flag {
-  string id = 1;
-  string name = 2;
+  string id = 1 [(cybozu.validate.rules).string.min_length = 1];
+  string name = 2 [(cybozu.validate.rules).string = { min_length: 1, max_length: 80 }];
   bool enabled = 3;
-  map<string, string> metadata = 4;
+  map<string, string> metadata = 4 [(cybozu.validate.rules).map.max_items = 20];
+
+  oneof owner {
+    option (cybozu.validate.required) = true;
+    string team = 5;
+    string user = 6 [(cybozu.validate.rules).string.email = true];
+  }
+}
+
+// Scratch flags that are not validated by generated code.
+message FlagDraft {
+  option (cybozu.validate.ignored) = true;
+  string name = 1;
 }
 
 enum FlagState {

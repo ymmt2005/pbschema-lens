@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package fixtures.sample;
+
+import "cybozu/validate/options.proto";
+
+message Ignored {
+  option (cybozu.validate.ignored) = true;
+  string foo = 1;
+}
+
+message Profile {
+  string email = 1 [(cybozu.validate.rules).string = { email: true, min_length: 3 }];
+  int32 age = 2 [(cybozu.validate.rules).int32 = { gte: 0, lt: 150 }];
+  repeated string tags = 3 [(cybozu.validate.rules) = {
+    string: { min_length: 1 }
+    repeated: { max_items: 8 }
+  }];
+
+  oneof contact {
+    option (cybozu.validate.required) = true;
+    string phone = 4 [(cybozu.validate.rules).string.e164 = true];
+    string uri = 5 [(cybozu.validate.rules).string.uri = true];
+  }
+}
