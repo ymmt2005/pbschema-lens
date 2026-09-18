@@ -1,5 +1,7 @@
 # pbschema-lens
 
+[![CI](https://github.com/ymmt2005/pbschema-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/ymmt2005/pbschema-lens/actions/workflows/ci.yml)
+
 An open-source **static schema explorer for Protocol Buffers**.
 
 Point it at a Buf workspace, a directory of `.proto` files, or a `FileDescriptorSet`, and it produces a static site you can host on GitHub Pages (or anywhere else). There is no documentation server, no database, and no hosted schema registry.
