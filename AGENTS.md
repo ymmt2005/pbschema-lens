@@ -80,6 +80,7 @@ After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text searc
 | Buf / descriptor ingest | `src/node/compile.ts` |
 | Symbol graph, comments, options | `src/core/` (`types.ts` first if the JSON shape changes) |
 | HTTP / validation / field-behavior chips | `src/core/plugins.ts` (`google.api.http`, `buf.validate`, `cybozu.validate`, …) |
+| Field table Validation column | `site/src/components/FieldTable.astro` (chips from `validation` / `cybozu.validate`) |
 | Page layout, tables, source browser | `site/src/` |
 | Example schema | `examples/acme/proto/` |
 | Pages workflow template | `src/node/init.ts` |
@@ -111,7 +112,7 @@ The Pages workflow for *this* repo builds `examples/acme` into `dist/` with `--b
 ## Invariants
 
 - **Comments are untrusted.** Render Markdown through the sanitized HTML allowlist in `src/core/markdown.ts`. Never compile proto comments as MDX or JavaScript. Tests in `src/core/markdown.test.ts` guard this.
-- **Custom options are data, not a hard-coded name list.** Prefer the generic option model; semantic renderers in `src/core/plugins.ts` are additive sugar (`google.api.http`, `buf.validate`, `cybozu.validate`, field behavior, deprecated).
+- **Custom options are data, not a hard-coded name list.** Prefer the generic option model; semantic renderers in `src/core/plugins.ts` are additive sugar (`google.api.http`, `buf.validate`, `cybozu.validate`, field behavior, deprecated). Field tables surface `buf.validate` and `cybozu.validate` in a Validation column; Details keeps JSON name, presence, and raw option text.
 - **View source** is the in-site proto browser when `.proto` text is available. `source.repository` only adds a separate “View on GitHub” link.
 - **Plugins are trusted build code.** Do not load plugin modules from schema comments or other untrusted input.
 - Reject source/output paths that contain `..`.

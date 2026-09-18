@@ -49,7 +49,7 @@ const cybozuValidateRenderer: SemanticOptionRenderer = {
       rendererId: "cybozu.validate",
       title: "Cybozu validate",
       summary: constraints.join(", ") || "Normalization and validation rules",
-      badges: constraints.slice(0, 6),
+      badges: constraints,
       details: option.textProto,
     };
   },
@@ -66,7 +66,7 @@ const validationRenderer: SemanticOptionRenderer = {
       rendererId: "validation",
       title: "Validation",
       summary: constraints.join(", ") || "Validation constraints",
-      badges: constraints.slice(0, 4),
+      badges: constraints,
       details: option.textProto,
     };
   },
@@ -109,6 +109,29 @@ export const builtinPlugins: PbSchemaLensPlugin[] = [
     semanticOptionRenderers: [httpRenderer, cybozuValidateRenderer, validationRenderer, fieldBehaviorRenderer, deprecatedRenderer],
   },
 ];
+
+const VALIDATION_RENDERER_IDS = new Set(["validation", "cybozu.validate"]);
+
+export function isValidationRenderer(rendererId: string | undefined): boolean {
+  return rendererId !== undefined && VALIDATION_RENDERER_IDS.has(rendererId);
+}
+
+/** Constraint chips for the field-table Validation column. */
+export function validationChips(options: DocOption[]): string[] {
+  const chips: string[] = [];
+  for (const option of options) {
+    const semantic = option.semantic;
+    if (!isValidationRenderer(semantic?.rendererId)) {
+      continue;
+    }
+    if (semantic?.badges?.length) {
+      chips.push(...semantic.badges);
+    } else if (semantic?.summary) {
+      chips.push(semantic.summary);
+    }
+  }
+  return chips;
+}
 
 function flattenHttp(option: DocOption): string[] {
   const value = option.value;
