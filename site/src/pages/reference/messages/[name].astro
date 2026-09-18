@@ -7,7 +7,7 @@ import FeatureList from "../../../components/FeatureList.astro";
 import FieldTable from "../../../components/FieldTable.astro";
 import { loadModel, withBase } from "../../../lib/data.ts";
 import { symbolHref } from "../../../lib/format.ts";
-import { validationChips } from "../../../../src/core/plugins.ts";
+import { validationChips } from "pbschema-lens/core";
 
 export function getStaticPaths() {
   return loadModel()
