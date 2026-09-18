@@ -68,8 +68,20 @@ jobs:
           node-version: "22"
       - name: Install
         run: npm ci
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
       - name: Build protobuf documentation
-        run: npx pbschema-lens build . --out dist
+        env:
+          PAGES_BASE_PATH: \${{ steps.pages.outputs.base_path }}
+        run: |
+          base="\${PAGES_BASE_PATH:-/}"
+          case "$base" in
+            /) ;;
+            */) ;;
+            *) base="\${base}/" ;;
+          esac
+          npx pbschema-lens build . --out dist --base "$base"
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
