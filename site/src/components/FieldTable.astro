@@ -75,15 +75,9 @@ function oneofRequired(oneof: DocOneof): boolean {
                   <td>
                     {oneof.comments?.markdownHtml ? <div class="prose-doc text-sm" set:html={oneof.comments.markdownHtml} /> : null}
                     <p class="text-sm text-[color:var(--fg-muted)]">
-                      {required ? "Exactly one of " : "At most one of "}
-                      {members.map((member, index) => (
-                        <>
-                          {index > 0 ? ", " : null}
-                          <a href={`#${member.anchor}`}>{member.shortName}</a>
-                        </>
-                      ))}
-                      .
-                    </p>
+                      {required ? "Exactly one of " : "At most one of "}{members.map((member, index) => (
+                        <Fragment>{index > 0 ? ", " : ""}<a href={`#${member.anchor}`}>{member.shortName}</a></Fragment>
+                      ))}.</p>
                     {oneof.options.length > 0 && (
                       <details class="mt-2 text-xs">
                         <summary class="cursor-pointer text-[color:var(--fg-muted)]">Details</summary>
