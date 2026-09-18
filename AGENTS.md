@@ -26,20 +26,20 @@ During development, run the CLI with `npx tsx src/cli.ts …`, not a globally in
 
 Data flows one way. Do not add a reverse path from `site/` into Buf or the descriptor set.
 
-```
-.proto / buf.yaml / *.binpb
-        │  src/node/compile.ts     Buf `build --as-file-descriptor-set`
-        ▼
-FileDescriptorSet bytes
-        │  src/core/registry.ts    Protobuf-ES FileRegistry (+ missing WKT)
-        ▼
-FileRegistry
-        │  src/core/model.ts       classify, options, comments, references
-        ▼
-SchemaModel  ──JSON──►  site/src/data/generated.json
-        │  src/node/generate-site.ts
-        ▼
-static HTML  +  Pagefind  +  assets/protobuf/*.json
+```mermaid
+flowchart TD
+  inputs[".proto / buf.yaml / *.binpb"]
+  fds["FileDescriptorSet bytes"]
+  registry["FileRegistry"]
+  model["SchemaModel"]
+  json["site/src/data/generated.json"]
+  out["static HTML + Pagefind + assets/protobuf/*.json"]
+
+  inputs -->|"src/node/compile.ts · Buf"| fds
+  fds -->|"src/core/registry.ts · Protobuf-ES"| registry
+  registry -->|"src/core/model.ts"| model
+  model -->|"JSON"| json
+  json -->|"src/node/generate-site.ts · Astro"| out
 ```
 
 `src/cli.ts` loads `pbschema-lens.yaml` (`src/node/config.ts`) and calls `buildDocumentation` in `src/node/pipeline.ts`. That is the only orchestration entry point for `build`, `dev`, and `diff`.
