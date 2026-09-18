@@ -22,6 +22,70 @@ Do not introduce Starlight, MDX, or a runtime docs server. Pages come from `getS
 
 During development, run the CLI with `npx tsx src/cli.ts …`, not a globally installed `pbschema-lens`.
 
+## Internal architecture
+
+Data flows one way. Do not add a reverse path from `site/` into Buf or the descriptor set.
+
+```
+.proto / buf.yaml / *.binpb
+        │  src/node/compile.ts     Buf `build --as-file-descriptor-set`
+        ▼
+FileDescriptorSet bytes
+        │  src/core/registry.ts    Protobuf-ES FileRegistry (+ missing WKT)
+        ▼
+FileRegistry
+        │  src/core/model.ts       classify, options, comments, references
+        ▼
+SchemaModel  ──JSON──►  site/src/data/generated.json
+        │  src/node/generate-site.ts
+        ▼
+static HTML  +  Pagefind  +  assets/protobuf/*.json
+```
+
+`src/cli.ts` loads `pbschema-lens.yaml` (`src/node/config.ts`) and calls `buildDocumentation` in `src/node/pipeline.ts`. That is the only orchestration entry point for `build`, `dev`, and `diff`.
+
+### Compile
+
+`compileInput` accepts a Buf module/workspace, a directory of `.proto` files, or a `FileDescriptorSet`. A bare proto directory is wrapped in a temporary `buf.yaml` so compilation always goes through Buf. Descriptor-only inputs skip Buf and have no source text for the in-site browser.
+
+### Model (`src/core/`)
+
+`SchemaModel` (`src/core/types.ts`) is the contract between the Node pipeline and the Astro UI. Every documented entity is a `DocSymbol` in `model.symbols`, with kind-specific lists (`messages`, `services`, …) as indexes into that map.
+
+`buildModel`:
+
+1. Classifies each file (`src/core/classify.ts`) as `local`, `well-known`, `external-documented`, or `external-undocumented`. Only `local` and (non-hidden) WKT get pages / nav.
+2. Walks the Protobuf-ES registry into packages, files, messages, fields, oneofs, enums, services, methods, and extensions.
+3. Extracts custom options generically (`src/core/options.ts`). Semantic renderers in `src/core/plugins.ts` are optional overlays.
+4. Sanitizes comments to HTML (`src/core/markdown.ts`).
+5. Records forward edges and inverts them to `referencedBy` (`src/core/references.ts`).
+6. Builds `symbolIndex` for client-side search (`src/core/search.ts`). URL grammar is `src/core/urls.ts`.
+
+`--against` compiles a second schema, attaches `model.diff` (`src/core/diff.ts`), and may run `buf breaking` (`src/node/breaking.ts`).
+
+User plugins listed in config are trusted Node modules loaded in `pipeline.ts`. They merge with `builtinPlugins`.
+
+### Site (`site/`)
+
+`generateSite` writes `SchemaModel` to `site/src/data/generated.json`, sets `PBSCHEMA_LENS_BASE` / `PBSCHEMA_LENS_OUT`, and runs `astro build --root site`. Astro pages under `site/src/pages/` call `loadModel()` and `getStaticPaths()`; they must not fetch the network or recompile protos.
+
+After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text search. The header search box uses `assets/protobuf/symbols.json` (exact/prefix/fuzzy) and Pagefind as a second layer. The playground parses a descriptor set entirely in the browser.
+
+### Where to change what
+
+| Change | Place |
+|---|---|
+| CLI flags, commands | `src/cli.ts` |
+| Config schema | `src/node/config.ts` |
+| Buf / descriptor ingest | `src/node/compile.ts` |
+| Symbol graph, comments, options | `src/core/` (`types.ts` first if the JSON shape changes) |
+| HTTP / validation / field-behavior chips | `src/core/plugins.ts` |
+| Page layout, tables, source browser | `site/src/` |
+| Example schema | `examples/acme/proto/` |
+| Pages workflow template | `src/node/init.ts` |
+
+If you change `SchemaModel`, update both `src/core/` producers and `site/` consumers. The JSON dump is the API between them.
+
 ## Commands
 
 ```bash
