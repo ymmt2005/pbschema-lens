@@ -52,12 +52,6 @@ The same page also shows **Source code (tar.gz)** and **Source code (zip)**. Tho
 
 A stable name `pbschema-lens.tgz` is also uploaded for `releases/latest/download/pbschema-lens.tgz`. Pin a versioned URL when you care about reproducibility.
 
-## Releasing
-
-Bump the version in a PR (`package.json`, lockfile, CLI `--version`, and the install URL above) and squash-merge it to `main`. The **Release tarball** workflow sees that squash commit’s `package.json` version change, tags `vX.Y.Z`, and publishes the GitHub Release with both pack files.
-
-Do not create the tag or the Release by hand. Do not delete a published tag or Release: GitHub will not let you reuse that tag name. If the version is wrong, bump to the next patch and merge that.
-
 ## CLI
 
 | Command | Purpose |
@@ -149,3 +143,5 @@ npx tsx src/cli.ts doctor examples/acme
 ```
 
 The example API lives in `examples/acme` and is published to [GitHub Pages](https://ymmt2005.github.io/pbschema-lens/) after CI tests pass. The `pbschema-lens init --github-pages` template is documented in `examples/github-pages`.
+
+To cut a GitHub Release, bump the version in a PR (`package.json`, lockfile, CLI `--version`, and the install URL) and squash-merge it to `main`. The **Release tarball** workflow sees that squash commit’s `package.json` version change, tags `vX.Y.Z`, and publishes both pack files. Do not create the tag or the Release by hand. Do not delete a published tag or Release: GitHub will not let you reuse that tag name. If the version is wrong, bump to the next patch and merge that.
