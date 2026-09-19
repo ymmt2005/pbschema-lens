@@ -1,5 +1,5 @@
 import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -71,6 +71,18 @@ export function resolveBufBin(): string | undefined {
 export async function runBuf(cwd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   const bin = resolveBufBin() ?? "buf";
   return run(bin, args, cwd);
+}
+
+/** Resolve a dependency CLI whether npm hoisted it or nested it under this package. */
+export function resolveNpmBin(pkgName: string, binName: string): string {
+  const require = createRequire(import.meta.url);
+  const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
+  const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8")) as { bin?: string | Record<string, string> };
+  const rel = typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.[binName];
+  if (!rel) {
+    throw new Error(`${pkgName} has no bin named ${binName}`);
+  }
+  return join(dirname(pkgJsonPath), rel);
 }
 
 async function materializeBufWorkspace(protoDir: string): Promise<string> {
