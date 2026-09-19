@@ -76,36 +76,39 @@ export async function runBuf(cwd: string, args: string[]): Promise<{ stdout: str
 /** Resolve a dependency CLI whether npm hoisted it or nested it under this package. */
 export function resolveNpmBin(pkgName: string, binName: string): string {
   const require = createRequire(import.meta.url);
-  let pkgJsonPath: string;
+  let pkgDir: string | undefined;
   try {
-    pkgJsonPath = require.resolve(`${pkgName}/package.json`);
+    pkgDir = dirname(require.resolve(`${pkgName}/package.json`));
   } catch {
-    pkgJsonPath = join(findPackageRoot(require.resolve(pkgName), pkgName), "package.json");
+    pkgDir = findNodeModulePackage(pkgName);
   }
+  const pkgJsonPath = join(pkgDir, "package.json");
   const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8")) as { bin?: string | Record<string, string> };
   const rel = typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.[binName];
   if (!rel) {
     throw new Error(`${pkgName} has no bin named ${binName}`);
   }
-  return join(dirname(pkgJsonPath), rel);
+  return join(pkgDir, rel);
 }
 
-function findPackageRoot(fromFile: string, pkgName: string): string {
-  let dir = dirname(fromFile);
-  while (true) {
-    const candidate = join(dir, "package.json");
-    if (existsSync(candidate)) {
-      const pkg = JSON.parse(readFileSync(candidate, "utf8")) as { name?: string };
-      if (pkg.name === pkgName) {
-        return dir;
+function findNodeModulePackage(pkgName: string): string {
+  const parts = pkgName.split("/");
+  const starts = [dirname(fileURLToPath(import.meta.url)), process.cwd()];
+  for (const start of starts) {
+    let dir = start;
+    while (true) {
+      const candidate = join(dir, "node_modules", ...parts, "package.json");
+      if (existsSync(candidate)) {
+        return dirname(candidate);
       }
+      const parent = dirname(dir);
+      if (parent === dir) {
+        break;
+      }
+      dir = parent;
     }
-    const parent = dirname(dir);
-    if (parent === dir) {
-      throw new Error(`Cannot find package root for ${pkgName}`);
-    }
-    dir = parent;
   }
+  throw new Error(`Cannot resolve package ${pkgName}`);
 }
 
 async function materializeBufWorkspace(protoDir: string): Promise<string> {
