@@ -50,7 +50,18 @@ npx pbschema-lens build .
 
 The same page also shows **Source code (tar.gz)** and **Source code (zip)**. Those are not our pack. GitHub always adds them when a tag exists: they are a snapshot of the git tree (`/archive/refs/tags/v0.2.1.tar.gz`), TypeScript sources only. The CLI bin is `./dist/cli.js`, so installing that archive does not give you a working `pbschema-lens`. Use the Assets file named `pbschema-lens-0.2.1.tgz`.
 
-A stable name `pbschema-lens.tgz` is also uploaded for `releases/latest/download/pbschema-lens.tgz`. Pin a versioned URL when you care about reproducibility. Pushing a semver tag (`v0.2.1`) creates the GitHub Release and attaches both pack files.
+A stable name `pbschema-lens.tgz` is also uploaded for `releases/latest/download/pbschema-lens.tgz`. Pin a versioned URL when you care about reproducibility.
+
+## Releasing
+
+Bump the version in a PR (`package.json`, lockfile, CLI `--version`, and the install URL above). Merge to `main`, then tag that merge commit and push the tag:
+
+```bash
+git tag -a vX.Y.Z origin/main -m "vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+The **Release tarball** workflow creates the GitHub Release and attaches both pack files. Do not create the Release by hand, and do not delete a published tag or Release: GitHub will not let you reuse that tag name.
 
 ## CLI
 

@@ -85,7 +85,7 @@ After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text searc
 | Page layout, tables, source browser | `site/src/` |
 | Example schema | `examples/acme/proto/` |
 | Pages workflow template | `src/node/init.ts` |
-| GitHub Release tarball | `.github/workflows/release.yml` (`npm pack` after `tsc`) |
+| GitHub Release tarball | `.github/workflows/release.yml` (`npm pack` after `tsc`). See **Releasing** |
 
 If you change `SchemaModel`, update both `src/core/` producers and `site/` consumers. The JSON dump is the API between them.
 
@@ -133,7 +133,25 @@ The Pages workflow for *this* repo builds `examples/acme` into `dist/` with `--b
 
 This repository’s own CI is `.github/workflows/ci.yml` on Node 24: test, typecheck, doctor, build the Acme example, pack-smoke the install tarball, then deploy Pages from `main` only. `engines.node` is `>=24`. TypeScript 7 defaults `types` to `[]`; keep `compilerOptions.types: ["node"]`.
 
-`.github/workflows/release.yml` runs on a pushed semver tag (`v*.*.*`). It `npm pack`s after `tsc`, then `gh release create`s that tag with `pbschema-lens-<version>.tgz` and a stable `pbschema-lens.tgz`. Those live at `/releases/download/…`, not GitHub’s `/archive/refs/tags/…` source snapshot (no `dist/`). The pack includes `dist/`, `site/`, and `src/` because Astro still compiles the site from those sources. Do not add a `prepare` script. Document consumer install as a pinned `/releases/download/vX.Y.Z/pbschema-lens-X.Y.Z.tgz` plus `npm install --no-save ./pbschema-lens.tgz`, not a `package.json` dependency. Do not create the GitHub Release by hand first; the tag push does that.
+`.github/workflows/release.yml` runs on a pushed semver tag (`v*.*.*`). It `npm pack`s after `tsc`, then `gh release create`s that tag with `pbschema-lens-<version>.tgz` and a stable `pbschema-lens.tgz`. Those live at `/releases/download/…`, not GitHub’s `/archive/refs/tags/…` source snapshot (no `dist/`). The pack includes `dist/`, `site/`, and `src/` because Astro still compiles the site from those sources. Do not add a `prepare` script. Document consumer install as a pinned `/releases/download/vX.Y.Z/pbschema-lens-X.Y.Z.tgz` plus `npm install --no-save ./pbschema-lens.tgz`, not a `package.json` dependency.
+
+## Releasing
+
+The GitHub Release is created by the workflow when a tag is pushed. Do not run `gh release create`, attach assets by hand, or publish a draft first.
+
+1. Open a PR that sets the same new version in `package.json`, `package-lock.json`, `src/cli.ts` (`program.version`), and the README install URL. The tag name and `npm pack` filename both come from this version (`v0.2.1` → `pbschema-lens-0.2.1.tgz`).
+2. Merge the PR to `main`. Do not tag the PR branch: a squash merge is a different commit.
+3. After merge, tag that `main` commit and push only the tag:
+
+```bash
+git fetch origin main
+git tag -a vX.Y.Z origin/main -m "vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+4. Wait for the **Release tarball** workflow. It tests, packs, and creates the Release.
+
+Do not delete a published tag or Release. This repo uses immutable releases: a deleted tag name cannot be reused (that is why `v0.2.0` was skipped). If the version on `main` is wrong, bump to the next patch and tag that instead. Do not move a published tag to a later commit.
 
 ## Tests
 
