@@ -1,0 +1,40 @@
+name: Release tarball
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing git tag / GitHub Release to attach the tarball to
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  tarball:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Test
+        run: npm test
+      - name: Pack and smoke-test
+        run: npm run pack:smoke
+      - name: Build release tarball
+        run: |
+          npm run build
+          versioned="$(npm pack --silent)"
+          cp "$versioned" pbschema-lens.tgz
+          echo "VERSIONED=$versioned" >> "$GITHUB_ENV"
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$TAG" "$VERSIONED" pbschema-lens.tgz --clobber

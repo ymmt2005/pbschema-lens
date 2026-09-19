@@ -35,22 +35,18 @@ Against an existing descriptor set:
 npx tsx src/cli.ts build schema.binpb --out dist
 ```
 
-## Install from GitHub Packages
+## Install from a GitHub Release
 
-Published releases are `@ymmt2005/pbschema-lens` on [GitHub Packages](https://github.com/ymmt2005/pbschema-lens/pkgs/npm/pbschema-lens). The CLI binary is still `pbschema-lens`. GitHub Packages requires authentication even for public packages.
-
-```ini
-# .npmrc
-@ymmt2005:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
+Each GitHub Release attaches an `npm pack` tarball (built, no install scripts). Download the file and install it locally so npm 12 does not need `--allow-remote`:
 
 ```bash
-npm install --save-dev @ymmt2005/pbschema-lens
+curl -fsSL -o pbschema-lens.tgz \
+  https://github.com/ymmt2005/pbschema-lens/releases/latest/download/pbschema-lens.tgz
+npm install --save-dev ./pbschema-lens.tgz
 npx pbschema-lens build .
 ```
 
-A GitHub Release (or the **Publish** workflow) publishes `v0.1.0` and later. Other repositories that install this package may need a `read:packages` token if `GITHUB_TOKEN` cannot see it.
+A versioned asset is also attached, for example `pbschema-lens-0.1.0.tgz` on the `v0.1.0` release. Creating a GitHub Release (or running the **Release tarball** workflow) uploads both files.
 
 ## CLI
 

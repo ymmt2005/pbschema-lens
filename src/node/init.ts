@@ -66,14 +66,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          registry-url: https://npm.pkg.github.com
-          scope: "@ymmt2005"
       - name: Install
         run: npm ci
       - name: Install pbschema-lens
-        run: npm install --no-save @ymmt2005/pbschema-lens
-        env:
-          NODE_AUTH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -fsSL -o pbschema-lens.tgz \\
+            https://github.com/ymmt2005/pbschema-lens/releases/latest/download/pbschema-lens.tgz
+          npm install --no-save ./pbschema-lens.tgz
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5

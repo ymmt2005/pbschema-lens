@@ -2,7 +2,7 @@
 
 Copy `.github/workflows/protobuf-docs.yml` from `pbschema-lens init --github-pages`, or use this workflow in a schema repository:
 
-1. Install `@ymmt2005/pbschema-lens` from GitHub Packages (auth required even when the package is public). The generated workflow uses `GITHUB_TOKEN`; another repository may need a PAT with `read:packages` and package access granted.
+1. Install pbschema-lens from the latest GitHub Release tarball (`releases/latest/download/pbschema-lens.tgz`). The generated workflow downloads that file and `npm install`s it locally.
 2. Enable Pages with **Source: GitHub Actions**.
 3. Set `base` to match how GitHub hosts the site, or let the generated workflow pass `--base` from `actions/configure-pages`.
 
