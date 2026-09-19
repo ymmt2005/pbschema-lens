@@ -61,6 +61,11 @@ jobs:
             git tag -a "${tag}" "${GITHUB_SHA}" -m "${tag}"
             git push origin "${tag}"
           fi
+          tag_commit="$(git rev-parse "${tag}^{commit}")"
+          if [[ "${tag_commit}" != "${GITHUB_SHA}" ]]; then
+            echo "Tag ${tag} points at ${tag_commit}, not this commit ${GITHUB_SHA}"
+            exit 1
+          fi
           if gh release view "${tag}" >/dev/null 2>&1; then
             echo "Release ${tag} already exists"
             exit 0
