@@ -1,0 +1,6 @@
+**/*.test.ts
+site/src/data/generated.json
+site/src/data/generated-diff.json
+site/dist
+**/.astro/**
+*.tgz

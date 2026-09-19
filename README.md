@@ -35,6 +35,23 @@ Against an existing descriptor set:
 npx tsx src/cli.ts build schema.binpb --out dist
 ```
 
+## Install from GitHub Packages
+
+Published releases are `@ymmt2005/pbschema-lens` on [GitHub Packages](https://github.com/ymmt2005/pbschema-lens/pkgs/npm/pbschema-lens). The CLI binary is still `pbschema-lens`. GitHub Packages requires authentication even for public packages.
+
+```ini
+# .npmrc
+@ymmt2005:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+```bash
+npm install --save-dev @ymmt2005/pbschema-lens
+npx pbschema-lens build .
+```
+
+A GitHub Release (or the **Publish** workflow) publishes `v0.1.0` and later. Other repositories that install this package may need a `read:packages` token if `GITHUB_TOKEN` cannot see it.
+
 ## CLI
 
 | Command | Purpose |

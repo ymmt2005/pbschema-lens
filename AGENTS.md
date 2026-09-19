@@ -85,6 +85,7 @@ After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text searc
 | Page layout, tables, source browser | `site/src/` |
 | Example schema | `examples/acme/proto/` |
 | Pages workflow template | `src/node/init.ts` |
+| npm / GitHub Packages publish | `package.json` (`publishConfig`), `.github/workflows/publish.yml` |
 
 If you change `SchemaModel`, update both `src/core/` producers and `site/` consumers. The JSON dump is the API between them.
 
@@ -130,7 +131,9 @@ The Pages workflow for *this* repo builds `examples/acme` into `dist/` with `--b
 
 `pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the string in `src/node/init.ts`. If you change that workflow, edit `init.ts`, not a checked-in copy. Keep `examples/github-pages/README.md` in sync.
 
-This repository’s own CI is `.github/workflows/ci.yml`: test, typecheck, doctor, build the Acme example, then deploy Pages from `main` only.
+This repository’s own CI is `.github/workflows/ci.yml`: test, typecheck, doctor, build the Acme example, pack-smoke the install tarball, then deploy Pages from `main` only.
+
+`.github/workflows/publish.yml` publishes `@ymmt2005/pbschema-lens` to GitHub Packages on a GitHub Release or `workflow_dispatch`. The npm package must stay scoped (`@ymmt2005/…`); GitHub Packages rejects unscoped names. The tarball includes `dist/`, `site/`, and `src/` because Astro still compiles the site from those sources. Do not point `publishConfig.registry` at registry.npmjs.org unless you also add a second, intentional publish path.
 
 ## Tests
 

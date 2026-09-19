@@ -1,5 +1,5 @@
 {
-  "name": "pbschema-lens",
+  "name": "@ymmt2005/pbschema-lens",
   "version": "0.1.0",
   "description": "Open-source static schema explorer for Protocol Buffers",
   "type": "module",
@@ -15,16 +15,29 @@
   "files": [
     "dist",
     "site",
-    "bundled"
+    "src"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "example": "tsx src/cli.ts build examples/acme --out examples/acme/dist",
-    "preview": "tsx src/cli.ts build examples/acme --out examples/acme/dist && astro preview --root site --port 43147 --host 127.0.0.1"
+    "preview": "tsx src/cli.ts build examples/acme --out examples/acme/dist && astro preview --root site --port 43147 --host 127.0.0.1",
+    "pack:smoke": "bash scripts/pack-smoke.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ymmt2005/pbschema-lens.git"
+  },
+  "homepage": "https://github.com/ymmt2005/pbschema-lens#readme",
+  "bugs": {
+    "url": "https://github.com/ymmt2005/pbschema-lens/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "engines": {
     "node": ">=20"
