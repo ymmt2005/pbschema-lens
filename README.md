@@ -43,14 +43,14 @@ Each GitHub Release **Assets** list includes an `npm pack` tarball we attach aft
 
 ```bash
 curl -fsSL -o pbschema-lens.tgz \
-  https://github.com/ymmt2005/pbschema-lens/releases/download/v0.1.0/pbschema-lens-0.1.0.tgz
+  https://github.com/ymmt2005/pbschema-lens/releases/download/v0.2.0/pbschema-lens-0.2.0.tgz
 npm install --no-save ./pbschema-lens.tgz
 npx pbschema-lens build .
 ```
 
-The same page also shows **Source code (tar.gz)** and **Source code (zip)**. Those are not our pack. GitHub always adds them when a tag exists: they are a snapshot of the git tree (`/archive/refs/tags/v0.1.0.tar.gz`), TypeScript sources only. The CLI bin is `./dist/cli.js`, so installing that archive does not give you a working `pbschema-lens`. Use the Assets file named `pbschema-lens-0.1.0.tgz`.
+The same page also shows **Source code (tar.gz)** and **Source code (zip)**. Those are not our pack. GitHub always adds them when a tag exists: they are a snapshot of the git tree (`/archive/refs/tags/v0.2.0.tar.gz`), TypeScript sources only. The CLI bin is `./dist/cli.js`, so installing that archive does not give you a working `pbschema-lens`. Use the Assets file named `pbschema-lens-0.2.0.tgz`.
 
-A stable name `pbschema-lens.tgz` is also uploaded for `releases/latest/download/pbschema-lens.tgz`. Pin a versioned URL when you care about reproducibility. Pushing a semver tag (`v0.1.0`) creates the GitHub Release and attaches both pack files.
+A stable name `pbschema-lens.tgz` is also uploaded for `releases/latest/download/pbschema-lens.tgz`. Pin a versioned URL when you care about reproducibility. Pushing a semver tag (`v0.2.0`) creates the GitHub Release and attaches both pack files.
 
 ## CLI
 
