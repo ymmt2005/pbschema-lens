@@ -131,7 +131,7 @@ The Pages workflow for *this* repo builds `examples/acme` into `dist/` with `--b
 
 `pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the string in `src/node/init.ts`. If you change that workflow, edit `init.ts`, not a checked-in copy. Keep `examples/github-pages/README.md` in sync.
 
-This repository’s own CI is `.github/workflows/ci.yml`: test, typecheck, doctor, build the Acme example, pack-smoke the install tarball, then deploy Pages from `main` only.
+This repository’s own CI is `.github/workflows/ci.yml` on Node 24: test, typecheck, doctor, build the Acme example, pack-smoke the install tarball, then deploy Pages from `main` only. `engines.node` is `>=24`. TypeScript 7 defaults `types` to `[]`; keep `compilerOptions.types: ["node"]`.
 
 `.github/workflows/release.yml` runs on a pushed semver tag (`v*.*.*`). It `npm pack`s after `tsc`, then `gh release create`s that tag with `pbschema-lens-<version>.tgz` and a stable `pbschema-lens.tgz`. Those live at `/releases/download/…`, not GitHub’s `/archive/refs/tags/…` source snapshot (no `dist/`). The pack includes `dist/`, `site/`, and `src/` because Astro still compiles the site from those sources. Do not add a `prepare` script. Document consumer install as a pinned `/releases/download/vX.Y.Z/pbschema-lens-X.Y.Z.tgz` plus `npm install --no-save ./pbschema-lens.tgz`, not a `package.json` dependency. Do not create the GitHub Release by hand first; the tag push does that.
 

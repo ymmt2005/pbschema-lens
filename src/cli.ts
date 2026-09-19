@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { mkdir, readFile, stat } from "node:fs/promises";
-import { dirname, extname, join, normalize, resolve } from "node:path";
+import { basename, dirname, extname, join, normalize, resolve } from "node:path";
 import { Command } from "commander";
 import { watch } from "chokidar";
 import { createServer } from "node:http";
@@ -54,9 +54,9 @@ program
     const port = Number(flags.port);
     await serve(outDir, port);
     console.log(`Preview: http://127.0.0.1:${port}/`);
-    watch(["**/*.proto", "buf.yaml", "buf.lock", "pbschema-lens.yaml", "pbschema-lens.yml"], {
-      cwd: input,
+    watch(input, {
       ignoreInitial: true,
+      ignored: (path, stats) => Boolean(stats?.isFile() && !isDevWatchFile(path)),
     }).on("all", () => {
       void rebuild();
     });
@@ -108,6 +108,20 @@ program
     }
     console.log(`+ ${diff.added.length}  ~ ${diff.modified.length}  - ${diff.removed.length}  breaking ${diff.breaking.length}`);
   });
+
+function isDevWatchFile(path: string): boolean {
+  const name = basename(path);
+  return (
+    name.endsWith(".proto") ||
+    name.endsWith(".binpb") ||
+    name.endsWith(".pb") ||
+    name.endsWith(".desc") ||
+    name === "buf.yaml" ||
+    name === "buf.lock" ||
+    name === "pbschema-lens.yaml" ||
+    name === "pbschema-lens.yml"
+  );
+}
 
 function resolveRuntime(inputArg: string | undefined, flags: { config?: string; title?: string; base?: string; out?: string }) {
   const cwd = process.cwd();
