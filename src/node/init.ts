@@ -70,9 +70,8 @@ jobs:
         run: npm ci
       - name: Install pbschema-lens
         run: |
-          curl -fsSL -o pbschema-lens.tgz \\
+          npm install --no-save --allow-remote=all \\
             https://github.com/ymmt2005/pbschema-lens/releases/latest/download/pbschema-lens.tgz
-          npm install --no-save ./pbschema-lens.tgz
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5

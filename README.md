@@ -37,12 +37,11 @@ npx tsx src/cli.ts build schema.binpb --out dist
 
 ## Install from a GitHub Release
 
-Each GitHub Release attaches an `npm pack` tarball (built, no install scripts). Download the file and install it locally so npm 12 does not need `--allow-remote`:
+Each GitHub Release attaches an `npm pack` tarball (built, no install scripts). npm 12 blocks remote tarball URLs by default, so pass `--allow-remote=all`:
 
 ```bash
-curl -fsSL -o pbschema-lens.tgz \
+npm install --save-dev --allow-remote=all \
   https://github.com/ymmt2005/pbschema-lens/releases/latest/download/pbschema-lens.tgz
-npm install --save-dev ./pbschema-lens.tgz
 npx pbschema-lens build .
 ```
 
