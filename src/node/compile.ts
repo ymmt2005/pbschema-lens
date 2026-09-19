@@ -76,13 +76,36 @@ export async function runBuf(cwd: string, args: string[]): Promise<{ stdout: str
 /** Resolve a dependency CLI whether npm hoisted it or nested it under this package. */
 export function resolveNpmBin(pkgName: string, binName: string): string {
   const require = createRequire(import.meta.url);
-  const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
+  let pkgJsonPath: string;
+  try {
+    pkgJsonPath = require.resolve(`${pkgName}/package.json`);
+  } catch {
+    pkgJsonPath = join(findPackageRoot(require.resolve(pkgName), pkgName), "package.json");
+  }
   const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8")) as { bin?: string | Record<string, string> };
   const rel = typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.[binName];
   if (!rel) {
     throw new Error(`${pkgName} has no bin named ${binName}`);
   }
   return join(dirname(pkgJsonPath), rel);
+}
+
+function findPackageRoot(fromFile: string, pkgName: string): string {
+  let dir = dirname(fromFile);
+  while (true) {
+    const candidate = join(dir, "package.json");
+    if (existsSync(candidate)) {
+      const pkg = JSON.parse(readFileSync(candidate, "utf8")) as { name?: string };
+      if (pkg.name === pkgName) {
+        return dir;
+      }
+    }
+    const parent = dirname(dir);
+    if (parent === dir) {
+      throw new Error(`Cannot find package root for ${pkgName}`);
+    }
+    dir = parent;
+  }
 }
 
 async function materializeBufWorkspace(protoDir: string): Promise<string> {
