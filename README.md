@@ -37,7 +37,7 @@ npx tsx src/cli.ts build schema.binpb --out dist
 
 ## Install from a GitHub Release
 
-This is a build-time CLI, not a library. Prefer a pinned download over a `package.json` dependency.
+This is a build-time CLI, not a library. It requires **Node 24+**. Prefer a pinned download over a `package.json` dependency.
 
 Each GitHub Release **Assets** list includes an `npm pack` tarball we attach after `tsc`. That file already contains compiled `dist/` (no install scripts). Download it from `/releases/download/…`:
 
