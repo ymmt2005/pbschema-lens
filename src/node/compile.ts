@@ -1,5 +1,5 @@
 import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -71,6 +71,44 @@ export function resolveBufBin(): string | undefined {
 export async function runBuf(cwd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   const bin = resolveBufBin() ?? "buf";
   return run(bin, args, cwd);
+}
+
+/** Resolve a dependency CLI whether npm hoisted it or nested it under this package. */
+export function resolveNpmBin(pkgName: string, binName: string): string {
+  const require = createRequire(import.meta.url);
+  let pkgDir: string | undefined;
+  try {
+    pkgDir = dirname(require.resolve(`${pkgName}/package.json`));
+  } catch {
+    pkgDir = findNodeModulePackage(pkgName);
+  }
+  const pkgJsonPath = join(pkgDir, "package.json");
+  const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8")) as { bin?: string | Record<string, string> };
+  const rel = typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.[binName];
+  if (!rel) {
+    throw new Error(`${pkgName} has no bin named ${binName}`);
+  }
+  return join(pkgDir, rel);
+}
+
+function findNodeModulePackage(pkgName: string): string {
+  const parts = pkgName.split("/");
+  const starts = [dirname(fileURLToPath(import.meta.url)), process.cwd()];
+  for (const start of starts) {
+    let dir = start;
+    while (true) {
+      const candidate = join(dir, "node_modules", ...parts, "package.json");
+      if (existsSync(candidate)) {
+        return dirname(candidate);
+      }
+      const parent = dirname(dir);
+      if (parent === dir) {
+        break;
+      }
+      dir = parent;
+    }
+  }
+  throw new Error(`Cannot resolve package ${pkgName}`);
 }
 
 async function materializeBufWorkspace(protoDir: string): Promise<string> {

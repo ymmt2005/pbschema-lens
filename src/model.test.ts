@@ -84,4 +84,11 @@ describe("schema fixtures", () => {
         (message?.source?.startLine ?? 1),
     );
   });
+
+  it("resolves dependency CLIs even when package.json is not exported", async () => {
+    const { resolveNpmBin } = await import("../src/node/compile.js");
+    const { existsSync } = await import("node:fs");
+    expect(existsSync(resolveNpmBin("astro", "astro"))).toBe(true);
+    expect(existsSync(resolveNpmBin("pagefind", "pagefind"))).toBe(true);
+  });
 });

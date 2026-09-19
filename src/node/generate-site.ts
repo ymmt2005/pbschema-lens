@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import type { SchemaModel } from "../core/types.js";
-import { packageRoot } from "./compile.js";
+import { packageRoot, resolveNpmBin } from "./compile.js";
 import type { PbSchemaLensConfig } from "./config.js";
 
 export interface GenerateSiteOptions {
@@ -43,7 +43,7 @@ async function runAstro(siteRoot: string, outDir: string, config: PbSchemaLensCo
     PBSCHEMA_LENS_SITE_URL: config.siteUrl ?? "",
     PBSCHEMA_LENS_DATA_FILE: join(siteRoot, "src/data/generated.json"),
   };
-  const bin = join(packageRoot(), "node_modules/.bin/astro");
+  const bin = resolveNpmBin("astro", "astro");
   await new Promise<void>((resolvePromise, reject) => {
     const child = spawn(bin, ["build", "--root", siteRoot], {
       cwd: packageRoot(),
@@ -62,7 +62,7 @@ async function runAstro(siteRoot: string, outDir: string, config: PbSchemaLensCo
 }
 
 async function runPagefind(outDir: string): Promise<void> {
-  const bin = join(packageRoot(), "node_modules/.bin/pagefind");
+  const bin = resolveNpmBin("pagefind", "pagefind");
   await new Promise<void>((resolvePromise, reject) => {
     const child = spawn(bin, ["--site", outDir], { stdio: "inherit" });
     child.on("exit", (code) => {

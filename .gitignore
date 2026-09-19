@@ -1,5 +1,6 @@
 node_modules/
 dist/
+*.tgz
 .pbschema-lens/
 examples/acme/dist/
 *.tsbuildinfo
