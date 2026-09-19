@@ -1,13 +1,9 @@
 name: Release tarball
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing git tag / GitHub Release to attach the tarball to
-        required: true
+  push:
+    tags:
+      - "v*.*.*"
 
 permissions:
   contents: write
@@ -33,8 +29,15 @@ jobs:
           versioned="$(npm pack --silent)"
           cp "$versioned" pbschema-lens.tgz
           echo "VERSIONED=$versioned" >> "$GITHUB_ENV"
-      - name: Upload to GitHub Release
+      - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: gh release upload "$TAG" "$VERSIONED" pbschema-lens.tgz --clobber
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$VERSIONED" pbschema-lens.tgz --clobber
+          else
+            gh release create "$TAG" "$VERSIONED" pbschema-lens.tgz \
+              --title "$TAG" \
+              --generate-notes
+          fi

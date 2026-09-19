@@ -54,7 +54,7 @@ npx pbschema-lens build .
 https://github.com/ymmt2005/pbschema-lens/archive/refs/tags/v0.1.0.tar.gz
 ```
 
-A stable name `pbschema-lens.tgz` is also uploaded for `releases/latest/download/pbschema-lens.tgz`. Pin a versioned URL when you care about reproducibility. Creating a GitHub Release (or running the **Release tarball** workflow) uploads both files.
+A stable name `pbschema-lens.tgz` is also uploaded for `releases/latest/download/pbschema-lens.tgz`. Pin a versioned URL when you care about reproducibility. Pushing a semver tag (`v0.1.0`) creates the GitHub Release and attaches both files.
 
 ## CLI
 
