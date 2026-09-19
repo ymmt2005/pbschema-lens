@@ -2,8 +2,11 @@ name: Release tarball
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches: [main]
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -13,31 +16,61 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Detect version bump
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/release-detect.sh
       - uses: actions/setup-node@v7
+        if: steps.detect.outputs.release == 'true'
         with:
           node-version: "24"
           cache: npm
       - name: Install
+        if: steps.detect.outputs.release == 'true'
         run: npm ci
       - name: Test
+        if: steps.detect.outputs.release == 'true'
         run: npm test
       - name: Pack and smoke-test
+        if: steps.detect.outputs.release == 'true'
         run: npm run pack:smoke
       - name: Build release tarball
+        if: steps.detect.outputs.release == 'true'
         run: |
           npm run build
           versioned="$(npm pack --silent)"
           cp "$versioned" pbschema-lens.tgz
           echo "VERSIONED=$versioned" >> "$GITHUB_ENV"
-      - name: Publish GitHub Release
+      - name: Tag and publish GitHub Release
+        if: steps.detect.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.detect.outputs.version }}
         run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$VERSIONED" pbschema-lens.tgz --clobber
+          set -euo pipefail
+          tag="v${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse --verify --quiet "refs/tags/${tag}"; then
+            echo "Tag ${tag} already exists"
           else
-            gh release create "$TAG" "$VERSIONED" pbschema-lens.tgz \
-              --title "$TAG" \
-              --generate-notes
+            git tag -a "${tag}" "${GITHUB_SHA}" -m "${tag}"
+            git push origin "${tag}"
           fi
+          tag_commit="$(git rev-parse "${tag}^{commit}")"
+          if [[ "${tag_commit}" != "${GITHUB_SHA}" ]]; then
+            echo "Tag ${tag} points at ${tag_commit}, not this commit ${GITHUB_SHA}"
+            exit 1
+          fi
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            echo "Release ${tag} already exists"
+            exit 0
+          fi
+          gh release create "${tag}" "${VERSIONED}" pbschema-lens.tgz \
+            --title "${tag}" \
+            --generate-notes \
+            --verify-tag

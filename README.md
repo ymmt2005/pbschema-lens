@@ -54,14 +54,9 @@ A stable name `pbschema-lens.tgz` is also uploaded for `releases/latest/download
 
 ## Releasing
 
-Bump the version in a PR (`package.json`, lockfile, CLI `--version`, and the install URL above). Merge to `main`, then tag that merge commit and push the tag:
+Bump the version in a PR (`package.json`, lockfile, CLI `--version`, and the install URL above) and squash-merge it to `main`. The **Release tarball** workflow sees that squash commit’s `package.json` version change, tags `vX.Y.Z`, and publishes the GitHub Release with both pack files.
 
-```bash
-git tag -a vX.Y.Z origin/main -m "vX.Y.Z"
-git push origin vX.Y.Z
-```
-
-The **Release tarball** workflow creates the GitHub Release and attaches both pack files. Do not create the Release by hand, and do not delete a published tag or Release: GitHub will not let you reuse that tag name.
+Do not create the tag or the Release by hand. Do not delete a published tag or Release: GitHub will not let you reuse that tag name. If the version is wrong, bump to the next patch and merge that.
 
 ## CLI
 

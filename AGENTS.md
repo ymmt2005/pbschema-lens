@@ -85,7 +85,7 @@ After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text searc
 | Page layout, tables, source browser | `site/src/` |
 | Example schema | `examples/acme/proto/` |
 | Pages workflow template | `src/node/init.ts` |
-| GitHub Release tarball | `.github/workflows/release.yml` (`npm pack` after `tsc`). See **Releasing** |
+| GitHub Release tarball | `.github/workflows/release.yml` on `main` version bumps (`scripts/release-detect.sh`) |
 
 If you change `SchemaModel`, update both `src/core/` producers and `site/` consumers. The JSON dump is the API between them.
 
@@ -133,25 +133,19 @@ The Pages workflow for *this* repo builds `examples/acme` into `dist/` with `--b
 
 This repository’s own CI is `.github/workflows/ci.yml` on Node 24: test, typecheck, doctor, build the Acme example, pack-smoke the install tarball, then deploy Pages from `main` only. `engines.node` is `>=24`. TypeScript 7 defaults `types` to `[]`; keep `compilerOptions.types: ["node"]`.
 
-`.github/workflows/release.yml` runs on a pushed semver tag (`v*.*.*`). It `npm pack`s after `tsc`, then `gh release create`s that tag with `pbschema-lens-<version>.tgz` and a stable `pbschema-lens.tgz`. Those live at `/releases/download/…`, not GitHub’s `/archive/refs/tags/…` source snapshot (no `dist/`). The pack includes `dist/`, `site/`, and `src/` because Astro still compiles the site from those sources. Do not add a `prepare` script. Document consumer install as a pinned `/releases/download/vX.Y.Z/pbschema-lens-X.Y.Z.tgz` plus `npm install --no-save ./pbschema-lens.tgz`, not a `package.json` dependency.
+`.github/workflows/release.yml` runs on every push to `main`. `scripts/release-detect.sh` compares `package.json` on HEAD to `HEAD^`. That is enough because `main` only accepts squash merges via PR (no merge commits, no rebase merges, no direct pushes), so each push is one commit. It treats HEAD as a release only when the version changed to a new `x.y.z` and `gh release view vX.Y.Z` does not already exist. Then the job tests, `npm pack`s after `tsc`, creates annotated tag `vX.Y.Z` on `$GITHUB_SHA` (or fails if that tag already points at a different commit), pushes it, and `gh release create`s `pbschema-lens-<version>.tgz` plus a stable `pbschema-lens.tgz`. Those live at `/releases/download/…`, not GitHub’s `/archive/refs/tags/…` source snapshot (no `dist/`). The pack includes `dist/`, `site/`, and `src/` because Astro still compiles the site from those sources. Do not add a `prepare` script. Document consumer install as a pinned `/releases/download/vX.Y.Z/pbschema-lens-X.Y.Z.tgz` plus `npm install --no-save ./pbschema-lens.tgz`, not a `package.json` dependency.
+
+A `GITHUB_TOKEN` tag push does not start another workflow, so tagging and publishing stay in this one job. Do not keep a tag-push trigger.
 
 ## Releasing
 
-The GitHub Release is created by the workflow when a tag is pushed. Do not run `gh release create`, attach assets by hand, or publish a draft first.
+Do not run `gh release create`, `git tag`, or attach assets by hand.
 
 1. Open a PR that sets the same new version in `package.json`, `package-lock.json`, `src/cli.ts` (`program.version`), and the README install URL. The tag name and `npm pack` filename both come from this version (`v0.2.1` → `pbschema-lens-0.2.1.tgz`).
-2. Merge the PR to `main`. Do not tag the PR branch: a squash merge is a different commit.
-3. After merge, tag that `main` commit and push only the tag:
+2. Merge the PR to `main`. The **Release tarball** workflow tags that merge commit and publishes.
+3. Ordinary `main` pushes (docs, features, this workflow itself) do not change `package.json` version, so they skip.
 
-```bash
-git fetch origin main
-git tag -a vX.Y.Z origin/main -m "vX.Y.Z"
-git push origin vX.Y.Z
-```
-
-4. Wait for the **Release tarball** workflow. It tests, packs, and creates the Release.
-
-Do not delete a published tag or Release. This repo uses immutable releases: a deleted tag name cannot be reused (that is why `v0.2.0` was skipped). If the version on `main` is wrong, bump to the next patch and tag that instead. Do not move a published tag to a later commit.
+Do not delete a published tag or Release. This repo uses immutable releases: a deleted tag name cannot be reused (that is why `v0.2.0` was skipped). If the version on `main` is wrong, bump to the next patch in a new PR. Do not move a published tag to a later commit.
 
 ## Tests
 
