@@ -133,7 +133,7 @@ The Pages workflow for *this* repo builds `examples/acme` into `dist/` with `--b
 
 This repository’s own CI is `.github/workflows/ci.yml`: test, typecheck, doctor, build the Acme example, pack-smoke the install tarball, then deploy Pages from `main` only.
 
-`.github/workflows/release.yml` attaches `pbschema-lens-<version>.tgz` and a stable `pbschema-lens.tgz` to a GitHub Release (`npm pack` after `tsc`). The tarball includes `dist/`, `site/`, and `src/` because Astro still compiles the site from those sources. Do not add a `prepare` script so git or tarball installs can compile; pack the built tree instead. Document consumer install as `npm install --allow-remote=all https://github.com/…/releases/latest/download/pbschema-lens.tgz`.
+`.github/workflows/release.yml` attaches `pbschema-lens-<version>.tgz` and a stable `pbschema-lens.tgz` to a GitHub Release (`npm pack` after `tsc`). Those live at `/releases/download/…`, not GitHub’s `/archive/refs/tags/…` source snapshot (no `dist/`). The pack includes `dist/`, `site/`, and `src/` because Astro still compiles the site from those sources. Do not add a `prepare` script. Document consumer install as a pinned `/releases/download/vX.Y.Z/pbschema-lens-X.Y.Z.tgz` plus `npm install --no-save ./pbschema-lens.tgz`, not a `package.json` dependency.
 
 ## Tests
 

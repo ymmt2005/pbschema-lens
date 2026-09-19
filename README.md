@@ -37,15 +37,24 @@ npx tsx src/cli.ts build schema.binpb --out dist
 
 ## Install from a GitHub Release
 
-Each GitHub Release attaches an `npm pack` tarball (built, no install scripts). npm 12 blocks remote tarball URLs by default, so pass `--allow-remote=all`:
+This is a build-time CLI, not a library. Prefer a pinned download over a `package.json` dependency. Each GitHub Release attaches an `npm pack` tarball that already contains `dist/` (no install scripts).
+
+Use `/releases/download/…`, which is the file we upload. Do **not** use GitHub’s auto-generated source archive (`/archive/refs/tags/…` or the “Source code (tar.gz)” link). That snapshot does not include `dist/`, so `npx pbschema-lens` will not run.
 
 ```bash
-npm install --save-dev --allow-remote=all \
-  https://github.com/ymmt2005/pbschema-lens/releases/latest/download/pbschema-lens.tgz
+# Attached npm pack (includes dist/) — pin the version
+curl -fsSL -o pbschema-lens.tgz \
+  https://github.com/ymmt2005/pbschema-lens/releases/download/v0.1.0/pbschema-lens-0.1.0.tgz
+npm install --no-save ./pbschema-lens.tgz
 npx pbschema-lens build .
 ```
 
-A versioned asset is also attached, for example `pbschema-lens-0.1.0.tgz` on the `v0.1.0` release. Creating a GitHub Release (or running the **Release tarball** workflow) uploads both files.
+```text
+# Wrong: GitHub source snapshot, no dist/
+https://github.com/ymmt2005/pbschema-lens/archive/refs/tags/v0.1.0.tar.gz
+```
+
+A stable name `pbschema-lens.tgz` is also uploaded for `releases/latest/download/pbschema-lens.tgz`. Pin a versioned URL when you care about reproducibility. Creating a GitHub Release (or running the **Release tarball** workflow) uploads both files.
 
 ## CLI
 
