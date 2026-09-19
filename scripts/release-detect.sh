@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # True when HEAD changed package.json's version to a new x.y.z that has no Release yet.
+# HEAD vs HEAD^ is enough: main only accepts squash merges via PR.
 set -euo pipefail
 
 emit() {
