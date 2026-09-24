@@ -1,0 +1,65 @@
+---
+import { sourceNodeOpen, type SourceTreeNode } from "pbschema-lens/core";
+import { withBase } from "../lib/data.ts";
+
+interface Props {
+  nodes: SourceTreeNode[];
+  active?: string;
+}
+
+const { nodes, active } = Astro.props;
+---
+
+<ul class="source-tree">
+  {
+    nodes.map((node) => {
+      const fileHref = node.file ? withBase(node.file.urlPath) : undefined;
+      const isActive = node.file?.fullName === active;
+      if (node.kind === "file") {
+        return (
+          <li>
+            <a
+              class:list={["source-tree-file", isActive && "is-active"]}
+              href={fileHref}
+              aria-current={isActive ? "page" : undefined}
+            >
+              <svg class="source-tree-icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  d="M4.2 2.4h4.6L12.2 5.8v7.2c0 .5-.4.9-1 .9H4.2c-.5 0-1-.4-1-.9V3.3c0-.5.5-.9 1-.9z"
+                />
+                <path fill="none" stroke="currentColor" stroke-width="1.2" d="M8.6 2.6v3.4h3.4" />
+              </svg>
+              <span>{node.segment}</span>
+            </a>
+          </li>
+        );
+      }
+      const open = sourceNodeOpen(node.path, active);
+      return (
+        <li>
+          <details class="source-tree-node" {...(open ? { open: true } : {})}>
+            <summary>
+              <svg class="source-tree-icon source-tree-icon-folder" viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M1.8 4.1c0-.7.6-1.3 1.3-1.3h3.1l1.2 1.3H13c.7 0 1.3.6 1.3 1.3v6.3c0 .7-.6 1.3-1.3 1.3H3.1c-.7 0-1.3-.6-1.3-1.3V4.1z"
+                />
+              </svg>
+              {fileHref ? (
+                <a class:list={[isActive && "is-active"]} href={fileHref} aria-current={isActive ? "page" : undefined}>
+                  {node.segment}
+                </a>
+              ) : (
+                <span>{node.segment}</span>
+              )}
+            </summary>
+            <Astro.self nodes={node.children} active={active} />
+          </details>
+        </li>
+      );
+    })
+  }
+</ul>

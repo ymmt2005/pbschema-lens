@@ -1,6 +1,7 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { loadModel, withBase } from "../../lib/data.ts";
+import SourceExplorer from "../../components/SourceExplorer.astro";
+import { loadModel } from "../../lib/data.ts";
 import { highlightProto } from "../../lib/format.ts";
 
 export function getStaticPaths() {
@@ -12,34 +13,36 @@ export function getStaticPaths() {
 const model = loadModel();
 const pathParam = Astro.params.path;
 const path = Array.isArray(pathParam) ? pathParam.join("/") : pathParam;
-const file = path ? model.files.find((item) => item.fullName === path) : undefined;
+const file = path ? model.files.find((item) => item.fullName === path && item.sourceText) : undefined;
 const lines = file?.sourceText?.split(/\r?\n/) ?? [];
+const parts = file?.fullName.split("/").filter((part) => part.length > 0) ?? [];
+const filename = parts.at(-1);
+const dirs = parts.slice(0, -1);
 ---
 
 <Layout title={file ? file.fullName : "Source"}>
   {
     !file ? (
-      <div>
-        <h1 class="text-3xl font-semibold mb-4">Source</h1>
-        <p class="text-[color:var(--fg-muted)] mb-4">Embedded .proto sources for this schema.</p>
-        <ul class="space-y-1">
-          {model.files.filter((item) => item.sourceText).map((item) => (
-            <li>
-              <a href={withBase(item.urlPath)}>{item.fullName}</a>
-              <span class="text-xs text-[color:var(--fg-muted)]"> · {item.syntax}{item.edition ? ` ${item.edition}` : ""}</span>
-            </li>
-          ))}
-        </ul>
-        {model.files.every((item) => !item.sourceText) && (
-          <p>No source text was available. Descriptor-only builds omit the source browser.</p>
-        )}
-      </div>
+      <SourceExplorer files={model.files}>
+        <h1 class="text-3xl font-semibold mb-2">Source</h1>
+        <p class="text-[color:var(--fg-muted)]">Browse the embedded .proto files for this schema.</p>
+      </SourceExplorer>
     ) : (
-      <div>
+      <SourceExplorer files={model.files} active={file.fullName}>
         <p class="text-xs uppercase tracking-wider text-[color:var(--accent)] font-semibold">Source</p>
-        <h1 class="text-2xl font-semibold mt-1 break-all">{file.fullName}</h1>
+        {
+          dirs.length > 0 && (
+            <ol class="source-crumb">
+              {dirs.map((dir) => (
+                <li>{dir}</li>
+              ))}
+            </ol>
+          )
+        }
+        <h1 class="text-2xl font-semibold mt-1 break-all">{filename}</h1>
         <p class="text-sm text-[color:var(--fg-muted)] mt-2">
-          {file.syntax}{file.edition ? ` · edition ${file.edition}` : ""} · package {file.packageName || "(unnamed)"}
+          {file.syntax}
+          {file.edition ? ` · edition ${file.edition}` : ""} · package {file.packageName || "(unnamed)"}
         </p>
         <div class="source-view mt-6 font-mono text-[0.8rem] leading-6 border border-[color:var(--line)] rounded-xl overflow-x-auto bg-[color:var(--bg-raised)]">
           {lines.map((line, index) => (
@@ -51,7 +54,7 @@ const lines = file?.sourceText?.split(/\r?\n/) ?? [];
             </div>
           ))}
         </div>
-      </div>
+      </SourceExplorer>
     )
   }
 </Layout>
