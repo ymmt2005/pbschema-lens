@@ -76,12 +76,10 @@ async function runPagefind(outDir: string): Promise<void> {
   });
 }
 
-async function writeArtifacts(outDir: string, options: GenerateSiteOptions): Promise<void> {
+export async function writeArtifacts(outDir: string, options: GenerateSiteOptions): Promise<void> {
   const dir = join(outDir, "assets/protobuf");
   await mkdir(dir, { recursive: true });
-  if (options.config.artifacts?.symbolIndex !== false) {
-    await writeFile(join(dir, "symbols.json"), JSON.stringify(options.model.symbolIndex, null, 2));
-  }
+  await writeFile(join(dir, "symbols.json"), JSON.stringify(options.model.symbolIndex, null, 2));
   if (options.config.artifacts?.references !== false) {
     const refs = Object.values(options.model.symbols).flatMap((symbol) => symbol.references);
     await writeFile(join(dir, "references.json"), JSON.stringify(refs));

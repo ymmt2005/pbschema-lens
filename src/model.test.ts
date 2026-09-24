@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -7,7 +7,9 @@ import { documentationClassification, loadConfig } from "../src/node/config.js";
 import { isExcludedPath } from "../src/core/classify.js";
 import { loadRegistryFromBytes } from "../src/core/registry.js";
 import { buildModel } from "../src/core/model.js";
+import type { SchemaModel } from "../src/core/types.js";
 import { referenceIntegrity } from "../src/core/references.js";
+import { writeArtifacts } from "../src/node/generate-site.js";
 
 async function modelFromDir(dir: string) {
   const compiled = await compileInput(dir);
@@ -248,6 +250,56 @@ describe("schema fixtures", () => {
         .filter((symbol) => symbol.domain === "well-known" && symbol.generatePage)
         .map((symbol) => symbol.fullName),
     ).toEqual([]);
+  });
+
+  it("always writes symbols.json when the removed symbolIndex flags are set", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pbschema-lens-"));
+    await writeFile(
+      join(dir, "pbschema-lens.yaml"),
+      `search:
+  symbolIndex: false
+  fullText: false
+artifacts:
+  symbolIndex: false
+  references: false
+`,
+    );
+    const { config } = loadConfig(dir);
+    expect(config.search).toEqual({ fullText: false });
+    expect(config.artifacts).toEqual({ descriptorSet: false, references: false });
+    expect(config.search).not.toHaveProperty("symbolIndex");
+    expect(config.artifacts).not.toHaveProperty("symbolIndex");
+
+    const out = join(dir, "out");
+    const model = {
+      symbolIndex: [
+        {
+          id: "message:pkg.Msg",
+          name: "Msg",
+          fullName: "pkg.Msg",
+          kind: "message",
+          package: "pkg",
+          urlPath: "/reference/messages/pkg.Msg/",
+        },
+      ],
+      symbols: {},
+      buildInfo: {
+        title: "t",
+        generatedAt: "2026-09-24T00:00:00.000Z",
+        generator: "pbschema-lens",
+        input: ".",
+        symbolCount: 1,
+        fileCount: 0,
+        timings: {},
+        warnings: [],
+      },
+    } as SchemaModel;
+    await writeArtifacts(out, { model, outDir: out, config, timings: {} });
+    const symbols = JSON.parse(await readFile(join(out, "assets/protobuf/symbols.json"), "utf8")) as Array<{ fullName: string }>;
+    expect(symbols.map((entry) => entry.fullName)).toEqual(["pkg.Msg"]);
+    const { existsSync } = await import("node:fs");
+    expect(existsSync(join(out, "assets/protobuf/references.json"))).toBe(false);
+    expect(existsSync(join(out, "assets/protobuf/build-info.json"))).toBe(true);
   });
 
   it("resolves dependency CLIs even when package.json is not exported", async () => {

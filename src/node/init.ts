@@ -21,7 +21,6 @@ wellKnownTypes:
   enabled: true
 
 search:
-  symbolIndex: true
   fullText: true
 
 sourceBrowser:
@@ -29,7 +28,6 @@ sourceBrowser:
 
 artifacts:
   descriptorSet: false
-  symbolIndex: true
 
 # externalLinks:
 #   - package: "acme.identity.**"

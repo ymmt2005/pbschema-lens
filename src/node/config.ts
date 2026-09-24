@@ -31,7 +31,6 @@ export const ConfigSchema = z.object({
   wellKnownTypes: z.object({ enabled: z.boolean().default(true) }).optional(),
   search: z
     .object({
-      symbolIndex: z.boolean().default(true),
       fullText: z.boolean().default(true),
     })
     .optional(),
@@ -39,7 +38,6 @@ export const ConfigSchema = z.object({
   artifacts: z
     .object({
       descriptorSet: z.boolean().default(false),
-      symbolIndex: z.boolean().default(true),
       references: z.boolean().default(true),
     })
     .optional(),
