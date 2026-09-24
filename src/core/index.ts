@@ -14,9 +14,14 @@ export { diffModels } from "./diff.js";
 export { builtinPlugins, isValidationRenderer, validationChips } from "./plugins.js";
 export { fieldTableEntries, type FieldTableEntry } from "./field-table.js";
 export {
+  HOME_PACKAGE_AREA_LIMIT,
   activePackageName,
   buildPackageNavTree,
+  homePackageAreas,
   packageNodeOpen,
+  type PackageAreaCounts,
+  type PackageAreaPackage,
+  type PackageAreaRow,
   type PackageNavItem,
   type PackageNavNode,
 } from "./package-nav.js";

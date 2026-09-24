@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { activePackageName, buildPackageNavTree, packageNodeOpen } from "./package-nav.js";
+import { activePackageName, buildPackageNavTree, homePackageAreas, packageNodeOpen } from "./package-nav.js";
+
+function area(fullName: string, services: number, messages: number) {
+  return { fullName, urlPath: `/reference/packages/${fullName}/`, services, messages };
+}
 
 const items = [
   { fullName: "cybozu.admin.types", urlPath: "/reference/packages/cybozu.admin.types/" },
@@ -49,6 +53,76 @@ describe("activePackageName", () => {
   it("ignores pages outside the reference", () => {
     expect(activePackageName("/", names)).toBeUndefined();
     expect(activePackageName("/explore/", names)).toBeUndefined();
+  });
+});
+
+describe("homePackageAreas", () => {
+  it("skips a unary prefix and lists the first branch", () => {
+    const rows = homePackageAreas([
+      area("cybozu.admin.types", 0, 2),
+      area("cybozu.admin.flow", 1, 3),
+      area("cybozu.admin.agent.coworker.v1beta1", 1, 4),
+    ]);
+    expect(rows.map((row) => row.label)).toEqual(["agent", "flow", "types"]);
+    expect(rows.find((row) => row.label === "types")).toMatchObject({
+      urlPath: "/reference/packages/cybozu.admin.types/",
+      counts: { packages: 1, services: 0, messages: 2 },
+      nodes: [],
+    });
+    const agent = rows.find((row) => row.label === "agent");
+    expect(agent?.urlPath).toBeUndefined();
+    expect(agent?.counts).toEqual({ packages: 1, services: 1, messages: 4 });
+    expect(agent?.nodes.map((node) => node.segment)).toEqual(["coworker"]);
+  });
+
+  it("lists each child of a small top-level branch", () => {
+    const rows = homePackageAreas([
+      area("acme.billing.v1", 1, 6),
+      area("acme.experiment.v1", 0, 2),
+      area("acme.security", 0, 1),
+      area("acme.user.v1", 1, 8),
+    ]);
+    expect(rows.map((row) => row.label)).toEqual(["billing", "experiment", "security", "user"]);
+    expect(rows.find((row) => row.label === "security")?.urlPath).toBe("/reference/packages/acme.security/");
+    expect(rows.find((row) => row.label === "billing")?.nodes.map((node) => node.segment)).toEqual(["v1"]);
+    expect(rows.find((row) => row.label === "billing")?.counts).toEqual({ packages: 1, services: 1, messages: 6 });
+  });
+
+  it("collapses a wide branch into the parent row", () => {
+    const rows = homePackageAreas([
+      area("cybozu.admin", 2, 1),
+      ...Array.from({ length: 13 }, (_, index) => area(`cybozu.admin.svc${index}`, 1, 0)),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      label: "admin",
+      urlPath: "/reference/packages/cybozu.admin/",
+      counts: { packages: 14, services: 15, messages: 1 },
+    });
+    expect(rows[0]?.nodes).toHaveLength(13);
+  });
+
+  it("keeps a handful of roots as separate rows and collapses many roots", () => {
+    const two = homePackageAreas([area("acme.billing.v1", 1, 1), area("cybozu.admin.types", 0, 1)]);
+    expect(two.map((row) => row.label)).toEqual(["acme", "cybozu"]);
+
+    const many = homePackageAreas(Array.from({ length: 13 }, (_, index) => area(`area${index}`, 0, 1)));
+    expect(many).toHaveLength(1);
+    expect(many[0]?.label).toBe("");
+    expect(many[0]?.counts).toEqual({ packages: 13, services: 0, messages: 13 });
+    expect(many[0]?.nodes).toHaveLength(13);
+  });
+
+  it("returns one leaf for a single package after skipping its prefix", () => {
+    expect(homePackageAreas([area("acme.security", 0, 1)])).toEqual([
+      {
+        label: "security",
+        path: "acme.security",
+        urlPath: "/reference/packages/acme.security/",
+        counts: { packages: 1, services: 0, messages: 1 },
+        nodes: [],
+      },
+    ]);
   });
 });
 

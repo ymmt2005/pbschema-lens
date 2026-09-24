@@ -225,6 +225,74 @@ table.fields tr.oneof-member td:first-child {
   font-weight: 600;
 }
 
+.home-area {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--bg-raised);
+}
+
+.home-area > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1rem 0.9rem 2rem;
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+}
+
+.home-area > summary::-webkit-details-marker,
+.home-area > summary::marker {
+  display: none;
+  content: "";
+}
+
+.home-area > summary::before {
+  content: "▸";
+  position: absolute;
+  left: 0.85rem;
+  top: 1.15rem;
+  color: var(--fg-muted);
+  font-size: 0.7rem;
+}
+
+.home-area[open] > summary::before {
+  content: "▾";
+}
+
+.home-area > .package-tree {
+  padding: 0 1rem 0.85rem 1.6rem;
+}
+
+a.home-area-leaf {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1rem 0.9rem 2rem;
+  text-decoration: none;
+}
+
+.home-area-name {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+a.home-area-name:hover,
+a.home-area-leaf:hover .home-area-name {
+  text-decoration: underline;
+}
+
+.home-area-counts {
+  color: var(--fg-muted);
+  font-size: 0.875rem;
+}
+
 .validation-chip {
   display: inline-block;
   font-family: var(--font-mono);

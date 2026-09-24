@@ -83,3 +83,112 @@ export function packageNodeOpen(path: string, active: string | undefined): boole
   if (!active) return false;
   return active.startsWith(`${path}.`);
 }
+
+export interface PackageAreaPackage extends PackageNavItem {
+  services: number;
+  messages: number;
+}
+
+export interface PackageAreaCounts {
+  packages: number;
+  services: number;
+  messages: number;
+}
+
+export interface PackageAreaRow {
+  /** Segment shown on the row, such as `admin`. Empty when the row covers many top-level roots. */
+  label: string;
+  /** Dotted path of the node this row represents. */
+  path: string;
+  /** Set when this row's node is itself a documented package. */
+  urlPath?: string;
+  counts: PackageAreaCounts;
+  /** Child nodes revealed when the row is expanded. Empty for a leaf package. */
+  nodes: PackageNavNode[];
+}
+
+/**
+ * Home page lists at most this many area rows.
+ * A wider branch collapses into one parent row so dozens of packages stay one line.
+ */
+export const HOME_PACKAGE_AREA_LIMIT = 12;
+
+/**
+ * Summary rows for the home page.
+ * A single-child prefix is skipped (`cybozu` → `admin` → … starts at the first real branch).
+ * That branch's children become the rows. More than `maxRows` children collapse into the parent.
+ */
+export function homePackageAreas(
+  items: readonly PackageAreaPackage[],
+  maxRows: number = HOME_PACKAGE_AREA_LIMIT,
+): PackageAreaRow[] {
+  const tree = buildPackageNavTree(items);
+  const stats = new Map(items.map((item) => [item.fullName, { services: item.services, messages: item.messages }]));
+  if (tree.length === 0) return [];
+  if (tree.length === 1) return rowsForBranch(tree[0]!, stats, maxRows);
+  if (tree.length > maxRows) {
+    return [
+      {
+        label: "",
+        path: "",
+        counts: sumCounts(tree.map((node) => rollup(node, stats))),
+        nodes: tree,
+      },
+    ];
+  }
+  return tree.map((node) => rowFor(node, stats));
+}
+
+function rowsForBranch(
+  node: PackageNavNode,
+  stats: Map<string, { services: number; messages: number }>,
+  maxRows: number,
+): PackageAreaRow[] {
+  let current = node;
+  while (current.children.length === 1) current = current.children[0]!;
+  if (current.children.length === 0 || current.children.length > maxRows) return [rowFor(current, stats)];
+  return current.children.map((child) => rowFor(child, stats));
+}
+
+function rowFor(
+  node: PackageNavNode,
+  stats: Map<string, { services: number; messages: number }>,
+): PackageAreaRow {
+  return {
+    label: node.segment,
+    path: node.path,
+    urlPath: node.item?.urlPath,
+    counts: rollup(node, stats),
+    nodes: node.children,
+  };
+}
+
+function rollup(
+  node: PackageNavNode,
+  stats: Map<string, { services: number; messages: number }>,
+): PackageAreaCounts {
+  const own = stats.get(node.path);
+  const counts: PackageAreaCounts = {
+    packages: own ? 1 : 0,
+    services: own?.services ?? 0,
+    messages: own?.messages ?? 0,
+  };
+  for (const child of node.children) {
+    const nested = rollup(child, stats);
+    counts.packages += nested.packages;
+    counts.services += nested.services;
+    counts.messages += nested.messages;
+  }
+  return counts;
+}
+
+function sumCounts(counts: PackageAreaCounts[]): PackageAreaCounts {
+  return counts.reduce(
+    (total, item) => ({
+      packages: total.packages + item.packages,
+      services: total.services + item.services,
+      messages: total.messages + item.messages,
+    }),
+    { packages: 0, services: 0, messages: 0 },
+  );
+}
