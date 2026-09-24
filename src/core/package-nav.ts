@@ -6,7 +6,7 @@ export interface PackageNavItem {
 export interface PackageNavNode {
   /** One dotted segment, such as `admin`. */
   segment: string;
-  /** Dotted path from the root, such as `cybozu.admin`. */
+  /** Dotted path from the root, such as `example.admin`. */
   path: string;
   /** Set when this node is itself a documented package. */
   item?: PackageNavItem;
@@ -15,7 +15,7 @@ export interface PackageNavNode {
 
 /**
  * Groups package names by dotted segments.
- * `cybozu.admin.types` and `cybozu.admin.flow` share `cybozu` → `admin`.
+ * `example.admin.types` and `example.admin.flow` share `example` → `admin`.
  * A node can be both a package and a parent (`acme.security` next to `acme.user.v1`).
  */
 export function buildPackageNavTree(items: readonly PackageNavItem[]): PackageNavNode[] {
@@ -115,7 +115,7 @@ export const HOME_PACKAGE_AREA_LIMIT = 12;
 
 /**
  * Summary rows for the home page.
- * A single-child prefix is skipped (`cybozu` → `admin` → … starts at the first real branch).
+ * A single-child prefix is skipped (`example` → `admin` → … starts at the first real branch).
  * That branch's children become the rows. More than `maxRows` children collapse into the parent.
  */
 export function homePackageAreas(
