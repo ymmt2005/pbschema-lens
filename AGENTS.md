@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for coding agents working in this repository. Human-facing product docs live in `README.md`.
+Guidance for coding agents working in this repository. Human-facing product docs live in `README.md`. Every change follows [`QUALITY.md`](QUALITY.md).
 
 ## What this is
 
@@ -92,6 +92,10 @@ After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text searc
 
 If you change `SchemaModel`, update both `src/core/` producers and `site/` consumers. The JSON dump is the API between them.
 
+## Quality
+
+The quality target, the bar for a finished change, and how to maintain it are in [`QUALITY.md`](QUALITY.md). Follow that file for every change.
+
 ## Commands
 
 ```bash
@@ -149,9 +153,3 @@ Do not run `gh release create`, `git tag`, or attach assets by hand.
 3. Ordinary `main` pushes (docs, features, this workflow itself) do not change `package.json` version, so they skip.
 
 Do not delete a published tag or Release. This repo uses immutable releases: a deleted tag name cannot be reused (that is why `v0.2.0` was skipped). If the version on `main` is wrong, bump to the next patch in a new PR. Do not move a published tag to a later commit.
-
-## Tests
-
-Vitest files: `src/model.test.ts`, `src/core/markdown.test.ts`. `npm test` runs `vitest run`. Add fixture-driven tests under `fixtures/` when the change is about descriptor/model behavior.
-
-CI also typechecks and runs `doctor` plus an example site build. Prefer that a change still builds `examples/acme`.
