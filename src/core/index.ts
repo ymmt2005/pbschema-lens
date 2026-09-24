@@ -25,6 +25,7 @@ export {
   type PackageNavItem,
   type PackageNavNode,
 } from "./package-nav.js";
+export { buildSourceTree, sourceNodeOpen, type SourceTreeFile, type SourceTreeNode } from "./source-tree.js";
 export { renderSafeMarkdown, escapeHtml } from "./markdown.js";
 export { referenceIntegrity } from "./references.js";
 export { classifyFile } from "./classify.js";

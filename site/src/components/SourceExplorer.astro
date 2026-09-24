@@ -1,0 +1,31 @@
+---
+import { buildSourceTree } from "pbschema-lens/core";
+import SourceTree from "./SourceTree.astro";
+
+interface Props {
+  files: Array<{ fullName: string; urlPath: string; sourceText?: string }>;
+  /** Full proto path of the open file. Omit on the source index. */
+  active?: string;
+}
+
+const { files, active } = Astro.props;
+const nodes = buildSourceTree(
+  files
+    .filter((file) => file.sourceText)
+    .map((file) => ({ fullName: file.fullName, urlPath: file.urlPath })),
+);
+---
+
+<div class:list={["source-explorer", active ? "is-split" : "is-index"]}>
+  {
+    nodes.length > 0 && (
+      <nav class="source-explorer-tree" aria-label="Proto files">
+        <div class="source-explorer-label">Files</div>
+        <SourceTree nodes={nodes} active={active} />
+      </nav>
+    )
+  }
+  <div class="source-explorer-main">
+    <slot />
+  </div>
+</div>

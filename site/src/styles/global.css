@@ -298,6 +298,160 @@ a.home-area-leaf:hover .home-area-name {
   font-size: 0.875rem;
 }
 
+.source-explorer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.source-explorer.is-index .source-explorer-main {
+  order: -1;
+}
+
+.source-explorer-tree {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--bg-raised);
+  padding: 0.55rem 0.4rem 0.7rem;
+  max-height: 18rem;
+  overflow: auto;
+}
+
+.source-explorer-label {
+  padding: 0.15rem 0.55rem 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.source-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.source-tree .source-tree {
+  margin: 0.05rem 0 0.15rem 0.7rem;
+  padding-left: 0.35rem;
+  border-left: 1px solid var(--line);
+}
+
+.source-tree-node > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.375rem;
+  padding: 0.22rem 0.4rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.source-tree-node > summary::-webkit-details-marker,
+.source-tree-node > summary::marker {
+  display: none;
+  content: "";
+}
+
+.source-tree-node > summary::before {
+  content: "▸";
+  flex: 0 0 auto;
+  width: 0.7rem;
+  color: var(--fg-muted);
+  font-size: 0.62rem;
+}
+
+.source-tree-node[open] > summary::before {
+  content: "▾";
+}
+
+.source-tree-node > summary a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.source-tree-file {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 1.05rem;
+  border-radius: 0.375rem;
+  padding: 0.22rem 0.4rem;
+  color: var(--fg);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.source-tree-node > summary:hover,
+.source-tree-file:hover {
+  background: var(--bg-muted);
+}
+
+.source-tree-file.is-active,
+.source-tree-node > summary a.is-active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-muted));
+  font-weight: 600;
+}
+
+.source-tree-icon {
+  flex: 0 0 auto;
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--fg-muted);
+}
+
+.source-tree-icon-folder {
+  color: var(--accent);
+}
+
+.source-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0;
+  margin-top: 0.35rem;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.source-crumb li:not(:last-child)::after {
+  content: "/";
+  margin: 0 0.35rem;
+  color: var(--fg-muted);
+}
+
+@media (width >= 64rem) {
+  .source-explorer.is-split {
+    display: grid;
+    grid-template-columns: 18rem minmax(0, 1fr);
+    align-items: start;
+    gap: 1.5rem;
+  }
+
+  .source-explorer.is-split .source-explorer-tree {
+    position: sticky;
+    top: 4.75rem;
+    max-height: calc(100vh - 6rem);
+  }
+
+  .source-explorer.is-index .source-explorer-tree {
+    max-height: none;
+  }
+}
+
 .validation-chip {
   display: inline-block;
   font-family: var(--font-mono);
