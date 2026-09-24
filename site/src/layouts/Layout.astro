@@ -13,7 +13,7 @@ const { title, description } = Astro.props;
 const model = loadModel();
 const pageTitle = title ? `${title} · ${model.title}` : model.title;
 const localPackages = model.packages.filter((item) => item.inNav && item.domain === "local");
-const wktPackages = model.packages.filter((item) => item.domain === "well-known");
+const wktPackages = model.packages.filter((item) => item.domain === "well-known" && item.generatePage);
 const current = Astro.url.pathname;
 const packageTree = buildPackageNavTree(
   localPackages.map((pkg) => ({ fullName: pkg.fullName, urlPath: pkg.urlPath })),

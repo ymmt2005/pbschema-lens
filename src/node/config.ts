@@ -85,5 +85,6 @@ export function documentationClassification(
     exclude: config.documentation?.exclude,
     localFiles,
     externalLinks: config.externalLinks,
+    wellKnownTypes: config.wellKnownTypes?.enabled !== false,
   };
 }

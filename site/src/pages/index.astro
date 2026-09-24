@@ -7,7 +7,7 @@ import { loadModel, withBase } from "../lib/data.ts";
 
 const model = loadModel();
 const local = model.packages.filter((item) => item.domain === "local" && item.inNav);
-const wkt = model.packages.filter((item) => item.domain === "well-known");
+const wkt = model.packages.filter((item) => item.domain === "well-known" && item.generatePage);
 const areas = homePackageAreas(
   local.map((pkg) => ({
     fullName: pkg.fullName,
