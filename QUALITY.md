@@ -49,5 +49,3 @@ When the change is layout, routing, or rendered data, also use the page in a bro
 When you fix a bug, add the test that failed on the old code in the same change. Start at small size. Step up a row only when the failure is invisible there. A bug in a pure function that is caught only by reading HTML means the suite is aimed at the wrong layer, and the next similar bug will ship.
 
 Security fixes and sanitizer updates are small tests of the function that enforces the control. `src/core/markdown.test.ts` and the hostile comment in `fixtures/security/` are the pattern. Extend those tests when the security target moves. A walk through the default Acme pages does not show that a comment payload was stripped.
-
-`npm test` runs `vitest run`. The suite today is `src/model.test.ts`, `src/core/markdown.test.ts`, `src/core/field-table.test.ts`, `src/core/package-nav.test.ts`, `src/core/plugins.test.ts`, and `src/core/source-tree.test.ts`. `markdown.test.ts` is the pattern for an invariant: it calls `renderSafeMarkdown` and fails if a script tag survives. Add the next test at the size in the table.
