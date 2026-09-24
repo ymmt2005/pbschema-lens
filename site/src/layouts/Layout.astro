@@ -2,7 +2,7 @@
 import "../styles/global.css";
 import PackageTree from "../components/PackageTree.astro";
 import { activePackageName, buildPackageNavTree } from "pbschema-lens/core";
-import { loadModel, withBase } from "../lib/data.ts";
+import { canonicalHref, configuredBase, loadModel, withBase } from "../lib/data.ts";
 
 interface Props {
   title?: string;
@@ -12,6 +12,8 @@ interface Props {
 const { title, description } = Astro.props;
 const model = loadModel();
 const pageTitle = title ? `${title} · ${model.title}` : model.title;
+const canonical = canonicalHref(Astro.site, Astro.url.pathname);
+const base = configuredBase();
 const localPackages = model.packages.filter((item) => item.inNav && item.domain === "local");
 const wktPackages = model.packages.filter((item) => item.domain === "well-known" && item.generatePage);
 const current = Astro.url.pathname;
@@ -25,11 +27,12 @@ const activePackage = activePackageName(
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-base={base}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
+    {canonical && <link rel="canonical" href={canonical} />}
     {description && <meta name="description" content={description} />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -149,7 +152,10 @@ const activePackage = activePackageName(
       <div id="search-results" class="max-h-[60vh] overflow-y-auto p-2 text-sm"></div>
     </dialog>
 
-    <script define:vars={{ base: import.meta.env.BASE_URL }}>
+    <script>
+      import { rankSymbol } from "pbschema-lens/core";
+      import { pagefindHitHtml, symbolHitHtml } from "../lib/search-ui.ts";
+
       const html = document.documentElement;
       document.getElementById("theme-toggle")?.addEventListener("click", () => {
         html.classList.toggle("dark");
@@ -158,13 +164,14 @@ const activePackage = activePackageName(
       const mobile = document.getElementById("mobile-nav");
       document.getElementById("menu-btn")?.addEventListener("click", () => mobile?.classList.remove("hidden"));
       document.getElementById("menu-close")?.addEventListener("click", () => mobile?.classList.add("hidden"));
-      const dialog = document.getElementById("search-dialog");
-      const input = document.getElementById("search-input");
+      const dialog = document.getElementById("search-dialog") as HTMLDialogElement | null;
+      const input = document.getElementById("search-input") as HTMLInputElement | null;
       const results = document.getElementById("search-results");
       const filters = document.getElementById("search-filters");
       const kinds = ["all", "service", "method", "message", "field", "enum", "extension", "package"];
       let activeKind = "all";
-      let symbols = [];
+      let symbols: Array<{ kind: string; name: string; fullName: string; urlPath: string }> = [];
+      const base = html.dataset.base || "/";
       const prefix = base.endsWith("/") ? base.slice(0, -1) : base;
 
       kinds.forEach((kind) => {
@@ -187,18 +194,8 @@ const activePackage = activePackageName(
         symbols = await res.json();
       }
 
-      function rank(entry, q) {
-        const lower = q.toLowerCase();
-        if (entry.fullName === q) return 100;
-        if (entry.name === q) return 90;
-        if (entry.fullName.toLowerCase() === lower) return 95;
-        if (entry.name.toLowerCase() === lower) return 88;
-        if (entry.fullName.toLowerCase().startsWith(lower) || entry.name.toLowerCase().startsWith(lower)) return 70;
-        if (entry.fullName.toLowerCase().includes(lower) || entry.name.toLowerCase().includes(lower)) return 40;
-        return 0;
-      }
-
       async function runSearch() {
+        if (!input || !results) return;
         const q = input.value.trim();
         results.innerHTML = "";
         if (!q) {
@@ -208,7 +205,7 @@ const activePackage = activePackageName(
         await ensureIndex();
         const hits = symbols
           .filter((entry) => activeKind === "all" || entry.kind === activeKind)
-          .map((entry) => ({ entry, score: rank(entry, q) }))
+          .map((entry) => ({ entry, score: rankSymbol(entry, q) }))
           .filter((hit) => hit.score > 0)
           .sort((a, b) => b.score - a.score)
           .slice(0, 20);
@@ -219,15 +216,16 @@ const activePackage = activePackageName(
             const a = document.createElement("a");
             a.href = `${prefix}${hit.entry.urlPath}`;
             a.className = "block rounded-md px-3 py-2 hover:bg-[color:var(--bg-muted)] no-underline text-[color:var(--fg)]";
-            a.innerHTML = `<div class="font-mono text-xs text-[color:var(--fg-muted)]">${hit.entry.kind}</div><div>${hit.entry.fullName}</div>`;
+            a.innerHTML = symbolHitHtml(hit.entry.kind, hit.entry.fullName);
             results.append(a);
           }
         }
         try {
-          const pagefind = await import(`${prefix}/pagefind/pagefind.js`);
+          const pagefindUrl = `${prefix}/pagefind/pagefind.js`;
+          const pagefind = await import(/* @vite-ignore */ pagefindUrl);
           await pagefind.init();
           const found = await pagefind.search(q);
-          const data = await Promise.all((found.results ?? []).slice(0, 8).map((item) => item.data()));
+          const data = await Promise.all((found.results ?? []).slice(0, 8).map((item: { data: () => Promise<{ url: string; meta?: { title?: string }; excerpt?: string }> }) => item.data()));
           if (data.length) {
             const heading = document.createElement("div");
             heading.className = "px-3 pt-3 text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)]";
@@ -237,7 +235,7 @@ const activePackage = activePackageName(
               const a = document.createElement("a");
               a.href = item.url;
               a.className = "block rounded-md px-3 py-2 hover:bg-[color:var(--bg-muted)] no-underline text-[color:var(--fg)]";
-              a.innerHTML = `<div>${item.meta?.title ?? item.url}</div><div class="text-xs text-[color:var(--fg-muted)]">${item.excerpt ?? ""}</div>`;
+              a.innerHTML = pagefindHitHtml(item.meta?.title ?? item.url, item.excerpt ?? "");
               results.append(a);
             }
           }
@@ -247,9 +245,9 @@ const activePackage = activePackageName(
       }
 
       function openSearch() {
-        dialog.showModal();
-        input.focus();
-        runSearch();
+        dialog?.showModal();
+        input?.focus();
+        void runSearch();
       }
       document.getElementById("search-open")?.addEventListener("click", openSearch);
       document.addEventListener("keydown", (event) => {

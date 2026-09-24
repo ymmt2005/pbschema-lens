@@ -1,7 +1,8 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { loadModel, withBase } from "../lib/data.ts";
+import { configuredBase, loadModel } from "../lib/data.ts";
 import { linkedPath } from "../lib/format.ts";
+import { incomingReferencesHtml } from "../lib/search-ui.ts";
 
 const model = loadModel();
 const pageable = Object.values(model.symbols).filter((item) => item.generatePage);
@@ -21,30 +22,41 @@ const pageable = Object.values(model.symbols).filter((item) => item.generatePage
     ))}
   </select>
   <div id="explorer-out" class="mt-6 text-sm"></div>
-  <script define:vars={{ payload: pageable.map((item) => ({ id: item.id, fullName: item.fullName, url: linkedPath(item, model.symbols) ?? "", refs: item.referencedBy.map((ref) => ({ fromId: ref.fromId, kind: ref.kind, label: ref.label })) })), names: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, item.fullName])), hrefs: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, linkedPath(item, model.symbols) ?? ""])) , base: import.meta.env.BASE_URL }}>
-    const select = document.getElementById("symbol-select");
+  <script
+    id="explorer-data"
+    type="application/json"
+    set:html={JSON.stringify({
+      items: pageable.map((item) => ({
+        id: item.id,
+        fullName: item.fullName,
+        refs: item.referencedBy.map((ref) => ({ fromId: ref.fromId, kind: ref.kind })),
+      })),
+      names: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, item.fullName])),
+      hrefs: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, linkedPath(item, model.symbols) ?? ""])),
+      base: configuredBase(),
+    }).replaceAll("<", "\\u003c")}
+  />
+  <script>
+    import { incomingReferencesHtml } from "../lib/search-ui.ts";
+
+    const payload = JSON.parse(document.getElementById("explorer-data")?.textContent || "{}") as {
+      items: Array<{ id: string; fullName: string; refs: Array<{ fromId: string; kind: string }> }>;
+      names: Record<string, string>;
+      hrefs: Record<string, string>;
+      base: string;
+    };
+    const select = document.getElementById("symbol-select") as HTMLSelectElement | null;
     const out = document.getElementById("explorer-out");
-    const byId = Object.fromEntries(payload.map((item) => [item.id, item]));
-    const prefix = base.endsWith("/") ? base.slice(0, -1) : base;
+    const byId = Object.fromEntries(payload.items.map((item) => [item.id, item]));
+    const prefix = payload.base.endsWith("/") ? payload.base.slice(0, -1) : payload.base;
     select?.addEventListener("change", () => {
       const item = byId[select.value];
+      if (!out) return;
       if (!item) {
         out.innerHTML = "";
         return;
       }
-      if (!item.refs.length) {
-        out.innerHTML = `<p>No incoming references for <strong>${item.fullName}</strong>.</p>`;
-        return;
-      }
-      out.innerHTML = `<p class="mb-3">${item.refs.length} incoming reference(s)</p><ul class="space-y-1">${item.refs
-        .slice(0, 200)
-        .map((ref) => {
-          const href = hrefs[ref.fromId];
-          const name = names[ref.fromId] ?? ref.fromId;
-          const label = href ? `<a href="${prefix}${href}">${name}</a>` : `<span class="font-mono">${name}</span>`;
-          return `<li>${label} <span class="text-[color:var(--fg-muted)]">· ${ref.kind}</span></li>`;
-        })
-        .join("")}</ul>`;
+      out.innerHTML = incomingReferencesHtml(item.fullName, item.refs, payload.names, payload.hrefs, prefix);
     });
   </script>
 </Layout>
