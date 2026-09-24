@@ -9,8 +9,9 @@ output: "dist"
 base: "/"
 
 source:
-  # Set this to emit "View on GitHub" links, e.g. github:org/repo
-  # repository: "github:org/repo"
+  # repository: "github:org/repo"  # or https://github.com/org/repo, gitlab:group/project
+  # commit: "abc123"               # omit to use the git commit of the schema
+  # urlTemplate: "https://src.example/{commit}/{file}#L{line}"
 
 documentation:
   include: []
