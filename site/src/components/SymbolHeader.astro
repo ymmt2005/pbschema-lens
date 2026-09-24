@@ -1,13 +1,16 @@
 ---
 import type { DocSymbol } from "../../../src/core/types.ts";
-import { kindLabel, symbolHref } from "../lib/format.ts";
-import { withBase } from "../lib/data.ts";
+import { kindLabel } from "../lib/format.ts";
+import { loadModel, withBase } from "../lib/data.ts";
 
 interface Props {
   symbol: DocSymbol;
 }
 
 const { symbol } = Astro.props;
+const model = loadModel();
+const file = symbol.fileName ? model.files.find((item) => item.fullName === symbol.fileName) : undefined;
+const pkg = symbol.packageName ? model.packages.find((item) => item.fullName === symbol.packageName) : undefined;
 ---
 
 <header class="mb-8">
@@ -23,16 +26,24 @@ const { symbol } = Astro.props;
     <span class="rounded-full bg-[color:var(--bg-muted)] px-2 py-0.5">{symbol.domain}</span>
     {
       symbol.packageName && (
-        <a class="rounded-full bg-[color:var(--bg-muted)] px-2 py-0.5 no-underline text-[color:var(--fg)]" href={withBase(`/reference/packages/${encodeURIComponent(symbol.packageName)}/`)}>
-          {symbol.packageName}
-        </a>
+        pkg?.generatePage ? (
+          <a class="rounded-full bg-[color:var(--bg-muted)] px-2 py-0.5 no-underline text-[color:var(--fg)]" href={withBase(pkg.urlPath)}>
+            {symbol.packageName}
+          </a>
+        ) : (
+          <span class="rounded-full bg-[color:var(--bg-muted)] px-2 py-0.5">{symbol.packageName}</span>
+        )
       )
     }
     {
       symbol.fileName && (
-        <a class="rounded-full bg-[color:var(--bg-muted)] px-2 py-0.5 no-underline text-[color:var(--fg)]" href={withBase(`/source/${symbol.fileName.split("/").map(encodeURIComponent).join("/")}/`)}>
-          {symbol.fileName}
-        </a>
+        file?.sourceText ? (
+          <a class="rounded-full bg-[color:var(--bg-muted)] px-2 py-0.5 no-underline text-[color:var(--fg)]" href={withBase(file.urlPath)}>
+            {symbol.fileName}
+          </a>
+        ) : (
+          <span class="rounded-full bg-[color:var(--bg-muted)] px-2 py-0.5">{symbol.fileName}</span>
+        )
       )
     }
     {

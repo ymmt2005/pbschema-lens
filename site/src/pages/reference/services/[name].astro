@@ -33,7 +33,7 @@ const methods = service.methodIds.map((id) => model.methods.find((item) => item.
       </thead>
       <tbody>
         {methods.map((method) => (
-          <tr id={method.anchor}>
+          <tr>
             <td>
               <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${method.anchor}`}>{method.shortName}</a>
               {method.deprecated ? <div class="text-xs text-red-700">deprecated</div> : null}

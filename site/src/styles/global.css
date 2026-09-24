@@ -37,6 +37,10 @@ html.dark {
   --shadow: 0 22px 50px -30px rgb(0 0 0 / 0.7);
 }
 
+html {
+  scroll-padding-top: 5rem;
+}
+
 html,
 body {
   background: var(--bg);

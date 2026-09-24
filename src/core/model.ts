@@ -731,18 +731,122 @@ function ensurePackage(
 
 function promoteReferencedPages(model: SchemaModel): void {
   const pageKinds: SymbolKind[] = ["message", "enum", "service", "extension"];
-  for (const symbol of Object.values(model.symbols)) {
-    if (!pageKinds.includes(symbol.kind) || symbol.generatePage) {
-      continue;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const symbol of Object.values(model.symbols)) {
+      if (!symbolOnGeneratedPage(model, symbol)) continue;
+      for (const ref of symbol.referencedBy) {
+        changed = ensureAnchorPage(model, model.symbols[ref.fromId]) || changed;
+      }
+      if (symbol.kind === "message") {
+        for (const fieldId of (symbol as DocMessage).fieldIds) {
+          changed = ensureTypePages(model, model.symbols[fieldId]) || changed;
+        }
+      }
+      if (symbol.kind === "service") {
+        for (const methodId of (symbol as DocService).methodIds) {
+          changed = ensureTypePages(model, model.symbols[methodId]) || changed;
+        }
+      }
+      changed = ensureTypePages(model, symbol) || changed;
     }
-    const referencedFromDocumented = symbol.referencedBy.some((ref) => {
-      const from = model.symbols[ref.fromId];
-      return from && (from.generatePage || from.domain === "local");
-    });
-    if (referencedFromDocumented && symbol.domain !== "external-documented" && symbol.domain !== "well-known") {
-      symbol.generatePage = true;
-      symbol.inNav = false;
+    for (const symbol of Object.values(model.symbols)) {
+      if (!pageKinds.includes(symbol.kind) || symbol.generatePage) continue;
+      const referencedFromDocumented = symbol.referencedBy.some((ref) =>
+        symbolOnGeneratedPage(model, model.symbols[ref.fromId]),
+      );
+      if (referencedFromDocumented) {
+        changed = publishPage(symbol) || changed;
+      }
     }
+  }
+  dropUnpublishedTypeLinks(model);
+}
+
+function symbolOnGeneratedPage(model: SchemaModel, symbol: DocSymbol | undefined): boolean {
+  if (!symbol) return false;
+  if (symbol.generatePage || symbol.domain === "local") return true;
+  const parentId = parentIdOf(symbol);
+  return Boolean(parentId && model.symbols[parentId]?.generatePage);
+}
+
+/** Give a referenced field, method, or enum value a real page so its fragment can resolve. */
+function ensureAnchorPage(model: SchemaModel, symbol: DocSymbol | undefined): boolean {
+  if (!symbol) return false;
+  if (symbol.kind === "field" || symbol.kind === "oneof" || symbol.kind === "method" || symbol.kind === "enum-value") {
+    const parent = model.symbols[(symbol as DocField | DocOneof | DocMethod | DocEnumValue).parentId];
+    return publishPage(parent);
+  }
+  return publishPage(symbol);
+}
+
+function ensureTypePages(model: SchemaModel, symbol: DocSymbol | undefined): boolean {
+  if (!symbol || !symbolOnGeneratedPage(model, symbol)) return false;
+  let changed = false;
+  for (const type of typeRefsOf(symbol)) {
+    if (!type?.id) continue;
+    changed = publishPage(model.symbols[type.id]) || changed;
+  }
+  return changed;
+}
+
+function publishPage(symbol: DocSymbol | undefined): boolean {
+  if (!symbol || symbol.generatePage) return false;
+  if (symbol.kind === "message" && (symbol as DocMessage).mapEntry) return false;
+  if (symbol.domain === "external-documented" || symbol.domain === "well-known") return false;
+  if (symbol.kind !== "message" && symbol.kind !== "enum" && symbol.kind !== "service" && symbol.kind !== "extension" && symbol.kind !== "package") {
+    return false;
+  }
+  symbol.generatePage = true;
+  symbol.inNav = false;
+  return true;
+}
+
+function parentIdOf(symbol: DocSymbol): string | undefined {
+  if (symbol.kind === "field" || symbol.kind === "oneof" || symbol.kind === "method" || symbol.kind === "enum-value") {
+    return (symbol as DocField | DocOneof | DocMethod | DocEnumValue).parentId;
+  }
+  if (symbol.kind === "message" || symbol.kind === "enum") {
+    return (symbol as DocMessage | DocEnum).parentId;
+  }
+  return undefined;
+}
+
+function typeRefsOf(symbol: DocSymbol): Array<TypeRef | undefined> {
+  if (symbol.kind === "field") {
+    const field = symbol as DocField;
+    return [field.type, field.mapKey, field.mapValue];
+  }
+  if (symbol.kind === "method") {
+    const method = symbol as DocMethod;
+    return [method.input, method.output];
+  }
+  if (symbol.kind === "extension") {
+    const extension = symbol as DocExtension;
+    return [extension.extendee, extension.type];
+  }
+  return [];
+}
+
+function dropUnpublishedTypeLinks(model: SchemaModel): void {
+  const scrub = (type: TypeRef | undefined) => {
+    if (!type?.id || !type.urlPath) return;
+    const target = model.symbols[type.id];
+    if (!target?.generatePage) type.urlPath = undefined;
+  };
+  for (const field of model.fields) {
+    scrub(field.type);
+    scrub(field.mapKey);
+    scrub(field.mapValue);
+  }
+  for (const method of model.methods) {
+    scrub(method.input);
+    scrub(method.output);
+  }
+  for (const extension of model.extensions) {
+    scrub(extension.extendee);
+    scrub(extension.type);
   }
 }
 

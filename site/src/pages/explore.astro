@@ -1,7 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { loadModel, withBase } from "../lib/data.ts";
-import { symbolHref } from "../lib/format.ts";
+import { linkedPath } from "../lib/format.ts";
 
 const model = loadModel();
 const pageable = Object.values(model.symbols).filter((item) => item.generatePage);
@@ -21,7 +21,7 @@ const pageable = Object.values(model.symbols).filter((item) => item.generatePage
     ))}
   </select>
   <div id="explorer-out" class="mt-6 text-sm"></div>
-  <script define:vars={{ payload: pageable.map((item) => ({ id: item.id, fullName: item.fullName, url: symbolHref(item), refs: item.referencedBy.map((ref) => ({ fromId: ref.fromId, kind: ref.kind, label: ref.label })) })), names: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, item.fullName])), hrefs: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, item.urlPath])) , base: import.meta.env.BASE_URL }}>
+  <script define:vars={{ payload: pageable.map((item) => ({ id: item.id, fullName: item.fullName, url: linkedPath(item, model.symbols) ?? "", refs: item.referencedBy.map((ref) => ({ fromId: ref.fromId, kind: ref.kind, label: ref.label })) })), names: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, item.fullName])), hrefs: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, linkedPath(item, model.symbols) ?? ""])) , base: import.meta.env.BASE_URL }}>
     const select = document.getElementById("symbol-select");
     const out = document.getElementById("explorer-out");
     const byId = Object.fromEntries(payload.map((item) => [item.id, item]));
@@ -38,7 +38,12 @@ const pageable = Object.values(model.symbols).filter((item) => item.generatePage
       }
       out.innerHTML = `<p class="mb-3">${item.refs.length} incoming reference(s)</p><ul class="space-y-1">${item.refs
         .slice(0, 200)
-        .map((ref) => `<li><a href="${prefix}${hrefs[ref.fromId] ?? ""}">${names[ref.fromId] ?? ref.fromId}</a> <span class="text-[color:var(--fg-muted)]">· ${ref.kind}</span></li>`)
+        .map((ref) => {
+          const href = hrefs[ref.fromId];
+          const name = names[ref.fromId] ?? ref.fromId;
+          const label = href ? `<a href="${prefix}${href}">${name}</a>` : `<span class="font-mono">${name}</span>`;
+          return `<li>${label} <span class="text-[color:var(--fg-muted)]">· ${ref.kind}</span></li>`;
+        })
         .join("")}</ul>`;
     });
   </script>

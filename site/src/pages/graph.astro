@@ -25,7 +25,7 @@ const packages = [...new Set(edges.flatMap((edge) => [edge.from, edge.to]))].sor
       const pkg = model.packages.find((item) => item.fullName === name);
       return (
         <li class="rounded-xl border border-[color:var(--line)] p-4 bg-[color:var(--bg-raised)]">
-          <h2 class="font-semibold">{pkg ? <a href={withBase(pkg.urlPath)}>{name}</a> : name}</h2>
+          <h2 class="font-semibold">{pkg?.generatePage ? <a href={withBase(pkg.urlPath)}>{name}</a> : name}</h2>
           <p class="text-sm mt-2"><span class="text-[color:var(--fg-muted)]">Imports:</span> {imports.length ? imports.join(", ") : "none"}</p>
           <p class="text-sm"><span class="text-[color:var(--fg-muted)]">Imported by:</span> {importedBy.length ? importedBy.join(", ") : "none"}</p>
         </li>
