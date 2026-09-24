@@ -1,5 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import DisclosureChevron from "../components/DisclosureChevron.astro";
 import PackageTree from "../components/PackageTree.astro";
 import { homePackageAreas, type PackageAreaCounts } from "pbschema-lens/core";
 import { loadModel, withBase } from "../lib/data.ts";
@@ -68,13 +69,16 @@ function areaCounts(counts: PackageAreaCounts): string {
               <li>
                 <details class="home-area">
                   <summary>
-                    {area.urlPath ? (
-                      <a class="home-area-name" href={withBase(area.urlPath)}>
-                        {area.label}
-                      </a>
-                    ) : (
-                      area.label && <span class="home-area-name">{area.label}</span>
-                    )}
+                    <span class="home-area-label">
+                      <DisclosureChevron />
+                      {area.urlPath ? (
+                        <a class="home-area-name" href={withBase(area.urlPath)}>
+                          {area.label}
+                        </a>
+                      ) : (
+                        area.label && <span class="home-area-name">{area.label}</span>
+                      )}
+                    </span>
                     <span class="home-area-counts">{areaCounts(area.counts)}</span>
                   </summary>
                   <PackageTree nodes={area.nodes} />
@@ -83,7 +87,10 @@ function areaCounts(counts: PackageAreaCounts): string {
             ) : (
               <li>
                 <a class="home-area home-area-leaf" href={withBase(area.urlPath ?? "/")}>
-                  <span class="home-area-name">{area.label}</span>
+                  <span class="home-area-label">
+                    <span class="package-tree-chevron" aria-hidden="true"></span>
+                    <span class="home-area-name">{area.label}</span>
+                  </span>
                   <span class="home-area-counts">{areaCounts(area.counts)}</span>
                 </a>
               </li>
