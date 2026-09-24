@@ -34,7 +34,7 @@ import type {
   SymbolReference,
   TypeRef,
 } from "./types.js";
-import { type ClassificationConfig, classifyFile, resolveExternalUrl } from "./classify.js";
+import { type ClassificationConfig, classifyFile, isExcludedPath, resolveExternalUrl } from "./classify.js";
 import { commentsFor, indexLocations, locationToComment, locationToSource } from "./comments.js";
 import { editionLabel, enumFeatures, extensionFeatures, fieldFeatures, fileSyntax, messageFeatures } from "./editions.js";
 import { buildExampleJson, buildExampleTextProto } from "./examples.js";
@@ -429,7 +429,9 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
         packageName,
         fileName,
         domain: classification.domain,
-        generatePage: classification.generatePage || Boolean(optionTarget),
+        generatePage:
+          (classification.generatePage || Boolean(optionTarget)) &&
+          !isExcludedPath(fileName, packageName, options.classification.exclude),
         inNav: classification.inNav,
         deprecated: ext.deprecated,
         comments: loc.comments,
@@ -658,7 +660,26 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
     wktNotes,
   };
 
-  attachReferences(model, forward);
+  const excludedIds = excludedSymbolIds(symbols, options.classification.exclude);
+  for (const symbol of Object.values(symbols)) {
+    if (symbol.kind === "file") {
+      const file = symbol as DocFile;
+      if (excludedIds.has(file.id)) {
+        file.dependencyIds = [];
+        file.sourceText = undefined;
+        file.generatePage = false;
+      } else {
+        file.dependencyIds = file.dependencyIds.filter((id) => !excludedIds.has(id));
+      }
+    }
+    for (const option of symbol.options) {
+      if (option.definitionId && excludedIds.has(option.definitionId)) {
+        option.definitionId = undefined;
+      }
+    }
+  }
+  const visibleRefs = forward.filter((ref) => !excludedIds.has(ref.fromId) && !excludedIds.has(ref.toId));
+  attachReferences(model, visibleRefs);
 
   for (const message of model.messages) {
     if (!message.mapEntry) {
@@ -667,7 +688,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
     }
   }
 
-  promoteReferencedPages(model);
+  promoteReferencedPages(model, excludedIds);
 
   for (const plugin of plugins) {
     for (const transform of plugin.modelTransforms ?? []) {
@@ -675,7 +696,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
     }
   }
 
-  model.symbolIndex = buildSymbolIndex(model);
+  model.symbolIndex = buildSymbolIndex(model).filter((entry) => !excludedIds.has(entry.id));
   model.buildInfo.symbolCount = Object.keys(model.symbols).length;
   return model;
 }
@@ -729,7 +750,32 @@ function ensurePackage(
   remember(doc);
 }
 
-function promoteReferencedPages(model: SchemaModel): void {
+function excludedSymbolIds(symbols: Record<string, DocSymbol>, patterns: string[] | undefined): Set<string> {
+  const ids = new Set<string>();
+  if (!patterns?.length) {
+    return ids;
+  }
+  for (const symbol of Object.values(symbols)) {
+    if (symbol.kind === "package") {
+      continue;
+    }
+    if (isExcludedPath(symbol.fileName, symbol.packageName, patterns)) {
+      ids.add(symbol.id);
+    }
+  }
+  for (const symbol of Object.values(symbols)) {
+    if (symbol.kind !== "package") {
+      continue;
+    }
+    const fileIds = (symbol as DocPackage).fileIds;
+    if (fileIds.length > 0 && fileIds.every((id) => ids.has(id))) {
+      ids.add(symbol.id);
+    }
+  }
+  return ids;
+}
+
+function promoteReferencedPages(model: SchemaModel, excludedIds: Set<string>): void {
   const pageKinds: SymbolKind[] = ["message", "enum", "service", "extension"];
   let changed = true;
   while (changed) {
@@ -737,19 +783,19 @@ function promoteReferencedPages(model: SchemaModel): void {
     for (const symbol of Object.values(model.symbols)) {
       if (!symbolOnGeneratedPage(model, symbol)) continue;
       for (const ref of symbol.referencedBy) {
-        changed = ensureAnchorPage(model, model.symbols[ref.fromId]) || changed;
+        changed = ensureAnchorPage(model, model.symbols[ref.fromId], excludedIds) || changed;
       }
       if (symbol.kind === "message") {
         for (const fieldId of (symbol as DocMessage).fieldIds) {
-          changed = ensureTypePages(model, model.symbols[fieldId]) || changed;
+          changed = ensureTypePages(model, model.symbols[fieldId], excludedIds) || changed;
         }
       }
       if (symbol.kind === "service") {
         for (const methodId of (symbol as DocService).methodIds) {
-          changed = ensureTypePages(model, model.symbols[methodId]) || changed;
+          changed = ensureTypePages(model, model.symbols[methodId], excludedIds) || changed;
         }
       }
-      changed = ensureTypePages(model, symbol) || changed;
+      changed = ensureTypePages(model, symbol, excludedIds) || changed;
     }
     for (const symbol of Object.values(model.symbols)) {
       if (!pageKinds.includes(symbol.kind) || symbol.generatePage) continue;
@@ -757,7 +803,7 @@ function promoteReferencedPages(model: SchemaModel): void {
         symbolOnGeneratedPage(model, model.symbols[ref.fromId]),
       );
       if (referencedFromDocumented) {
-        changed = publishPage(symbol) || changed;
+        changed = publishPage(symbol, excludedIds) || changed;
       }
     }
   }
@@ -783,27 +829,27 @@ function symbolOnGeneratedPage(model: SchemaModel, symbol: DocSymbol | undefined
 }
 
 /** Give a referenced field, method, or enum value a real page so its fragment can resolve. */
-function ensureAnchorPage(model: SchemaModel, symbol: DocSymbol | undefined): boolean {
+function ensureAnchorPage(model: SchemaModel, symbol: DocSymbol | undefined, excludedIds: Set<string>): boolean {
   if (!symbol) return false;
   if (symbol.kind === "field" || symbol.kind === "oneof" || symbol.kind === "method" || symbol.kind === "enum-value") {
     const parent = model.symbols[(symbol as DocField | DocOneof | DocMethod | DocEnumValue).parentId];
-    return publishPage(parent);
+    return publishPage(parent, excludedIds);
   }
-  return publishPage(symbol);
+  return publishPage(symbol, excludedIds);
 }
 
-function ensureTypePages(model: SchemaModel, symbol: DocSymbol | undefined): boolean {
+function ensureTypePages(model: SchemaModel, symbol: DocSymbol | undefined, excludedIds: Set<string>): boolean {
   if (!symbol || !symbolOnGeneratedPage(model, symbol)) return false;
   let changed = false;
   for (const type of typeRefsOf(symbol)) {
     if (!type?.id) continue;
-    changed = publishPage(model.symbols[type.id]) || changed;
+    changed = publishPage(model.symbols[type.id], excludedIds) || changed;
   }
   return changed;
 }
 
-function publishPage(symbol: DocSymbol | undefined): boolean {
-  if (!symbol || symbol.generatePage) return false;
+function publishPage(symbol: DocSymbol | undefined, excludedIds: Set<string>): boolean {
+  if (!symbol || symbol.generatePage || excludedIds.has(symbol.id)) return false;
   if (symbol.kind === "message" && (symbol as DocMessage).mapEntry) return false;
   if (symbol.domain === "external-documented" || symbol.domain === "well-known") return false;
   if (symbol.kind !== "message" && symbol.kind !== "enum" && symbol.kind !== "service" && symbol.kind !== "extension" && symbol.kind !== "package") {

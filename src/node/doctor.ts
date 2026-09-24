@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { compileInput, resolveBufBin, runBuf } from "./compile.js";
-import { loadConfig, type PbSchemaLensConfig } from "./config.js";
+import { documentationClassification, loadConfig, type PbSchemaLensConfig } from "./config.js";
 import { loadRegistryFromBytes } from "../core/registry.js";
 import { buildModel } from "../core/model.js";
 
@@ -40,12 +40,7 @@ export async function doctor(cwd: string, input: string, config: PbSchemaLensCon
     const model = buildModel(registry, {
       title: config.title,
       inputLabel: input,
-      classification: {
-        include: config.documentation?.include,
-        exclude: config.documentation?.exclude,
-        localFiles: new Set(compiled.localFiles),
-        externalLinks: config.externalLinks,
-      },
+      classification: documentationClassification(config, new Set(compiled.localFiles)),
     });
     findings.push({
       level: "ok",

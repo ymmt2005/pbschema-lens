@@ -36,7 +36,7 @@ export function classifyFile(
     };
   }
 
-  if (isExcluded(fileName, packageName, config.exclude)) {
+  if (isExcludedPath(fileName, packageName, config.exclude)) {
     return { domain: "external-undocumented", generatePage: false, inNav: false };
   }
 
@@ -73,7 +73,7 @@ export function resolveExternalUrl(
   return undefined;
 }
 
-function isExcluded(fileName: string, packageName: string, patterns?: string[]): boolean {
+export function isExcludedPath(fileName: string, packageName: string, patterns?: string[]): boolean {
   return (patterns ?? []).some((pattern) => matches(fileName, packageName, pattern));
 }
 
