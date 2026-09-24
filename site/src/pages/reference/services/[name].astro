@@ -39,7 +39,13 @@ const methods = service.methodIds.map((id) => model.methods.find((item) => item.
             </td>
             <td class="font-mono text-xs">{typeHref(method.input) ? <a href={typeHref(method.input)}>{method.input.name}</a> : method.input.name}</td>
             <td class="font-mono text-xs">{typeHref(method.output) ? <a href={typeHref(method.output)}>{method.output.name}</a> : method.output.name}</td>
-            <td class="text-xs">{method.streamingKind.replaceAll("_", " ")}</td>
+            <td class="text-xs">
+              <span class="inline-flex flex-wrap gap-1">
+                {method.clientStreaming && <span class="stream-chip">client</span>}
+                {method.serverStreaming && <span class="stream-chip">server</span>}
+                {!method.clientStreaming && !method.serverStreaming && <span class="text-[color:var(--fg-muted)]">unary</span>}
+              </span>
+            </td>
           </tr>
         ))}
       </tbody>
