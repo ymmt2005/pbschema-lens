@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { compileInput } from "../src/node/compile.js";
+import { documentationClassification, loadConfig } from "../src/node/config.js";
+import { isExcludedPath } from "../src/core/classify.js";
 import { loadRegistryFromBytes } from "../src/core/registry.js";
 import { buildModel } from "../src/core/model.js";
 import { referenceIntegrity } from "../src/core/references.js";
@@ -99,13 +101,13 @@ describe("schema fixtures", () => {
     });
     const http = model.messages.find((item) => item.fullName === "google.api.Http");
     const rules = model.fields.find((item) => item.fullName === "google.api.Http.rules");
-    expect(http?.generatePage).toBe(true);
+    expect(http?.generatePage).toBe(false);
     expect(rules?.anchor).toBe("rules");
-    expect(rules?.urlPath).toBe("/reference/messages/google.api.Http/");
+    expect(rules?.generatePage).toBe(false);
     const stringRules = model.messages.find((item) => item.fullName === "buf.validate.StringRules");
-    expect(stringRules?.generatePage).toBe(true);
+    expect(stringRules?.generatePage).toBe(false);
     const custom = model.messages.find((item) => item.fullName === "google.api.CustomHttpPattern");
-    expect(custom?.generatePage).toBe(true);
+    expect(custom?.generatePage).toBe(false);
     const getUser = model.methods.find((item) => item.fullName === "acme.user.v1.UserService.GetUser");
     expect(getUser?.generatePage).toBe(true);
     expect(getUser?.inNav).toBe(false);
@@ -116,6 +118,71 @@ describe("schema fixtures", () => {
     expect(model.symbolIndex.find((item) => item.fullName === "acme.user.v1.UserService.GetUser")?.urlPath).toBe(
       "/reference/methods/acme.user.v1.UserService.GetUser/",
     );
+  });
+
+  it("drops pages and links for files matched by documentation.exclude", async () => {
+    const dir = new URL("../examples/acme", import.meta.url).pathname;
+    const { config } = loadConfig(dir);
+    const exclude = config.documentation?.exclude;
+    expect(exclude).toEqual(["google/api/**", "buf/validate/**", "cybozu/validate/**"]);
+    const compiled = await compileInput(dir);
+    const registry = loadRegistryFromBytes(compiled.bytes);
+    const model = buildModel(registry, {
+      title: config.title,
+      inputLabel: dir,
+      classification: documentationClassification(config),
+      sourceTexts: {
+        "google/api/http.proto": 'syntax = "proto3";\n',
+        "acme/user/v1/user.proto": 'syntax = "proto3";\n',
+      },
+    });
+
+    const excluded = Object.values(model.symbols).filter((symbol) =>
+      isExcludedPath(symbol.fileName, symbol.packageName, exclude),
+    );
+    expect(excluded.length).toBeGreaterThan(0);
+    expect(excluded.filter((symbol) => symbol.generatePage).map((symbol) => symbol.fullName)).toEqual([]);
+    const excludedIds = new Set(excluded.map((symbol) => symbol.id));
+    for (const pkg of model.packages) {
+      if (pkg.fileIds.length > 0 && pkg.fileIds.every((id) => excludedIds.has(id))) {
+        excludedIds.add(pkg.id);
+        expect(pkg.generatePage, pkg.fullName).toBe(false);
+      }
+    }
+    expect(model.symbolIndex.filter((entry) => excludedIds.has(entry.id))).toEqual([]);
+    const linked = Object.values(model.symbols).flatMap((symbol) =>
+      [...symbol.references, ...symbol.referencedBy].flatMap((ref) => {
+        const endpoints = [ref.fromId, ref.toId].filter((id) => excludedIds.has(id));
+        return endpoints.map((id) => `${symbol.fullName} ${ref.kind} ${id}`);
+      }),
+    );
+    expect(linked).toEqual([]);
+
+    for (const file of model.files) {
+      if (excludedIds.has(file.id)) {
+        expect(file.dependencyIds, file.fullName).toEqual([]);
+        expect(file.sourceText, file.fullName).toBeUndefined();
+        expect(file.generatePage, file.fullName).toBe(false);
+      } else {
+        expect(file.dependencyIds.filter((id) => excludedIds.has(id)), file.fullName).toEqual([]);
+      }
+    }
+    expect(model.files.find((file) => file.fullName === "acme/user/v1/user.proto")?.sourceText).toContain("syntax");
+
+    const email = model.fields.find((item) => item.fullName === "acme.user.v1.User.email");
+    expect(email?.options.some((option) => option.semantic?.rendererId === "validation" && option.definitionId === undefined)).toBe(
+      true,
+    );
+    const getUser = model.methods.find((item) => item.fullName === "acme.user.v1.UserService.GetUser");
+    expect(getUser?.options.some((option) => option.semantic?.rendererId === "google.api.http" && option.definitionId === undefined)).toBe(
+      true,
+    );
+    const flagId = model.fields.find((item) => item.fullName === "acme.experiment.v1.Flag.id");
+    expect(
+      flagId?.options.some((option) => option.semantic?.rendererId === "cybozu.validate" && option.definitionId === undefined),
+    ).toBe(true);
+    expect(model.messages.find((item) => item.fullName === "acme.user.v1.User")?.generatePage).toBe(true);
+    expect(getUser?.generatePage).toBe(true);
   });
 
   it("resolves dependency CLIs even when package.json is not exported", async () => {

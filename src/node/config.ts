@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
+import type { ClassificationConfig } from "../core/classify.js";
 
 const ExternalLinkSchema = z.object({
   package: z.string(),
@@ -73,4 +74,16 @@ export function loadConfig(cwd: string, explicit?: string, extraDirs: string[] =
 
 export function configDir(path: string | undefined, cwd: string): string {
   return path ? dirname(path) : cwd;
+}
+
+export function documentationClassification(
+  config: PbSchemaLensConfig,
+  localFiles?: Set<string>,
+): ClassificationConfig {
+  return {
+    include: config.documentation?.include,
+    exclude: config.documentation?.exclude,
+    localFiles,
+    externalLinks: config.externalLinks,
+  };
 }
