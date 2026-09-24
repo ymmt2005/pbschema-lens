@@ -26,10 +26,7 @@ export function urlPathFor(
         anchor: kind === "oneof" ? `oneof-${slug(shortName(fullName))}` : slug(shortName(fullName)),
       };
     case "method":
-      return {
-        urlPath: `/reference/services/${encodeURIComponent(parentFullName ?? fullName)}/`,
-        anchor: slug(shortName(fullName)),
-      };
+      return { urlPath: `/reference/methods/${encodeURIComponent(fullName)}/` };
     case "enum-value":
       return {
         urlPath: `/reference/enums/${encodeURIComponent(parentFullName ?? fullName)}/`,

@@ -497,7 +497,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
           packageName,
           fileName,
           domain: classification.domain,
-          generatePage: false,
+          generatePage: classification.generatePage,
           inNav: false,
           deprecated: method.deprecated,
           comments: methodLoc.comments,
@@ -761,7 +761,18 @@ function promoteReferencedPages(model: SchemaModel): void {
       }
     }
   }
+  publishServiceMethods(model);
   dropUnpublishedTypeLinks(model);
+}
+
+/** A method page exists when its service page does. Methods stay out of the sidebar. */
+function publishServiceMethods(model: SchemaModel): void {
+  for (const method of model.methods) {
+    const service = model.symbols[method.parentId];
+    if (!service?.generatePage) continue;
+    method.generatePage = true;
+    method.inNav = false;
+  }
 }
 
 function symbolOnGeneratedPage(model: SchemaModel, symbol: DocSymbol | undefined): boolean {

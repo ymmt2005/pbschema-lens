@@ -44,6 +44,9 @@ describe("identity and URLs", () => {
       "/reference/messages/google.protobuf.Timestamp/",
     );
     expect(urlPathFor("field", "acme.user.v1.User.email", "acme.user.v1.User").anchor).toBe("email");
+    expect(urlPathFor("method", "acme.user.v1.UserService.GetUser", "acme.user.v1.UserService")).toEqual({
+      urlPath: "/reference/methods/acme.user.v1.UserService.GetUser/",
+    });
   });
 
   it("builds in-site source paths with line anchors", () => {
