@@ -28,5 +28,3 @@ sourceBrowser:
 artifacts:
   descriptorSet: true
   symbolIndex: true
-
-playground: true
