@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package acme.experiment.v2;
+
+import "acme/experiment/v1/flags.proto";
+import "google/api/field_behavior.proto";
+
+option go_package = "acme.example/experiment/v2;experimentv2";
+
+// A gradual rollout of a v1 feature flag.
+message Rollout {
+  string id = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  acme.experiment.v1.Flag flag = 2 [(google.api.field_behavior) = REQUIRED];
+  // Portion of traffic that receives the flag, from 0 to 100.
+  int32 percent = 3;
+}

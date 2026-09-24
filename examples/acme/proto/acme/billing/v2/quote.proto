@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package acme.billing.v2;
+
+import "acme/billing/v1/invoice.proto";
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+
+option go_package = "acme.example/billing/v2;billingv2";
+
+// A price quote that can be accepted into a v1 invoice.
+message Quote {
+  string id = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string customer_id = 2 [(google.api.field_behavior) = REQUIRED];
+  acme.billing.v1.Money total = 3;
+  string note = 4;
+}
+
+message GetQuoteRequest {
+  string id = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetQuoteResponse {
+  Quote quote = 1;
+}
+
+// Reads quotes created by the v2 billing API.
+service QuoteService {
+  rpc GetQuote(GetQuoteRequest) returns (GetQuoteResponse) {
+    option (google.api.http) = { get: "/v2/quotes/{id}" };
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}

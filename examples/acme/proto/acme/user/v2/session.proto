@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package acme.user.v2;
+
+import "acme/user/v1/user.proto";
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "acme.example/user/v2;userv2";
+
+// A signed-in session for a v1 user account.
+message Session {
+  string id = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  acme.user.v1.User user = 2 [(google.api.field_behavior) = REQUIRED];
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message GetSessionRequest {
+  string id = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetSessionResponse {
+  Session session = 1;
+}
+
+// Reads active sessions.
+service SessionService {
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
+    option (google.api.http) = { get: "/v2/sessions/{id}" };
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
