@@ -72,18 +72,19 @@ A stable name `pbschema-lens.tgz` is also uploaded for `releases/latest/download
 
 ## Configuration
 
-`pbschema-lens.yaml`:
+The config file is `pbschema-lens.yaml` or `pbschema-lens.yml`, next to the input or in the working directory. `--config` selects a file explicitly.
 
 ```yaml
 title: "Acme Protobuf API"
 input: "."
 output: "dist"
-base: "/"            # public project Pages: "/repo-name/"; private Pages and custom domains: "/"
+base: "/"
+siteUrl: "https://docs.example.com"
 
-# Optional. Adds a separate "View on GitHub" link.
-# View source always uses the embedded browser when .proto files are present.
 source:
   repository: "github:org/repo"
+  commit: "abc123"
+  urlTemplate: "https://src.example/{commit}/{file}#L{line}"
 
 documentation:
   include:
@@ -91,11 +92,9 @@ documentation:
   exclude:
     - "third_party/**"
 
-# Omit to keep standard-library pages. false drops those pages and nav links.
 wellKnownTypes:
   enabled: true
 
-# Symbol search is always on. fullText toggles Pagefind.
 search:
   fullText: true
 
@@ -104,13 +103,37 @@ sourceBrowser:
 
 artifacts:
   descriptorSet: false
+  references: true
 
 externalLinks:
   - package: "acme.identity.**"
     urlTemplate: "https://docs.example.com/identity/reference/{symbol}"
+
+plugins:
+  - "./my-plugin.mjs"
 ```
 
-Every important flag also has a CLI equivalent (`--out`, `--base`, `--title`, `--against`).
+| Key | Default | Effect |
+|---|---|---|
+| `title` | `Protobuf API` | Site title. `build`, `dev`, and `diff` accept `--title`. |
+| `input` | `.` | Buf workspace, proto directory, or `FileDescriptorSet`. The command's `[input]` argument overrides this. |
+| `output` | `dist` | Output directory. Those commands accept `--out`. |
+| `base` | `/` | Path prefix for the site. A public GitHub project site uses `/<repo>/`. A private Pages site, a user or org site, or a custom domain uses `/`. Those commands accept `--base`. |
+| `siteUrl` | omitted | Origin of the published site, such as `https://docs.example.com`. The build emits a canonical link for each page. With `base: /docs/`, the home page canonical URL is `https://docs.example.com/docs/`. |
+| `source.repository` | omitted | Repository for the separate “View on GitHub” or “View on GitLab” link. `github:owner/repo` and `https://github.com/owner/repo` (optional `.git`) build a GitHub blob URL. `gitlab:group/project` and `https://gitlab.com/group/project` build a GitLab blob URL. When `.proto` text is available, View source stays in the site and this link is separate. When it is not, View source uses this URL. |
+| `source.commit` | git commit of the schema, or `HEAD` | Commit used in the repository link. A value here overrides the commit detected from the worktree. |
+| `source.urlTemplate` | omitted | Repository link template. When set, this string is used instead of `source.repository`. `{file}` is the proto path, `{line}` is the line number, and `{commit}` is `source.commit`, then the detected git commit, then `HEAD`. Example: `https://src.example/{commit}/{file}#L{line}`. |
+| `documentation.include` | omitted | Proto path globs or package names. A package pattern ending in `.**` includes nested packages. A non-empty list documents only matching files. Other files have no page and do not appear in symbol search. |
+| `documentation.exclude` | omitted | Proto path globs or package names. Matching files are left out of the site: no page, no source, no symbol-search hit, and no link to or from their symbols. A message that uses an option from an excluded file still shows that option chip, without a definition link. |
+| `wellKnownTypes.enabled` | `true` | `false` drops every well-known type page and nav entry, including Timestamp and Duration. Descriptor and feature protos stay hidden either way. A field of that type keeps the type name as text. |
+| `search.fullText` | `true` | `false` skips the Pagefind index. Symbol search is always written to `assets/protobuf/symbols.json`. |
+| `sourceBrowser.enabled` | `true` | `false` does not load `.proto` text, so the site has no source pages. |
+| `artifacts.descriptorSet` | `false` | `true` writes `assets/protobuf/schema.binpb`. |
+| `artifacts.references` | `true` | `false` skips `assets/protobuf/references.json`. `symbols.json` and `build-info.json` are written on every build. |
+| `externalLinks` | omitted | Rules that send a package to another site. `package` is a name or a `.**` pattern. A match is documented externally: no local page, and links use `urlTemplate`. `{symbol}` is the full name, `{kind}` is the symbol kind, and `{package}` is the package. |
+| `plugins` | omitted | Trusted Node modules, resolved from the working directory. Each file exports a plugin (`default` or `plugin`). Schema comments cannot name a plugin. |
+
+`build`, `dev`, and `diff` accept `--out`, `--base`, `--title`, and `--config`. `build` and `diff` accept `--against`; `diff` requires it. `dev` accepts `--port`. A flag applies on the commands that declare it.
 
 ## What the site includes
 
