@@ -152,6 +152,7 @@ function printSummary(
     model.messages.filter((item) => item.generatePage).length +
     model.enums.filter((item) => item.generatePage).length +
     model.services.filter((item) => item.generatePage).length +
+    model.methods.filter((item) => item.generatePage).length +
     model.extensions.filter((item) => item.generatePage).length;
   console.log(`Loaded ${model.buildInfo.symbolCount} symbols`);
   console.log(`Resolved ${optionDefs} custom option definitions`);

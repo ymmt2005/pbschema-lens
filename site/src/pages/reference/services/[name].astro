@@ -3,7 +3,6 @@ import Layout from "../../../layouts/Layout.astro";
 import SymbolHeader from "../../../components/SymbolHeader.astro";
 import OptionList from "../../../components/OptionList.astro";
 import UsedBy from "../../../components/UsedBy.astro";
-import FeatureList from "../../../components/FeatureList.astro";
 import { loadModel } from "../../../lib/data.ts";
 import { symbolHref, typeHref } from "../../../lib/format.ts";
 
@@ -35,7 +34,7 @@ const methods = service.methodIds.map((id) => model.methods.find((item) => item.
         {methods.map((method) => (
           <tr>
             <td>
-              <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${method.anchor}`}>{method.shortName}</a>
+              <a class="font-mono no-underline text-[color:var(--fg)]" href={symbolHref(method)}>{method.shortName}</a>
               {method.deprecated ? <div class="text-xs text-red-700">deprecated</div> : null}
             </td>
             <td class="font-mono text-xs">{typeHref(method.input) ? <a href={typeHref(method.input)}>{method.input.name}</a> : method.input.name}</td>
@@ -46,20 +45,6 @@ const methods = service.methodIds.map((id) => model.methods.find((item) => item.
       </tbody>
     </table>
   </div>
-  {methods.map((method) => (
-    <article id={method.anchor} class="mb-8 rounded-xl border border-[color:var(--line)] p-4 bg-[color:var(--bg-raised)]">
-      <h2 class="font-semibold">{method.shortName}</h2>
-      <pre class="proto mt-3">{method.signature}</pre>
-      {method.comments?.markdownHtml && <div class="prose-doc mt-3 text-sm" set:html={method.comments.markdownHtml} />}
-      <p class="text-sm mt-3">
-        Request: {typeHref(method.input) ? <a href={typeHref(method.input)}>{method.input.name}</a> : method.input.name}
-        {" · "}
-        Response: {typeHref(method.output) ? <a href={typeHref(method.output)}>{method.output.name}</a> : method.output.name}
-      </p>
-      {method.idempotency && <p class="text-xs text-[color:var(--fg-muted)]">Idempotency: {method.idempotency}</p>}
-      <OptionList options={method.options} />
-    </article>
-  ))}
   <OptionList options={service.options} />
   <UsedBy symbol={service} model={model} />
 </Layout>

@@ -106,6 +106,16 @@ describe("schema fixtures", () => {
     expect(stringRules?.generatePage).toBe(true);
     const custom = model.messages.find((item) => item.fullName === "google.api.CustomHttpPattern");
     expect(custom?.generatePage).toBe(true);
+    const getUser = model.methods.find((item) => item.fullName === "acme.user.v1.UserService.GetUser");
+    expect(getUser?.generatePage).toBe(true);
+    expect(getUser?.inNav).toBe(false);
+    expect(getUser?.anchor).toBeUndefined();
+    expect(getUser?.urlPath).toBe("/reference/methods/acme.user.v1.UserService.GetUser/");
+    const email = model.fields.find((item) => item.fullName === "acme.user.v1.User.email");
+    expect(email?.urlPath).toBe("/reference/messages/acme.user.v1.User/");
+    expect(model.symbolIndex.find((item) => item.fullName === "acme.user.v1.UserService.GetUser")?.urlPath).toBe(
+      "/reference/methods/acme.user.v1.UserService.GetUser/",
+    );
   });
 
   it("resolves dependency CLIs even when package.json is not exported", async () => {

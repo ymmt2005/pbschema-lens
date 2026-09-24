@@ -47,6 +47,9 @@ describe("activePackageName", () => {
       "example.admin.types",
     );
     expect(activePackageName("/reference/services/example.admin.AdminService/", names)).toBe("example.admin");
+    expect(activePackageName("/reference/methods/acme.billing.v1.BillingService.GetInvoice/", names)).toBe(
+      "acme.billing.v1",
+    );
     expect(activePackageName("/reference/enums/acme.billing.v1.InvoiceState/", names)).toBe("acme.billing.v1");
   });
 

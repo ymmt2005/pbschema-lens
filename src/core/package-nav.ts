@@ -54,7 +54,7 @@ function sortNodes(nodes: PackageNavNode[]): void {
 
 /**
  * Package full name for the current reference page, if any.
- * Message, enum, service, and extension pages match the longest package prefix.
+ * Message, enum, service, method, and extension pages match the longest package prefix.
  */
 export function activePackageName(
   pathname: string,
@@ -66,7 +66,7 @@ export function activePackageName(
   } catch {
     decoded = pathname;
   }
-  const match = decoded.match(/\/reference\/(?:packages|messages|enums|services|extensions)\/([^/#?]+)/);
+  const match = decoded.match(/\/reference\/(?:packages|messages|enums|services|methods|extensions)\/([^/#?]+)/);
   const symbol = match?.[1];
   if (!symbol) return undefined;
   let best: string | undefined;

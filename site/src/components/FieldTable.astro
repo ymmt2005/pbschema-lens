@@ -7,10 +7,16 @@ interface Props {
   fields: DocField[];
   oneofs?: DocOneof[];
   model: SchemaModel;
+  /** Keeps request and response field ids distinct when two tables share a page. */
+  anchorPrefix?: string;
 }
 
-const { fields, oneofs = [] } = Astro.props;
+const { fields, oneofs = [], anchorPrefix = "" } = Astro.props;
 const entries = fieldTableEntries(fields, oneofs);
+
+function domId(anchor: string | undefined): string | undefined {
+  return anchor ? `${anchorPrefix}${anchor}` : undefined;
+}
 
 function typeLabel(field: DocField): string {
   if (field.cardinality === "map") {
@@ -59,9 +65,9 @@ function oneofRequired(oneof: DocOneof): boolean {
             const required = oneofRequired(oneof);
             return (
               <>
-                <tr id={oneof.anchor} class="oneof">
+                <tr id={domId(oneof.anchor)} class="oneof">
                   <td>
-                    <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${oneof.anchor}`}>
+                    <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${domId(oneof.anchor)}`}>
                       {oneof.shortName}
                     </a>
                     <div class="text-[11px] text-[color:var(--fg-muted)]">oneof</div>
@@ -84,7 +90,7 @@ function oneofRequired(oneof: DocOneof): boolean {
                     {oneof.comments?.markdownHtml ? <div class="prose-doc text-sm" set:html={oneof.comments.markdownHtml} /> : null}
                     <p class="text-sm text-[color:var(--fg-muted)]">
                       {required ? "Exactly one of " : "At most one of "}{members.map((member, index) => (
-                        <Fragment>{index > 0 ? ", " : ""}<a href={`#${member.anchor}`}>{member.shortName}</a></Fragment>
+                        <Fragment>{index > 0 ? ", " : ""}<a href={`#${domId(member.anchor)}`}>{member.shortName}</a></Fragment>
                       ))}.</p>
                     {oneof.options.length > 0 && (
                       <details class="mt-2 text-xs">
@@ -99,14 +105,14 @@ function oneofRequired(oneof: DocOneof): boolean {
                   const memberChips = validationChips(field.options);
                   const annotations = otherAnnotationBadges(field);
                   return (
-                    <tr id={field.anchor} class="oneof-member">
+                    <tr id={domId(field.anchor)} class="oneof-member">
                       <td>
-                        <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${field.anchor}`}>
+                        <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${domId(field.anchor)}`}>
                           {field.shortName}
                         </a>
                         {field.deprecated ? <span class="ml-2 text-xs text-red-700">deprecated</span> : null}
                         <div class="text-[11px] text-[color:var(--fg-muted)]">
-                          in <a href={`#${oneof.anchor}`}>{oneof.shortName}</a>
+                          in <a href={`#${domId(oneof.anchor)}`}>{oneof.shortName}</a>
                         </div>
                       </td>
                       <td class="num">{field.number}</td>
@@ -153,9 +159,9 @@ function oneofRequired(oneof: DocOneof): boolean {
           const chips = validationChips(field.options);
           const annotations = otherAnnotationBadges(field);
           return (
-            <tr id={field.anchor}>
+            <tr id={domId(field.anchor)}>
               <td>
-                <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${field.anchor}`}>
+                <a class="font-mono no-underline text-[color:var(--fg)]" href={`#${domId(field.anchor)}`}>
                   {field.shortName}
                 </a>
                 {field.deprecated ? <span class="ml-2 text-xs text-red-700">deprecated</span> : null}

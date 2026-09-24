@@ -28,11 +28,12 @@ export function symbolHref(symbol: Pick<DocSymbol, "urlPath" | "anchor">): strin
   return symbol.anchor ? `${path}#${symbol.anchor}` : path;
 }
 
-const nestedKinds = new Set<DocSymbol["kind"]>(["field", "oneof", "method", "enum-value"]);
+const nestedKinds = new Set<DocSymbol["kind"]>(["field", "oneof", "enum-value"]);
 
 /**
  * Link to a symbol only when the page that hosts it was generated.
- * Fields, methods, oneofs, and enum values resolve to the parent page plus a fragment.
+ * Fields, oneofs, and enum values resolve to the parent page plus a fragment.
+ * Methods link to their own page.
  */
 export function linkedPath(
   symbol: DocSymbol,

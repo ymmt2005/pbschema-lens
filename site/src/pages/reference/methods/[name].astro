@@ -1,0 +1,63 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import SymbolHeader from "../../../components/SymbolHeader.astro";
+import OptionList from "../../../components/OptionList.astro";
+import FieldTable from "../../../components/FieldTable.astro";
+import { loadModel } from "../../../lib/data.ts";
+import { symbolHref, typeHref } from "../../../lib/format.ts";
+import type { DocField, DocMessage, DocOneof, DocService, TypeRef } from "../../../../src/core/types.ts";
+
+export function getStaticPaths() {
+  return loadModel()
+    .methods.filter((item) => item.generatePage)
+    .map((item) => ({ params: { name: item.fullName } }));
+}
+
+const model = loadModel();
+const method = model.methods.find((item) => item.fullName === Astro.params.name);
+if (!method) throw new Error("Missing method");
+const service = model.symbols[method.parentId] as DocService | undefined;
+
+function messageBody(ref: TypeRef): { fields: DocField[]; oneofs: DocOneof[] } | undefined {
+  const symbol = ref.id ? model.symbols[ref.id] : undefined;
+  if (!symbol || symbol.kind !== "message") return undefined;
+  const message = symbol as DocMessage;
+  const fields = message.fieldIds.map((id) => model.fields.find((item) => item.id === id)!).filter(Boolean);
+  const oneofs = message.oneofIds.map((id) => model.oneofs.find((item) => item.id === id)!).filter(Boolean);
+  return { fields, oneofs };
+}
+
+const request = messageBody(method.input);
+const response = messageBody(method.output);
+---
+
+<Layout title={method.fullName}>
+  <SymbolHeader symbol={method} />
+  {
+    service?.generatePage && (
+      <p class="text-sm -mt-4 mb-6">
+        RPC on <a href={symbolHref(service)}>{service.shortName}</a>
+      </p>
+    )
+  }
+  <pre class="proto">{method.signature}</pre>
+  <p class="text-sm text-[color:var(--fg-muted)] mt-3">
+    {method.streamingKind.replaceAll("_", " ")}
+    {method.idempotency ? ` · ${method.idempotency}` : ""}
+  </p>
+  <OptionList options={method.options} />
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold mb-2">Request</h2>
+    <p class="font-mono text-sm mb-3">
+      {typeHref(method.input) ? <a href={typeHref(method.input)}>{method.input.name}</a> : method.input.name}
+    </p>
+    {request && <FieldTable fields={request.fields} oneofs={request.oneofs} model={model} anchorPrefix="request-" />}
+  </section>
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold mb-2">Response</h2>
+    <p class="font-mono text-sm mb-3">
+      {typeHref(method.output) ? <a href={typeHref(method.output)}>{method.output.name}</a> : method.output.name}
+    </p>
+    {response && <FieldTable fields={response.fields} oneofs={response.oneofs} model={model} anchorPrefix="response-" />}
+  </section>
+</Layout>
