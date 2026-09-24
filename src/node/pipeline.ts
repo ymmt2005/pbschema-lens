@@ -7,7 +7,7 @@ import { diffModels } from "../core/diff.js";
 import type { PbSchemaLensPlugin, SchemaModel } from "../core/types.js";
 import { collectBreaking } from "./breaking.js";
 import { compileInput } from "./compile.js";
-import type { PbSchemaLensConfig } from "./config.js";
+import { documentationClassification, type PbSchemaLensConfig } from "./config.js";
 import { generateSite } from "./generate-site.js";
 import { detectGitInfo } from "./git.js";
 import { loadSourceTexts } from "./sources.js";
@@ -48,12 +48,7 @@ export async function buildDocumentation(options: BuildOptions): Promise<SchemaM
   let model = buildModel(registry, {
     title: options.config.title,
     inputLabel: options.input,
-    classification: {
-      include: options.config.documentation?.include,
-      exclude: options.config.documentation?.exclude,
-      localFiles: new Set(Object.keys(sourceTexts)),
-      externalLinks: options.config.externalLinks,
-    },
+    classification: documentationClassification(options.config, new Set(Object.keys(sourceTexts))),
     source: {
       repository: options.config.source?.repository,
       commit: options.config.source?.commit ?? git.commit,
@@ -73,12 +68,7 @@ export async function buildDocumentation(options: BuildOptions): Promise<SchemaM
     const prevModel = buildModel(prevRegistry, {
       title: options.config.title,
       inputLabel: options.against,
-      classification: {
-        include: options.config.documentation?.include,
-        exclude: options.config.documentation?.exclude,
-        localFiles: new Set(previous.localFiles),
-        externalLinks: options.config.externalLinks,
-      },
+      classification: documentationClassification(options.config, new Set(previous.localFiles)),
     });
     model.diff = diffModels(model, prevModel, options.againstLabel ?? options.against);
     if (compiled.kind === "buf") {
