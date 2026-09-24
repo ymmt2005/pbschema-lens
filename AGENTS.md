@@ -92,6 +92,21 @@ After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text searc
 
 If you change `SchemaModel`, update both `src/core/` producers and `site/` consumers. The JSON dump is the API between them.
 
+## Config flags
+
+A key in `ConfigSchema`, the README, `init.ts`, or `examples/acme/pbschema-lens.yaml` is not an implementation. `playground`, `wellKnownTypes.enabled`, `search.symbolIndex`, and `documentation.exclude` all shipped that way: the yaml parsed, the default build looked fine, and the flag did nothing or was undone later.
+
+Before calling a flag done:
+
+1. The key is read outside the schema, the README, `init.ts`, and the example yaml. `build`, `dev`, and `diff` share `buildDocumentation`. A CLI option declared only on `build` does not reach the others: `resolveRuntime` copies `--base` and `--title` only when that command declared them.
+2. A test or a build sets the non-default value and checks a visible difference (page, file, link, or nav entry). The Acme defaults match "always on," so that build cannot show an ignored flag.
+3. "Leave this off the site" covers every gate, not only `generatePage`: `inNav`, `sourceText`, `symbolIndex`, type `urlPath`, option `definitionId`, file `dependencyIds`, and the sidebar and home filters. `publishPage` must keep refusing it. Source routes follow `sourceText`. Option extensions must not regain a page through `optionTarget`.
+4. The test states what the flag means. Do not assert whatever the current HTML already does.
+5. Third-party option protos (`google.api`, `buf.validate`, and the same kind of dependency) come from `buf.yaml`. Do not vendor them under `examples/`.
+6. Keep one requested outcome on the branch already under review. Lead the PR title with that outcome.
+
+Still unwired: `siteUrl` is copied into Astro's `site` and does not change the HTML. `dev` and `diff` do not declare `--base` or `--title`. `build-info.json` is written on every build.
+
 ## Commands
 
 ```bash
