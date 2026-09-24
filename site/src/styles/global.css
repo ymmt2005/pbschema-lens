@@ -180,6 +180,8 @@ table.fields tr.oneof-member td:first-child {
   display: flex;
   align-items: center;
   gap: 0.15rem;
+  border-radius: 0.375rem;
+  padding: 0.1rem 0.15rem 0.1rem 0;
   cursor: pointer;
   list-style: none;
 }
@@ -190,16 +192,19 @@ table.fields tr.oneof-member td:first-child {
   content: "";
 }
 
-.package-tree-node > summary::before {
-  content: "▸";
+.package-tree-chevron {
   flex: 0 0 auto;
-  width: 0.75rem;
-  color: var(--fg-muted);
-  font-size: 0.65rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--fg);
 }
 
-.package-tree-node[open] > summary::before {
-  content: "▾";
+.package-tree-node[open] > summary .package-tree-chevron {
+  transform: rotate(90deg);
+}
+
+.package-tree-node > summary:hover {
+  background: var(--bg-muted);
 }
 
 .package-tree-link,
@@ -216,13 +221,16 @@ table.fields tr.oneof-member td:first-child {
 
 .package-tree-leaf {
   display: block;
-  margin-left: 0.9rem;
+  margin-left: 1.2rem;
 }
 
-.package-tree-link:hover,
+.package-tree-link:hover {
+  background: var(--bg-muted);
+}
+
 .package-tree-node > summary:hover .package-tree-folder,
 .package-tree-node > summary:hover .package-tree-link {
-  background: var(--bg-muted);
+  background: transparent;
 }
 
 .package-tree-link.is-active {
@@ -238,14 +246,13 @@ table.fields tr.oneof-member td:first-child {
 
 .home-area > summary {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem 1.5rem;
   flex-wrap: wrap;
-  padding: 0.9rem 1rem 0.9rem 2rem;
+  padding: 0.85rem 1rem;
   cursor: pointer;
   list-style: none;
-  position: relative;
 }
 
 .home-area > summary::-webkit-details-marker,
@@ -254,30 +261,28 @@ table.fields tr.oneof-member td:first-child {
   content: "";
 }
 
-.home-area > summary::before {
-  content: "▸";
-  position: absolute;
-  left: 0.85rem;
-  top: 1.15rem;
-  color: var(--fg-muted);
-  font-size: 0.7rem;
+.home-area-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
 }
 
-.home-area[open] > summary::before {
-  content: "▾";
+.home-area[open] > summary .package-tree-chevron {
+  transform: rotate(90deg);
 }
 
 .home-area > .package-tree {
-  padding: 0 1rem 0.85rem 1.6rem;
+  padding: 0 1rem 0.85rem 2.35rem;
 }
 
 a.home-area-leaf {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem 1.5rem;
   flex-wrap: wrap;
-  padding: 0.9rem 1rem 0.9rem 2rem;
+  padding: 0.85rem 1rem;
   text-decoration: none;
 }
 

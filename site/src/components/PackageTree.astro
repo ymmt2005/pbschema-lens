@@ -1,6 +1,7 @@
 ---
 import { packageNodeOpen, type PackageNavNode } from "pbschema-lens/core";
 import { withBase } from "../lib/data.ts";
+import DisclosureChevron from "./DisclosureChevron.astro";
 
 interface Props {
   nodes: PackageNavNode[];
@@ -34,6 +35,7 @@ const { nodes, active } = Astro.props;
         <li>
           <details class="package-tree-node" {...(open ? { open: true } : {})}>
             <summary>
+              <DisclosureChevron />
               {href ? (
                 <a class:list={linkClass} href={href} aria-current={isActive ? "page" : undefined}>
                   {node.segment}
