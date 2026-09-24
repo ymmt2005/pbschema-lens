@@ -12,7 +12,7 @@ import { doctor } from "./node/doctor.js";
 import { initProject } from "./node/init.js";
 
 export const program = new Command();
-program.name("pbschema-lens").description("Static schema explorer for Protocol Buffers").version("0.3.0");
+program.name("pbschema-lens").description("Static schema explorer for Protocol Buffers").version("0.4.0");
 
 program
   .command("build")
