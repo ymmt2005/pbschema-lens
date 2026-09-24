@@ -134,6 +134,8 @@ Comments are treated as untrusted data. They are rendered as Markdown with a san
 
 ## Security notes
 
+The security target is current practice for a static site built from untrusted schema text. When a sanitizer bypass or a new HTML, URL, or path sink becomes known, the allowlist and its tests move with it.
+
 - A private Git repository does **not** make a published static site private.
 - Plugins run as trusted build code.
 - Source paths are rejected if they contain `..`.
