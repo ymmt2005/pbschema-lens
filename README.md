@@ -91,6 +91,10 @@ documentation:
   exclude:
     - "third_party/**"
 
+# Omit to keep standard-library pages. false drops those pages and nav links.
+wellKnownTypes:
+  enabled: true
+
 search:
   symbolIndex: true
   fullText: true

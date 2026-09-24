@@ -185,6 +185,71 @@ describe("schema fixtures", () => {
     expect(getUser?.generatePage).toBe(true);
   });
 
+  it("respects wellKnownTypes.enabled", async () => {
+    const dir = new URL("../examples/acme", import.meta.url).pathname;
+    const { config } = loadConfig(dir);
+    expect(config.wellKnownTypes?.enabled).toBe(true);
+    const compiled = await compileInput(dir);
+    const registry = loadRegistryFromBytes(compiled.bytes);
+    const sourceTexts = { "google/protobuf/timestamp.proto": 'syntax = "proto3";\n' };
+    const build = (enabled: boolean | undefined) =>
+      buildModel(registry, {
+        title: config.title,
+        inputLabel: dir,
+        classification: documentationClassification({
+          ...config,
+          wellKnownTypes: enabled === undefined ? undefined : { enabled },
+        }),
+        sourceTexts,
+      });
+
+    const enabled = build(true);
+    const timestamp = enabled.messages.find((item) => item.fullName === "google.protobuf.Timestamp");
+    expect(timestamp?.domain).toBe("well-known");
+    expect(timestamp?.generatePage).toBe(true);
+    expect(timestamp?.inNav).toBe(true);
+    const pkg = enabled.packages.find((item) => item.fullName === "google.protobuf");
+    expect(pkg?.generatePage).toBe(true);
+    expect(pkg?.inNav).toBe(true);
+    const created = enabled.fields.find((item) => item.fullName === "acme.user.v1.User.created_at");
+    expect(created?.type.name).toBe("google.protobuf.Timestamp");
+    expect(created?.type.urlPath).toBe("/reference/messages/google.protobuf.Timestamp/");
+    expect(enabled.files.find((file) => file.fullName === "google/protobuf/timestamp.proto")?.sourceText).toContain("syntax");
+    expect(enabled.symbolIndex.some((entry) => entry.fullName === "google.protobuf.Timestamp")).toBe(true);
+    const descriptor = enabled.messages.find((item) => item.fullName === "google.protobuf.FileDescriptorProto");
+    expect(descriptor?.domain).toBe("well-known");
+    expect(descriptor?.generatePage).toBe(false);
+    expect(enabled.symbolIndex.some((entry) => entry.fullName === "google.protobuf.FileDescriptorProto")).toBe(false);
+
+    const omitted = build(undefined);
+    expect(omitted.messages.find((item) => item.fullName === "google.protobuf.Timestamp")?.generatePage).toBe(true);
+
+    const disabled = build(false);
+    const hiddenTimestamp = disabled.messages.find((item) => item.fullName === "google.protobuf.Timestamp");
+    expect(hiddenTimestamp?.domain).toBe("well-known");
+    expect(hiddenTimestamp?.generatePage).toBe(false);
+    expect(hiddenTimestamp?.inNav).toBe(false);
+    const hiddenPkg = disabled.packages.find((item) => item.fullName === "google.protobuf");
+    expect(hiddenPkg?.generatePage).toBe(false);
+    expect(hiddenPkg?.inNav).toBe(false);
+    const hiddenCreated = disabled.fields.find((item) => item.fullName === "acme.user.v1.User.created_at");
+    expect(hiddenCreated?.type.name).toBe("google.protobuf.Timestamp");
+    expect(hiddenCreated?.type.urlPath).toBeUndefined();
+    expect(
+      disabled.symbolIndex.filter(
+        (entry) => entry.fullName === "google.protobuf.Timestamp" || entry.fullName.startsWith("google.protobuf.Timestamp."),
+      ),
+    ).toEqual([]);
+    const hiddenFile = disabled.files.find((file) => file.fullName === "google/protobuf/timestamp.proto");
+    expect(hiddenFile?.sourceText).toBeUndefined();
+    expect(hiddenFile?.generatePage).toBe(false);
+    expect(
+      Object.values(disabled.symbols)
+        .filter((symbol) => symbol.domain === "well-known" && symbol.generatePage)
+        .map((symbol) => symbol.fullName),
+    ).toEqual([]);
+  });
+
   it("resolves dependency CLIs even when package.json is not exported", async () => {
     const { resolveNpmBin } = await import("../src/node/compile.js");
     const { existsSync } = await import("node:fs");

@@ -7,6 +7,8 @@ export interface ClassificationConfig {
   exclude?: string[];
   localFiles?: Set<string>;
   externalLinks?: { package: string; urlTemplate: string }[];
+  /** When false, well-known types stay in the model but get no pages or nav entries. Defaults to true. */
+  wellKnownTypes?: boolean;
 }
 
 export interface Classification {
@@ -22,7 +24,7 @@ export function classifyFile(
   config: ClassificationConfig,
 ): Classification {
   if (isWktFile(fileName) || isWktPackage(packageName)) {
-    const hidden = HIDDEN_WKT_FILES.has(fileName);
+    const hidden = config.wellKnownTypes === false || HIDDEN_WKT_FILES.has(fileName);
     return { domain: "well-known", generatePage: !hidden, inNav: !hidden };
   }
 

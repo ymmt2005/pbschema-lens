@@ -671,6 +671,10 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
       } else {
         file.dependencyIds = file.dependencyIds.filter((id) => !excludedIds.has(id));
       }
+      if (options.classification.wellKnownTypes === false && file.domain === "well-known") {
+        file.sourceText = undefined;
+        file.generatePage = false;
+      }
     }
     for (const option of symbol.options) {
       if (option.definitionId && excludedIds.has(option.definitionId)) {
@@ -696,7 +700,13 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
     }
   }
 
-  model.symbolIndex = buildSymbolIndex(model).filter((entry) => !excludedIds.has(entry.id));
+  model.symbolIndex = buildSymbolIndex(model).filter((entry) => {
+    if (excludedIds.has(entry.id)) return false;
+    const symbol = model.symbols[entry.id];
+    if (!symbol) return false;
+    const host = pageHost(model, symbol);
+    return host.domain !== "well-known" || host.generatePage;
+  });
   model.buildInfo.symbolCount = Object.keys(model.symbols).length;
   return model;
 }
@@ -905,6 +915,20 @@ function dropUnpublishedTypeLinks(model: SchemaModel): void {
     scrub(extension.extendee);
     scrub(extension.type);
   }
+}
+
+function pageHost(model: SchemaModel, symbol: DocSymbol): DocSymbol {
+  if (symbol.kind === "field" || symbol.kind === "oneof" || symbol.kind === "enum-value" || symbol.kind === "method") {
+    const parentId = (symbol as DocField | DocOneof | DocEnumValue | DocMethod).parentId;
+    const parent = model.symbols[parentId];
+    if (parent) return pageHost(model, parent);
+  }
+  if (symbol.kind === "message" || symbol.kind === "enum") {
+    const parentId = (symbol as DocMessage | DocEnum).parentId;
+    const parent = parentId ? model.symbols[parentId] : undefined;
+    if (parent) return pageHost(model, parent);
+  }
+  return symbol;
 }
 
 function buildSymbolIndex(model: SchemaModel): SymbolIndexEntry[] {
