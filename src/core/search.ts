@@ -6,6 +6,13 @@ export interface RankedHit {
   reason: string;
 }
 
+/** Score used by the header search box. Zero means no match. */
+export function rankSymbol(entry: Pick<SymbolIndexEntry, "name" | "fullName">, query: string): number {
+  const q = query.trim();
+  if (!q) return 0;
+  return rank(entry, q, q.toLowerCase())?.score ?? 0;
+}
+
 export function searchSymbols(model: SchemaModel, query: string, kinds?: SymbolKind[]): RankedHit[] {
   const q = query.trim();
   if (!q) {
@@ -19,36 +26,40 @@ export function searchSymbols(model: SchemaModel, query: string, kinds?: SymbolK
     }
     const hit = rank(entry, q, lower);
     if (hit) {
-      hits.push(hit);
+      hits.push({ entry, score: hit.score, reason: hit.reason });
     }
   }
   hits.sort((a, b) => b.score - a.score || a.entry.fullName.localeCompare(b.entry.fullName));
   return hits.slice(0, 50);
 }
 
-function rank(entry: SymbolIndexEntry, query: string, lower: string): RankedHit | undefined {
+function rank(
+  entry: Pick<SymbolIndexEntry, "name" | "fullName">,
+  query: string,
+  lower: string,
+): { score: number; reason: string } | undefined {
   if (entry.fullName === query) {
-    return { entry, score: 100, reason: "exact fully qualified name" };
+    return { score: 100, reason: "exact fully qualified name" };
   }
   if (entry.name === query) {
-    return { entry, score: 90, reason: "exact short name" };
+    return { score: 90, reason: "exact short name" };
   }
   const fullLower = entry.fullName.toLowerCase();
   const nameLower = entry.name.toLowerCase();
   if (fullLower === lower) {
-    return { entry, score: 95, reason: "exact fully qualified name" };
+    return { score: 95, reason: "exact fully qualified name" };
   }
   if (nameLower === lower) {
-    return { entry, score: 88, reason: "exact short name" };
+    return { score: 88, reason: "exact short name" };
   }
   if (fullLower.startsWith(lower) || nameLower.startsWith(lower)) {
-    return { entry, score: 70, reason: "prefix match" };
+    return { score: 70, reason: "prefix match" };
   }
   if (fullLower.includes(lower) || nameLower.includes(lower)) {
-    return { entry, score: 40, reason: "substring match" };
+    return { score: 40, reason: "substring match" };
   }
   if (fuzzy(nameLower, lower) || fuzzy(fullLower, lower)) {
-    return { entry, score: 20, reason: "symbol-name fuzzy match" };
+    return { score: 20, reason: "symbol-name fuzzy match" };
   }
   return undefined;
 }

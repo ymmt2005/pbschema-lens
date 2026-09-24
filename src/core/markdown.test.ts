@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { commentsToMarkdown, escapeHtml, renderSafeMarkdown } from "./markdown.js";
-import { searchSymbols } from "./search.js";
+import { rankSymbol, searchSymbols } from "./search.js";
 import { slug, symbolId } from "./ids.js";
 import { urlPathFor, fileSourcePath, repositoryBlobUrl } from "./urls.js";
 import { diffModels } from "./diff.js";
@@ -31,6 +31,32 @@ describe("markdown sanitization", () => {
 
   it("normalizes proto comment stars", () => {
     expect(commentsToMarkdown([" * line one\n * line two"])).toContain("line one");
+  });
+
+  it("drops links whose scheme is outside http, https, and mailto", () => {
+    const html = renderSafeMarkdown(
+      `[js](javascript:alert(1)) [data](data:text/html,<script>alert(1)</script>) [ok](https://example.com/docs)`,
+    );
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("data:");
+    expect(html).toContain('href="https://example.com/docs"');
+  });
+
+  it("discards tags outside the allowlist", () => {
+    const html = renderSafeMarkdown(`<iframe src="https://evil.example"></iframe><svg><script>alert(1)</script></svg><style>body{}</style><img src=x>`);
+    expect(html).not.toContain("<iframe");
+    expect(html).not.toContain("<svg");
+    expect(html).not.toContain("<style");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<script");
+  });
+
+  it("strips event handlers on allowed tags and sets noopener on links", () => {
+    const html = renderSafeMarkdown(`<a href="https://example.com" onclick="alert(1)" target="_blank">docs</a>`);
+    expect(html).not.toContain("onclick");
+    expect(html).not.toContain("alert");
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain(">docs</a>");
   });
 });
 
@@ -77,6 +103,18 @@ describe("search ranking", () => {
     const hits = searchSymbols(model, "acme.user.v1.User");
     expect(hits[0]?.entry.fullName).toBe("acme.user.v1.User");
     expect(hits[0]?.reason).toContain("exact fully qualified");
+  });
+
+  it("ranks prefix above substring above a fuzzy name", () => {
+    const prefix = searchSymbols(model, "acme.user");
+    expect(prefix[0]?.reason).toBe("prefix match");
+    const substring = searchSymbols(model, "UserService");
+    expect(substring.map((hit) => hit.entry.name)).toEqual(["GetUser"]);
+    expect(substring[0]?.reason).toBe("substring match");
+    const fuzzy = searchSymbols(model, "GtUr");
+    expect(fuzzy.map((hit) => hit.entry.name)).toEqual(["GetUser"]);
+    expect(fuzzy[0]?.reason).toBe("symbol-name fuzzy match");
+    expect(rankSymbol(model.symbolIndex[1]!, "GtUr")).toBe(fuzzy[0]?.score);
   });
 });
 

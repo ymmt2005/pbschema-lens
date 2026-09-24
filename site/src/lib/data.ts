@@ -20,11 +20,26 @@ export function loadModel(): SchemaModel {
   return cache;
 }
 
+/**
+ * `import.meta.env.BASE_URL` is `/` while Astro is still prefixing built assets
+ * with `base`. The CLI passes the configured base as PBSCHEMA_LENS_BASE.
+ */
+export function configuredBase(): string {
+  const raw = process.env.PBSCHEMA_LENS_BASE || import.meta.env.BASE_URL || "/";
+  if (!raw || raw === "/") return "/";
+  return raw.endsWith("/") ? raw : `${raw}/`;
+}
+
+export function canonicalHref(site: string | URL | undefined, pathname: string): string | undefined {
+  if (!site) return undefined;
+  return new URL(pathname, site).href;
+}
+
 export function withBase(path: string): string {
-  const base = import.meta.env.BASE_URL || "/";
-  const prefix = base.endsWith("/") ? base.slice(0, -1) : base;
-  if (!path.startsWith("/")) {
-    return `${prefix}/${path}`;
+  const base = configuredBase();
+  if (base === "/") {
+    return path.startsWith("/") ? path : `/${path}`;
   }
-  return `${prefix}${path}`;
+  const prefix = base.endsWith("/") ? base.slice(0, -1) : base;
+  return path.startsWith("/") ? `${prefix}${path}` : `${prefix}/${path}`;
 }

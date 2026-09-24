@@ -37,10 +37,9 @@ export async function buildDocumentation(options: BuildOptions): Promise<SchemaM
 
   const git = await detectGitInfo(compiled.workDir);
   const descriptorFiles = [...registry.files].map((file) => file.proto.name || `${file.name}.proto`);
-  const sourceTexts =
-    options.config.sourceBrowser?.enabled === false
-      ? {}
-      : await loadSourceTexts(compiled.workDir, descriptorFiles);
+  const sourceTexts = await collectSourceTexts(options.config, () =>
+    loadSourceTexts(compiled.workDir, descriptorFiles),
+  );
 
   const plugins = await loadPlugins(options.config.plugins ?? [], options.cwd);
 
@@ -49,11 +48,7 @@ export async function buildDocumentation(options: BuildOptions): Promise<SchemaM
     title: options.config.title,
     inputLabel: options.input,
     classification: documentationClassification(options.config, new Set(Object.keys(sourceTexts))),
-    source: {
-      repository: options.config.source?.repository,
-      commit: options.config.source?.commit ?? git.commit,
-      urlTemplate: options.config.source?.urlTemplate,
-    },
+    source: documentationSource(options.config, git.commit),
     sourceTexts,
     plugins,
     timings,
@@ -93,6 +88,30 @@ export async function buildDocumentation(options: BuildOptions): Promise<SchemaM
   model.buildInfo.timings = timings;
   await writeFile(join(options.outDir, "assets/protobuf/build-info.json"), JSON.stringify(model.buildInfo, null, 2));
   return model;
+}
+
+export function sourceBrowserEnabled(config: PbSchemaLensConfig): boolean {
+  return config.sourceBrowser?.enabled !== false;
+}
+
+export async function collectSourceTexts(
+  config: PbSchemaLensConfig,
+  load: () => Promise<Record<string, string>>,
+): Promise<Record<string, string>> {
+  if (!sourceBrowserEnabled(config)) return {};
+  return load();
+}
+
+export function documentationSource(config: PbSchemaLensConfig, gitCommit?: string): {
+  repository?: string;
+  commit?: string;
+  urlTemplate?: string;
+} {
+  return {
+    repository: config.source?.repository,
+    commit: config.source?.commit ?? gitCommit,
+    urlTemplate: config.source?.urlTemplate,
+  };
 }
 
 async function loadPlugins(specs: string[], cwd: string): Promise<PbSchemaLensPlugin[]> {

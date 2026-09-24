@@ -9,7 +9,7 @@ export type {
 } from "./types.js";
 export { buildModel, type BuildModelOptions, type SourceLinkConfig } from "./model.js";
 export { loadRegistryFromBytes, parseFileDescriptorSet, createUnifiedRegistry } from "./registry.js";
-export { searchSymbols } from "./search.js";
+export { rankSymbol, searchSymbols } from "./search.js";
 export { diffModels } from "./diff.js";
 export { builtinPlugins, isValidationRenderer, validationChips } from "./plugins.js";
 export { fieldTableEntries, type FieldTableEntry } from "./field-table.js";

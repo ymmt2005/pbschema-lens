@@ -26,7 +26,7 @@ export async function generateSite(options: GenerateSiteOptions): Promise<void> 
   await runAstro(siteRoot, outDir, options.config);
   options.timings["astro-build"] = Date.now() - start;
 
-  if (options.config.search?.fullText !== false) {
+  if (fullTextEnabled(options.config)) {
     const searchStart = Date.now();
     await runPagefind(outDir);
     options.timings["search-indexing"] = Date.now() - searchStart;
@@ -35,13 +35,27 @@ export async function generateSite(options: GenerateSiteOptions): Promise<void> 
   await writeArtifacts(outDir, options);
 }
 
-async function runAstro(siteRoot: string, outDir: string, config: PbSchemaLensConfig): Promise<void> {
-  const env = {
-    ...process.env,
+export function fullTextEnabled(config: PbSchemaLensConfig): boolean {
+  return config.search?.fullText !== false;
+}
+
+export function siteBuildEnv(
+  config: PbSchemaLensConfig,
+  outDir: string,
+  dataFile: string,
+): Record<"PBSCHEMA_LENS_OUT" | "PBSCHEMA_LENS_BASE" | "PBSCHEMA_LENS_SITE_URL" | "PBSCHEMA_LENS_DATA_FILE", string> {
+  return {
     PBSCHEMA_LENS_OUT: outDir,
     PBSCHEMA_LENS_BASE: config.base || "/",
     PBSCHEMA_LENS_SITE_URL: config.siteUrl ?? "",
-    PBSCHEMA_LENS_DATA_FILE: join(siteRoot, "src/data/generated.json"),
+    PBSCHEMA_LENS_DATA_FILE: dataFile,
+  };
+}
+
+async function runAstro(siteRoot: string, outDir: string, config: PbSchemaLensConfig): Promise<void> {
+  const env = {
+    ...process.env,
+    ...siteBuildEnv(config, outDir, join(siteRoot, "src/data/generated.json")),
   };
   const bin = resolveNpmBin("astro", "astro");
   await new Promise<void>((resolvePromise, reject) => {
