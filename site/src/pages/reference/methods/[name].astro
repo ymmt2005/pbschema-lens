@@ -40,21 +40,24 @@ const response = messageBody(method.output);
       </p>
     )
   }
-  <pre class="proto">{method.signature}</pre>
-  <p class="text-sm text-[color:var(--fg-muted)] mt-3">
-    {method.streamingKind.replaceAll("_", " ")}
-    {method.idempotency ? ` · ${method.idempotency}` : ""}
-  </p>
+  <pre class="proto">rpc {method.shortName}({method.clientStreaming && <span class="stream-keyword">stream</span>}{method.clientStreaming ? " " : ""}{method.input.name}) returns ({method.serverStreaming && <span class="stream-keyword">stream</span>}{method.serverStreaming ? " " : ""}{method.output.name});</pre>
+  {method.idempotency && <p class="text-sm text-[color:var(--fg-muted)] mt-3">{method.idempotency}</p>}
   <OptionList options={method.options} />
   <section class="mt-8">
-    <h2 class="text-lg font-semibold mb-2">Request</h2>
+    <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
+      Request
+      {method.clientStreaming && <span class="stream-chip">stream</span>}
+    </h2>
     <p class="font-mono text-sm mb-3">
       {typeHref(method.input) ? <a href={typeHref(method.input)}>{method.input.name}</a> : method.input.name}
     </p>
     {request && <FieldTable fields={request.fields} oneofs={request.oneofs} model={model} anchorPrefix="request-" />}
   </section>
   <section class="mt-8">
-    <h2 class="text-lg font-semibold mb-2">Response</h2>
+    <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
+      Response
+      {method.serverStreaming && <span class="stream-chip">stream</span>}
+    </h2>
     <p class="font-mono text-sm mb-3">
       {typeHref(method.output) ? <a href={typeHref(method.output)}>{method.output.name}</a> : method.output.name}
     </p>
