@@ -82,6 +82,7 @@ After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text searc
 | HTTP / validation / field-behavior chips | `src/core/plugins.ts` (`google.api.http`, `buf.validate`, `cybozu.validate`, …) |
 | Field table Validation column | `site/src/components/FieldTable.astro` (chips from `validation` / `cybozu.validate`) |
 | Field table oneof grouping | `src/core/field-table.ts` + `site/src/components/FieldTable.astro` |
+| Sidebar package tree and home area summary | `src/core/package-nav.ts` + `site/src/components/PackageTree.astro` + `site/src/pages/index.astro` |
 | Page layout, tables, source browser | `site/src/` |
 | Example schema | `examples/acme/proto/` |
 | Pages workflow template | `src/node/init.ts` |

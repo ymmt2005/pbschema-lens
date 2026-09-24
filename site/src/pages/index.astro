@@ -1,10 +1,28 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import PackageTree from "../components/PackageTree.astro";
+import { homePackageAreas, type PackageAreaCounts } from "pbschema-lens/core";
 import { loadModel, withBase } from "../lib/data.ts";
 
 const model = loadModel();
 const local = model.packages.filter((item) => item.domain === "local" && item.inNav);
 const wkt = model.packages.filter((item) => item.domain === "well-known");
+const areas = homePackageAreas(
+  local.map((pkg) => ({
+    fullName: pkg.fullName,
+    urlPath: pkg.urlPath,
+    services: pkg.serviceIds.length,
+    messages: pkg.messageIds.length,
+  })),
+);
+
+function tally(count: number, singular: string): string {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
+function areaCounts(counts: PackageAreaCounts): string {
+  return `${tally(counts.packages, "package")} · ${tally(counts.services, "service")} · ${tally(counts.messages, "message")}`;
+}
 ---
 
 <Layout description="Static Protocol Buffers schema explorer">
@@ -15,7 +33,11 @@ const wkt = model.packages.filter((item) => item.domain === "well-known");
     server is required.
   </p>
 
-  <dl class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-8">
+  <dl class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 my-8">
+    <div class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4">
+      <dt class="text-xs text-[color:var(--fg-muted)]">Packages</dt>
+      <dd class="text-2xl font-semibold">{local.length}</dd>
+    </div>
     <div class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4">
       <dt class="text-xs text-[color:var(--fg-muted)]">Symbols</dt>
       <dd class="text-2xl font-semibold">{model.buildInfo.symbolCount}</dd>
@@ -37,20 +59,36 @@ const wkt = model.packages.filter((item) => item.domain === "well-known");
   <section class="mb-10">
     <h2 class="text-xl font-semibold mb-3">Packages</h2>
     {
-      local.length === 0 ? (
+      areas.length === 0 ? (
         <p class="text-[color:var(--fg-muted)]">No project packages matched the documentation include rules.</p>
       ) : (
-        <ul class="grid sm:grid-cols-2 gap-3">
-          {local.map((pkg) => (
-            <li class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4">
-              <a class="font-semibold no-underline text-[color:var(--fg)]" href={withBase(pkg.urlPath)}>
-                {pkg.fullName}
-              </a>
-              <p class="text-sm text-[color:var(--fg-muted)] mt-1">
-                {pkg.serviceIds.length} services · {pkg.messageIds.length} messages · {pkg.enumIds.length} enums
-              </p>
-            </li>
-          ))}
+        <ul class="space-y-2">
+          {areas.map((area) =>
+            area.nodes.length > 0 ? (
+              <li>
+                <details class="home-area">
+                  <summary>
+                    {area.urlPath ? (
+                      <a class="home-area-name" href={withBase(area.urlPath)}>
+                        {area.label}
+                      </a>
+                    ) : (
+                      area.label && <span class="home-area-name">{area.label}</span>
+                    )}
+                    <span class="home-area-counts">{areaCounts(area.counts)}</span>
+                  </summary>
+                  <PackageTree nodes={area.nodes} />
+                </details>
+              </li>
+            ) : (
+              <li>
+                <a class="home-area home-area-leaf" href={withBase(area.urlPath ?? "/")}>
+                  <span class="home-area-name">{area.label}</span>
+                  <span class="home-area-counts">{areaCounts(area.counts)}</span>
+                </a>
+              </li>
+            ),
+          )}
         </ul>
       )
     }

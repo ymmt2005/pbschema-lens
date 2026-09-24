@@ -1,0 +1,51 @@
+---
+import { packageNodeOpen, type PackageNavNode } from "pbschema-lens/core";
+import { withBase } from "../lib/data.ts";
+
+interface Props {
+  nodes: PackageNavNode[];
+  active?: string;
+}
+
+const { nodes, active } = Astro.props;
+---
+
+<ul class="package-tree">
+  {
+    nodes.map((node) => {
+      const href = node.item ? withBase(node.item.urlPath) : undefined;
+      const isActive = node.item?.fullName === active;
+      const linkClass = ["package-tree-link", isActive && "is-active"];
+      if (node.children.length === 0) {
+        return (
+          <li>
+            <a
+              class:list={[...linkClass, "package-tree-leaf"]}
+              href={href}
+              aria-current={isActive ? "page" : undefined}
+            >
+              {node.segment}
+            </a>
+          </li>
+        );
+      }
+      const open = packageNodeOpen(node.path, active);
+      return (
+        <li>
+          <details class="package-tree-node" {...(open ? { open: true } : {})}>
+            <summary>
+              {href ? (
+                <a class:list={linkClass} href={href} aria-current={isActive ? "page" : undefined}>
+                  {node.segment}
+                </a>
+              ) : (
+                <span class="package-tree-folder">{node.segment}</span>
+              )}
+            </summary>
+            <Astro.self nodes={node.children} active={active} />
+          </details>
+        </li>
+      );
+    })
+  }
+</ul>

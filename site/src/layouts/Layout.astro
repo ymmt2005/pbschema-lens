@@ -1,5 +1,7 @@
 ---
 import "../styles/global.css";
+import PackageTree from "../components/PackageTree.astro";
+import { activePackageName, buildPackageNavTree } from "pbschema-lens/core";
 import { loadModel, withBase } from "../lib/data.ts";
 
 interface Props {
@@ -13,6 +15,13 @@ const pageTitle = title ? `${title} · ${model.title}` : model.title;
 const localPackages = model.packages.filter((item) => item.inNav && item.domain === "local");
 const wktPackages = model.packages.filter((item) => item.domain === "well-known");
 const current = Astro.url.pathname;
+const packageTree = buildPackageNavTree(
+  localPackages.map((pkg) => ({ fullName: pkg.fullName, urlPath: pkg.urlPath })),
+);
+const activePackage = activePackageName(
+  current,
+  localPackages.map((pkg) => ({ fullName: pkg.fullName })),
+);
 ---
 
 <!doctype html>
@@ -49,23 +58,7 @@ const current = Astro.url.pathname;
         <nav class="text-sm space-y-4 overflow-y-auto">
           <div>
             <div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div>
-            <ul class="space-y-1">
-              {
-                localPackages.map((pkg) => (
-                  <li>
-                    <a
-                      class:list={[
-                        "block rounded-md px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)]",
-                        current.includes(`/packages/${encodeURIComponent(pkg.fullName)}/`) && "bg-[color:var(--bg-muted)]",
-                      ]}
-                      href={withBase(pkg.urlPath)}
-                    >
-                      {pkg.fullName}
-                    </a>
-                  </li>
-                ))
-              }
-            </ul>
+            <PackageTree nodes={packageTree} active={activePackage} />
             {
               localPackages.length === 0 && (
                 <p class="text-[color:var(--fg-muted)] px-2">No local packages in this build.</p>
@@ -140,13 +133,8 @@ const current = Astro.url.pathname;
       <div class="h-full w-72 bg-[color:var(--bg-raised)] p-4 overflow-y-auto">
         <button id="menu-close" class="mb-4 text-sm" type="button">Close</button>
         <a href={withBase("/")} class="block font-semibold mb-4 no-underline text-[color:var(--fg)]">{model.title}</a>
-        {
-          localPackages.map((pkg) => (
-            <a class="block py-1 no-underline text-[color:var(--fg)]" href={withBase(pkg.urlPath)}>
-              {pkg.fullName}
-            </a>
-          ))
-        }
+        <div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div>
+        <PackageTree nodes={packageTree} active={activePackage} />
       </div>
     </div>
 

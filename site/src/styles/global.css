@@ -158,6 +158,141 @@ table.fields tr.oneof-member td:first-child {
   font-size: 0.8rem;
 }
 
+.package-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.package-tree .package-tree {
+  margin: 0.1rem 0 0.2rem 0.4rem;
+  padding-left: 0.45rem;
+  border-left: 1px solid var(--line);
+}
+
+.package-tree-node > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.package-tree-node > summary::-webkit-details-marker,
+.package-tree-node > summary::marker {
+  display: none;
+  content: "";
+}
+
+.package-tree-node > summary::before {
+  content: "▸";
+  flex: 0 0 auto;
+  width: 0.75rem;
+  color: var(--fg-muted);
+  font-size: 0.65rem;
+}
+
+.package-tree-node[open] > summary::before {
+  content: "▾";
+}
+
+.package-tree-link,
+.package-tree-folder {
+  border-radius: 0.375rem;
+  padding: 0.15rem 0.35rem;
+  color: var(--fg);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.package-tree-leaf {
+  display: block;
+  margin-left: 0.9rem;
+}
+
+.package-tree-link:hover,
+.package-tree-node > summary:hover .package-tree-folder,
+.package-tree-node > summary:hover .package-tree-link {
+  background: var(--bg-muted);
+}
+
+.package-tree-link.is-active {
+  background: var(--bg-muted);
+  font-weight: 600;
+}
+
+.home-area {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--bg-raised);
+}
+
+.home-area > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1rem 0.9rem 2rem;
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+}
+
+.home-area > summary::-webkit-details-marker,
+.home-area > summary::marker {
+  display: none;
+  content: "";
+}
+
+.home-area > summary::before {
+  content: "▸";
+  position: absolute;
+  left: 0.85rem;
+  top: 1.15rem;
+  color: var(--fg-muted);
+  font-size: 0.7rem;
+}
+
+.home-area[open] > summary::before {
+  content: "▾";
+}
+
+.home-area > .package-tree {
+  padding: 0 1rem 0.85rem 1.6rem;
+}
+
+a.home-area-leaf {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1rem 0.9rem 2rem;
+  text-decoration: none;
+}
+
+.home-area-name {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+a.home-area-name:hover,
+a.home-area-leaf:hover .home-area-name {
+  text-decoration: underline;
+}
+
+.home-area-counts {
+  color: var(--fg-muted);
+  font-size: 0.875rem;
+}
+
 .validation-chip {
   display: inline-block;
   font-family: var(--font-mono);
