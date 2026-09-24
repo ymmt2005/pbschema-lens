@@ -44,7 +44,6 @@ export const ConfigSchema = z.object({
     .optional(),
   externalLinks: z.array(ExternalLinkSchema).optional(),
   plugins: z.array(z.string()).optional(),
-  playground: z.boolean().default(false),
 });
 
 export type PbSchemaLensConfig = z.infer<typeof ConfigSchema>;

@@ -69,7 +69,7 @@ User plugins listed in config are trusted Node modules loaded in `pipeline.ts`. 
 
 `generateSite` writes `SchemaModel` to `site/src/data/generated.json`, sets `PBSCHEMA_LENS_BASE` / `PBSCHEMA_LENS_OUT`, and runs `astro build --root site`. Astro pages under `site/src/pages/` call `loadModel()` and `getStaticPaths()`; they must not fetch the network or recompile protos.
 
-After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text search. The header search box uses `assets/protobuf/symbols.json` (exact/prefix/fuzzy) and Pagefind as a second layer. The playground parses a descriptor set entirely in the browser.
+After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text search. The header search box uses `assets/protobuf/symbols.json` (exact/prefix/fuzzy) and Pagefind as a second layer.
 
 ### Where to change what
 

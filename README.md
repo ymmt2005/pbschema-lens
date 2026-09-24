@@ -121,7 +121,6 @@ Every important flag also has a CLI equivalent (`--out`, `--base`, `--title`, `-
 - Symbol search (exact / prefix / fuzzy) plus Pagefind full-text search
 - Optional embedded source browser
 - Schema diff + `buf breaking` integration when `--against` is set
-- Browser-local descriptor playground (no upload)
 - Machine-readable `assets/protobuf/*.json` artifacts
 
 ## Architecture
