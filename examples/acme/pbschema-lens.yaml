@@ -19,7 +19,6 @@ wellKnownTypes:
   enabled: true
 
 search:
-  symbolIndex: true
   fullText: true
 
 sourceBrowser:
@@ -27,4 +26,3 @@ sourceBrowser:
 
 artifacts:
   descriptorSet: true
-  symbolIndex: true

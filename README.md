@@ -95,8 +95,8 @@ documentation:
 wellKnownTypes:
   enabled: true
 
+# Symbol search is always on. fullText toggles Pagefind.
 search:
-  symbolIndex: true
   fullText: true
 
 sourceBrowser:
@@ -104,7 +104,6 @@ sourceBrowser:
 
 artifacts:
   descriptorSet: false
-  symbolIndex: true
 
 externalLinks:
   - package: "acme.identity.**"
