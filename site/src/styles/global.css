@@ -92,6 +92,8 @@ code {
 }
 
 .table-wrap {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 0.75rem;
@@ -102,6 +104,26 @@ table.fields {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.92rem;
+}
+
+table.schema-fields {
+  table-layout: fixed;
+}
+
+table.schema-fields .col-field { width: 16%; }
+table.schema-fields .col-number { width: 8%; }
+table.schema-fields .col-type { width: 22%; }
+table.schema-fields .col-cardinality { width: 12%; }
+table.schema-fields .col-validation { width: 16%; }
+
+table.schema-fields th,
+table.schema-fields td {
+  overflow-wrap: anywhere;
+}
+
+table.schema-fields pre.option {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 table.fields th {
