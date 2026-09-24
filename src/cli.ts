@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { realpathSync } from "node:fs";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import { basename, extname, join, normalize, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -201,7 +202,19 @@ async function serve(root: string, port: number): Promise<void> {
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+/** True when this module is the process entry, including a bin symlink. */
+export function invokedAsCli(moduleUrl: string, argvPath: string | undefined): boolean {
+  if (!argvPath) return false;
+  let path = argvPath;
+  try {
+    path = realpathSync(argvPath);
+  } catch {
+    path = resolve(argvPath);
+  }
+  return moduleUrl === pathToFileURL(path).href;
+}
+
+if (invokedAsCli(import.meta.url, process.argv[1])) {
   await program.parseAsync(process.argv);
 }
 

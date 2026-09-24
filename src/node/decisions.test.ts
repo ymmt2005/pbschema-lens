@@ -1,9 +1,10 @@
-import { existsSync } from "node:fs";
+import { existsSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
-import { program } from "../cli.js";
+import { invokedAsCli, program } from "../cli.js";
 import type { SchemaModel } from "../core/types.js";
 import { ConfigSchema } from "./config.js";
 import { fullTextEnabled, siteBuildEnv, writeArtifacts } from "./generate-site.js";
@@ -128,5 +129,15 @@ describe("config decisions", () => {
     expect(resolved.config.base).toBe("/docs/");
     expect(resolved.input).toBe(join(dir, "examples/acme"));
     expect(resolved.outDir).toBe(join(dir, "cli-out"));
+  });
+
+  it("treats a bin symlink as the CLI entry", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pbschema-lens-bin-"));
+    const target = join(dir, "cli.js");
+    const link = join(dir, "pbschema-lens");
+    writeFileSync(target, "");
+    symlinkSync(target, link);
+    expect(invokedAsCli(pathToFileURL(target).href, link)).toBe(true);
+    expect(invokedAsCli(pathToFileURL(target).href, join(dir, "other.js"))).toBe(false);
   });
 });
