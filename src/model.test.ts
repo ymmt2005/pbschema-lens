@@ -85,6 +85,29 @@ describe("schema fixtures", () => {
     );
   });
 
+  it("publishes a page for a field anchor and for types linked from that page", async () => {
+    const dir = new URL("../examples/acme", import.meta.url).pathname;
+    const compiled = await compileInput(dir);
+    const registry = loadRegistryFromBytes(compiled.bytes);
+    const model = buildModel(registry, {
+      title: "Acme",
+      inputLabel: dir,
+      classification: {
+        include: ["acme/**"],
+        exclude: ["google/api/**", "buf/validate/**", "cybozu/validate/**"],
+      },
+    });
+    const http = model.messages.find((item) => item.fullName === "google.api.Http");
+    const rules = model.fields.find((item) => item.fullName === "google.api.Http.rules");
+    expect(http?.generatePage).toBe(true);
+    expect(rules?.anchor).toBe("rules");
+    expect(rules?.urlPath).toBe("/reference/messages/google.api.Http/");
+    const stringRules = model.messages.find((item) => item.fullName === "buf.validate.StringRules");
+    expect(stringRules?.generatePage).toBe(true);
+    const custom = model.messages.find((item) => item.fullName === "google.api.CustomHttpPattern");
+    expect(custom?.generatePage).toBe(true);
+  });
+
   it("resolves dependency CLIs even when package.json is not exported", async () => {
     const { resolveNpmBin } = await import("../src/node/compile.js");
     const { existsSync } = await import("node:fs");

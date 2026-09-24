@@ -1,6 +1,6 @@
 ---
 import type { DocSymbol, SchemaModel, SymbolReference } from "../../../src/core/types.ts";
-import { relationLabel, symbolHref } from "../lib/format.ts";
+import { linkedHref, relationLabel } from "../lib/format.ts";
 
 interface Props {
   symbol: DocSymbol;
@@ -32,9 +32,10 @@ const groups = [...grouped.entries()];
               if (!from) {
                 return <li class="font-mono">{ref.fromId}</li>;
               }
+              const href = linkedHref(from, model.symbols);
               return (
                 <li>
-                  <a href={symbolHref(from)}>{from.fullName}</a>
+                  {href ? <a href={href}>{from.fullName}</a> : <span class="font-mono">{from.fullName}</span>}
                   {ref.label ? <span class="text-[color:var(--fg-muted)]"> · {ref.label}</span> : null}
                 </li>
               );

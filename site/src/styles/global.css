@@ -37,6 +37,11 @@ html.dark {
   --shadow: 0 22px 50px -30px rgb(0 0 0 / 0.7);
 }
 
+html {
+  /* Clears the sticky header, including the wrapped search row on a narrow screen. */
+  scroll-padding-top: 6rem;
+}
+
 html,
 body {
   background: var(--bg);

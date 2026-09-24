@@ -28,6 +28,31 @@ export function symbolHref(symbol: Pick<DocSymbol, "urlPath" | "anchor">): strin
   return symbol.anchor ? `${path}#${symbol.anchor}` : path;
 }
 
+const nestedKinds = new Set<DocSymbol["kind"]>(["field", "oneof", "method", "enum-value"]);
+
+/**
+ * Link to a symbol only when the page that hosts it was generated.
+ * Fields, methods, oneofs, and enum values resolve to the parent page plus a fragment.
+ */
+export function linkedPath(
+  symbol: DocSymbol,
+  symbols: Record<string, DocSymbol>,
+): string | undefined {
+  if (nestedKinds.has(symbol.kind)) {
+    const parentId = "parentId" in symbol ? symbol.parentId : undefined;
+    const parent = parentId ? symbols[parentId] : undefined;
+    if (!parent?.generatePage || !symbol.anchor) return undefined;
+    return `${symbol.urlPath}#${symbol.anchor}`;
+  }
+  if (!symbol.generatePage) return undefined;
+  return symbol.urlPath;
+}
+
+export function linkedHref(symbol: DocSymbol, symbols: Record<string, DocSymbol>): string | undefined {
+  const path = linkedPath(symbol, symbols);
+  return path ? withBase(path) : undefined;
+}
+
 export function relationLabel(kind: ReferenceKind): string {
   switch (kind) {
     case "field-type":
