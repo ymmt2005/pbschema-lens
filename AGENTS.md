@@ -92,20 +92,22 @@ After HTML is emitted, Pagefind indexes `data-pagefind-body` for full-text searc
 
 If you change `SchemaModel`, update both `src/core/` producers and `site/` consumers. The JSON dump is the API between them.
 
-## Config flags
+## Testing policy
 
-A key in `ConfigSchema`, the README, `init.ts`, or `examples/acme/pbschema-lens.yaml` is not an implementation. `playground`, `wellKnownTypes.enabled`, `search.symbolIndex`, and `documentation.exclude` all shipped that way: the yaml parsed, the default build looked fine, and the flag did nothing or was undone later.
+A behavior change is finished when `npm test` fails if that behavior is removed. A key in `ConfigSchema`, a paragraph in this file, and a default Acme build do not count.
 
-Before calling a flag done:
+`playground`, `wellKnownTypes.enabled`, and `search.symbolIndex` shipped that way: the yaml parsed, Acme left the flag at its default, and no test ever set the other value. `documentation.exclude` was worse. Classification did drop the files, a later pass published them again, and the test asserted the published pages. The suite stayed green because it recorded the bug.
 
-1. The key is read outside the schema, the README, `init.ts`, and the example yaml. `build`, `dev`, and `diff` share `buildDocumentation`. A CLI option declared only on `build` does not reach the others: `resolveRuntime` copies `--base` and `--title` only when that command declared them.
-2. A test or a build sets the non-default value and checks a visible difference (page, file, link, or nav entry). The Acme defaults match "always on," so that build cannot show an ignored flag.
-3. "Leave this off the site" covers every gate, not only `generatePage`: `inNav`, `sourceText`, `symbolIndex`, type `urlPath`, option `definitionId`, file `dependencyIds`, and the sidebar and home filters. `publishPage` must keep refusing it. Source routes follow `sourceText`. Option extensions must not regain a page through `optionTarget`.
-4. The test states what the flag means. Do not assert whatever the current HTML already does.
-5. Third-party option protos (`google.api`, `buf.validate`, and the same kind of dependency) come from `buf.yaml`. Do not vendor them under `examples/`.
-6. Keep one requested outcome on the branch already under review. Lead the PR title with that outcome.
+`src/config-flags.test.ts` is the check. It loads a yaml through `loadConfig`, builds with `buildDocumentation`, and asserts the output. Passing a boolean straight into `buildModel` does not prove the yaml key is wired. `expect(config.flag).toBe(false)` does not either.
 
-Still unwired: `siteUrl` is copied into Astro's `site` and does not change the HTML. `dev` and `diff` do not declare `--base` or `--title`. `build-info.json` is written on every build.
+- The value under test is the non-default one. Acme's checked-in yaml uses the defaults, so that build cannot show an ignored flag.
+- Hiding a symbol is asserted across every output, not only `generatePage`: `inNav`, `sourceText`, the symbol index, type `urlPath`, option `definitionId`, dependency edges, and the written HTML. `publishPage` must not put the page back. Source routes follow `sourceText`.
+- Every leaf of `ConfigSchema` has a case in that file. A new key with no case fails the suite.
+- `build`, `dev`, and `diff` share `resolveRuntime`. Each command must declare `--base` and `--title`. An option that exists only on `build` is not applied to the others.
+- Write the assertion from the flag's meaning. Do not copy whatever the current HTML already does. `documentation.exclude` means those files are absent: no page, no source, no symbol-search hit, and no link in either direction. Option chips on the files that use them stay.
+- `build-info.json` and `symbols.json` are written on every build. They are not flags. A test asserts they exist when the other artifact switches are off.
+
+Third-party option protos (`google.api`, `buf.validate`, and the same kind of dependency) come from `buf.yaml`. Do not vendor them under `examples/`, and do not write a test that expects a page for a stub that was only there because it had been vendored.
 
 ## Commands
 
@@ -167,6 +169,6 @@ Do not delete a published tag or Release. This repo uses immutable releases: a d
 
 ## Tests
 
-Vitest files: `src/model.test.ts`, `src/core/markdown.test.ts`. `npm test` runs `vitest run`. Add fixture-driven tests under `fixtures/` when the change is about descriptor/model behavior.
+Vitest files: `src/config-flags.test.ts`, `src/model.test.ts`, `src/core/markdown.test.ts`. `npm test` runs `vitest run`. `src/config-flags.test.ts` flips every `ConfigSchema` leaf and the shared CLI options; see Testing policy. Add fixture-driven tests under `fixtures/` when the change is about descriptor/model behavior.
 
 CI also typechecks and runs `doctor` plus an example site build. Prefer that a change still builds `examples/acme`.

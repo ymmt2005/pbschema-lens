@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { mkdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, extname, join, normalize, resolve } from "node:path";
+import { basename, extname, join, normalize } from "node:path";
 import { Command } from "commander";
 import { watch } from "chokidar";
 import { createServer } from "node:http";
-import { loadConfig } from "./node/config.js";
+import { resolveRuntime } from "./node/runtime.js";
 import { buildDocumentation } from "./node/pipeline.js";
 import { doctor } from "./node/doctor.js";
 import { initProject } from "./node/init.js";
@@ -21,7 +21,7 @@ program
   .option("--against <file>", "Previous descriptor set or directory for schema diff")
   .option("--title <title>", "Site title")
   .action(async (inputArg: string | undefined, flags) => {
-    const { cwd, config, input, outDir } = resolveRuntime(inputArg, flags);
+    const { cwd, config, input, outDir } = resolveRuntime(process.cwd(), inputArg, flags);
     const started = Date.now();
     process.stdout.write(banner());
     const model = await buildDocumentation({
@@ -39,9 +39,11 @@ program
   .argument("[input]", "Buf workspace, proto directory, or FileDescriptorSet")
   .option("-o, --out <dir>", "Output directory")
   .option("-c, --config <file>", "Config file")
+  .option("--base <path>", "Site base path, e.g. /repo-name/")
+  .option("--title <title>", "Site title")
   .option("--port <port>", "Preview port", "43147")
   .action(async (inputArg: string | undefined, flags) => {
-    const { cwd, config, input, outDir } = resolveRuntime(inputArg, flags);
+    const { cwd, config, input, outDir } = resolveRuntime(process.cwd(), inputArg, flags);
     const rebuild = async () => {
       try {
         await buildDocumentation({ input, outDir, config, cwd });
@@ -67,7 +69,7 @@ program
   .argument("[input]", "Schema input")
   .option("-c, --config <file>", "Config file")
   .action(async (inputArg: string | undefined, flags) => {
-    const { cwd, config, input } = resolveRuntime(inputArg, flags);
+    const { cwd, config, input } = resolveRuntime(process.cwd(), inputArg, flags);
     const findings = await doctor(cwd, input, config);
     for (const finding of findings) {
       const tag = finding.level.toUpperCase().padEnd(5);
@@ -92,8 +94,10 @@ program
   .requiredOption("--against <file>", "Previous schema")
   .option("-o, --out <dir>", "Output directory")
   .option("-c, --config <file>", "Config file")
+  .option("--base <path>", "Site base path, e.g. /repo-name/")
+  .option("--title <title>", "Site title")
   .action(async (inputArg: string | undefined, flags) => {
-    const { cwd, config, input, outDir } = resolveRuntime(inputArg, flags);
+    const { cwd, config, input, outDir } = resolveRuntime(process.cwd(), inputArg, flags);
     const model = await buildDocumentation({
       input,
       outDir,
@@ -121,20 +125,6 @@ function isDevWatchFile(path: string): boolean {
     name === "pbschema-lens.yaml" ||
     name === "pbschema-lens.yml"
   );
-}
-
-function resolveRuntime(inputArg: string | undefined, flags: { config?: string; title?: string; base?: string; out?: string }) {
-  const cwd = process.cwd();
-  const inputGuess = resolve(cwd, inputArg ?? ".");
-  const loaded = loadConfig(cwd, flags.config, [inputGuess]);
-  const config = loaded.config;
-  if (flags.base) config.base = flags.base;
-  if (flags.title) config.title = flags.title;
-  const input = inputArg
-    ? resolve(cwd, inputArg)
-    : resolve(loaded.path ? dirname(loaded.path) : cwd, config.input ?? ".");
-  const outDir = resolve(cwd, flags.out ?? config.output ?? "dist");
-  return { cwd, config, input, outDir };
 }
 
 function banner(): string {

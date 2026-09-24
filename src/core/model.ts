@@ -705,7 +705,7 @@ export function buildModel(registry: FileRegistry, options: BuildModelOptions): 
     const symbol = model.symbols[entry.id];
     if (!symbol) return false;
     const host = pageHost(model, symbol);
-    return host.domain !== "well-known" || host.generatePage;
+    return host.generatePage;
   });
   model.buildInfo.symbolCount = Object.keys(model.symbols).length;
   return model;

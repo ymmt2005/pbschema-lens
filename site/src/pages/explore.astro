@@ -1,10 +1,11 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { loadModel, withBase } from "../lib/data.ts";
+import { configuredBase, loadModel } from "../lib/data.ts";
 import { linkedPath } from "../lib/format.ts";
 
 const model = loadModel();
 const pageable = Object.values(model.symbols).filter((item) => item.generatePage);
+const base = configuredBase();
 ---
 
 <Layout title="Used-by explorer">
@@ -21,7 +22,7 @@ const pageable = Object.values(model.symbols).filter((item) => item.generatePage
     ))}
   </select>
   <div id="explorer-out" class="mt-6 text-sm"></div>
-  <script define:vars={{ payload: pageable.map((item) => ({ id: item.id, fullName: item.fullName, url: linkedPath(item, model.symbols) ?? "", refs: item.referencedBy.map((ref) => ({ fromId: ref.fromId, kind: ref.kind, label: ref.label })) })), names: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, item.fullName])), hrefs: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, linkedPath(item, model.symbols) ?? ""])) , base: import.meta.env.BASE_URL }}>
+  <script define:vars={{ payload: pageable.map((item) => ({ id: item.id, fullName: item.fullName, url: linkedPath(item, model.symbols) ?? "", refs: item.referencedBy.map((ref) => ({ fromId: ref.fromId, kind: ref.kind, label: ref.label })) })), names: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, item.fullName])), hrefs: Object.fromEntries(Object.values(model.symbols).map((item) => [item.id, linkedPath(item, model.symbols) ?? ""])) , base }}>
     const select = document.getElementById("symbol-select");
     const out = document.getElementById("explorer-out");
     const byId = Object.fromEntries(payload.map((item) => [item.id, item]));

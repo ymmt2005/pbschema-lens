@@ -2,7 +2,7 @@
 import "../styles/global.css";
 import PackageTree from "../components/PackageTree.astro";
 import { activePackageName, buildPackageNavTree } from "pbschema-lens/core";
-import { loadModel, withBase } from "../lib/data.ts";
+import { configuredBase, loadModel, withBase } from "../lib/data.ts";
 
 interface Props {
   title?: string;
@@ -12,6 +12,8 @@ interface Props {
 const { title, description } = Astro.props;
 const model = loadModel();
 const pageTitle = title ? `${title} · ${model.title}` : model.title;
+const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
+const base = configuredBase();
 const localPackages = model.packages.filter((item) => item.inNav && item.domain === "local");
 const wktPackages = model.packages.filter((item) => item.domain === "well-known" && item.generatePage);
 const current = Astro.url.pathname;
@@ -30,6 +32,7 @@ const activePackage = activePackageName(
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
+    {canonical && <link rel="canonical" href={canonical} />}
     {description && <meta name="description" content={description} />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -149,7 +152,7 @@ const activePackage = activePackageName(
       <div id="search-results" class="max-h-[60vh] overflow-y-auto p-2 text-sm"></div>
     </dialog>
 
-    <script define:vars={{ base: import.meta.env.BASE_URL }}>
+    <script define:vars={{ base }}>
       const html = document.documentElement;
       document.getElementById("theme-toggle")?.addEventListener("click", () => {
         html.classList.toggle("dark");
