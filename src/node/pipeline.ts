@@ -37,10 +37,9 @@ export async function buildDocumentation(options: BuildOptions): Promise<SchemaM
 
   const git = await detectGitInfo(compiled.workDir);
   const descriptorFiles = [...registry.files].map((file) => file.proto.name || `${file.name}.proto`);
-  const sourceTexts =
-    options.config.sourceBrowser?.enabled === false
-      ? {}
-      : await loadSourceTexts(compiled.workDir, descriptorFiles);
+  const sourceTexts = sourceBrowserEnabled(options.config)
+    ? await loadSourceTexts(compiled.workDir, descriptorFiles)
+    : {};
 
   const plugins = await loadPlugins(options.config.plugins ?? [], options.cwd);
 
@@ -91,6 +90,10 @@ export async function buildDocumentation(options: BuildOptions): Promise<SchemaM
   return model;
 }
 
+export function sourceBrowserEnabled(config: PbSchemaLensConfig): boolean {
+  return config.sourceBrowser?.enabled !== false;
+}
+
 export function documentationSource(config: PbSchemaLensConfig, gitCommit?: string): {
   repository?: string;
   commit?: string;
@@ -103,7 +106,7 @@ export function documentationSource(config: PbSchemaLensConfig, gitCommit?: stri
   };
 }
 
-async function loadPlugins(specs: string[], cwd: string): Promise<PbSchemaLensPlugin[]> {
+export async function loadPlugins(specs: string[], cwd: string): Promise<PbSchemaLensPlugin[]> {
   const plugins: PbSchemaLensPlugin[] = [];
   for (const spec of specs) {
     const url = spec.startsWith("file:") ? spec : pathToFileURL(resolve(cwd, spec)).href;

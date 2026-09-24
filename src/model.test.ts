@@ -187,6 +187,28 @@ describe("schema fixtures", () => {
     expect(getUser?.generatePage).toBe(true);
   });
 
+  it("drops symbols that documentation.include leaves unpublished from the symbol index", async () => {
+    const dir = new URL("../examples/acme", import.meta.url).pathname;
+    const { config } = loadConfig(dir);
+    const compiled = await compileInput(dir);
+    const registry = loadRegistryFromBytes(compiled.bytes);
+    const model = buildModel(registry, {
+      title: config.title,
+      inputLabel: dir,
+      classification: documentationClassification({
+        ...config,
+        documentation: { ...config.documentation, include: ["acme/user/**"] },
+      }),
+    });
+    const flag = model.messages.find((item) => item.fullName === "acme.experiment.v1.Flag");
+    expect(flag?.domain).toBe("external-undocumented");
+    expect(flag?.generatePage).toBe(false);
+    expect(flag?.inNav).toBe(false);
+    expect(model.symbolIndex.some((entry) => entry.fullName === "acme.experiment.v1.Flag")).toBe(false);
+    expect(model.messages.find((item) => item.fullName === "acme.user.v1.User")?.generatePage).toBe(true);
+    expect(model.symbolIndex.some((entry) => entry.fullName === "acme.user.v1.User")).toBe(true);
+  });
+
   it("respects wellKnownTypes.enabled", async () => {
     const dir = new URL("../examples/acme", import.meta.url).pathname;
     const { config } = loadConfig(dir);

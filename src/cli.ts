@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { mkdir, readFile, stat } from "node:fs/promises";
-import { basename, extname, join, normalize } from "node:path";
+import { basename, extname, join, normalize, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { Command } from "commander";
 import { watch } from "chokidar";
 import { createServer } from "node:http";
@@ -9,7 +10,7 @@ import { buildDocumentation } from "./node/pipeline.js";
 import { doctor } from "./node/doctor.js";
 import { initProject } from "./node/init.js";
 
-const program = new Command();
+export const program = new Command();
 program.name("pbschema-lens").description("Static schema explorer for Protocol Buffers").version("0.3.0");
 
 program
@@ -200,5 +201,7 @@ async function serve(root: string, port: number): Promise<void> {
   });
 }
 
-await program.parseAsync(process.argv);
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  await program.parseAsync(process.argv);
+}
 

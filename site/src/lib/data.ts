@@ -30,6 +30,11 @@ export function configuredBase(): string {
   return raw.endsWith("/") ? raw : `${raw}/`;
 }
 
+export function canonicalHref(site: string | URL | undefined, pathname: string): string | undefined {
+  if (!site) return undefined;
+  return new URL(pathname, site).href;
+}
+
 export function withBase(path: string): string {
   const base = configuredBase();
   if (base === "/") {

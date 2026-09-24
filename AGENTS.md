@@ -96,16 +96,19 @@ If you change `SchemaModel`, update both `src/core/` producers and `site/` consu
 
 A behavior change is finished when `npm test` fails if that behavior is removed. A key in `ConfigSchema`, a paragraph in this file, and a default Acme build do not count.
 
-`playground`, `wellKnownTypes.enabled`, and `search.symbolIndex` shipped that way: the yaml parsed, Acme left the flag at its default, and no test ever set the other value. `documentation.exclude` was worse. Classification did drop the files, a later pass published them again, and the test asserted the published pages. The suite stayed green because it recorded the bug.
+`playground`, `wellKnownTypes.enabled`, and `search.symbolIndex` shipped unread: the yaml parsed, Acme left the flag at its default, and no test ever set the other value. `documentation.exclude` was classified, then a later pass published the files again, and the test asserted the published pages. The suite stayed green because it recorded the bug. A full site build is the wrong size of test for that class of mistake. The flag decision is a function. Test the function.
 
-`src/config-flags.test.ts` is the check. It loads a yaml through `loadConfig`, builds with `buildDocumentation`, and asserts the output. Passing a boolean straight into `buildModel` does not prove the yaml key is wired. `expect(config.flag).toBe(false)` does not either.
+Use a test pyramid. The wide base is small tests of one function. Above that, medium tests of `buildModel` when a later pass can undo the function. A full `buildDocumentation` run, or a browser walkthrough, is the narrow top. CI already builds the Acme site. That large run is not how a flag is shown to work.
 
-- The value under test is the non-default one. Acme's checked-in yaml uses the defaults, so that build cannot show an ignored flag.
-- Hiding a symbol is asserted across every output, not only `generatePage`: `inNav`, `sourceText`, the symbol index, type `urlPath`, option `definitionId`, dependency edges, and the written HTML. `publishPage` must not put the page back. Source routes follow `sourceText`.
-- Every leaf of `ConfigSchema` has a case in that file. A new key with no case fails the suite.
-- `build`, `dev`, and `diff` share `resolveRuntime`. Each command must declare `--base` and `--title`. An option that exists only on `build` is not applied to the others.
-- Write the assertion from the flag's meaning. Do not copy whatever the current HTML already does. `documentation.exclude` means those files are absent: no page, no source, no symbol-search hit, and no link in either direction. Option chips on the files that use them stay.
-- `build-info.json` and `symbols.json` are written on every build. They are not flags. A test asserts they exist when the other artifact switches are off.
+Test size is a resource constraint (Google's small / medium / large), not a label you pick after writing the test:
+
+- **Small.** One process. No socket, no sleep, no subprocess, no site build. Call the production function that reads the flag. `classifyFile` and `documentationClassification` cover include, exclude, well-known types, and external links. `documentationSource` and `repositoryBlobUrl` cover source links. `resolveRuntime` covers title, input, output, and the CLI `--base` / `--title` overrides. `siteBuildEnv`, `configuredBase`, `withBase`, and `canonicalHref` cover `base` and `siteUrl`. `fullTextEnabled` and `sourceBrowserEnabled` cover those switches. The Commander option list covers `build`, `dev`, and `diff` declaring `--base` and `--title`. `expect(config.flag).toBe(false)` is not a test. A boolean copied next to the production function is not a test either.
+- **Medium.** Disk and localhost are allowed. `loadConfig` on a yaml file is medium, and it is the proof the key is in `ConfigSchema`. `writeArtifacts` and `loadPlugins` are medium because they touch the filesystem. `buildModel` on a compiled fixture is medium, and it is required when a later pass can undo classification: `publishPage`, symbol-index filtering, dropped reference edges, cleared `sourceText`. Those cases live in `src/model.test.ts`. Proving them by reading generated HTML is the wrong layer.
+- **Large.** A subprocess plus the built site: `buildDocumentation`, Pagefind, a browser. Use one when the question is the rendered page. It is not the default proof for a config flag.
+
+`src/config-flags.test.ts` holds the small checks, and the medium checks whose function itself touches disk. Every leaf of `ConfigSchema` has a case there. A new key with no case fails the suite. The value under test is the non-default one. Acme's checked-in yaml uses the defaults, so that build cannot show an ignored flag.
+
+`documentation.exclude` means those files are absent from the model: no page, no source, no symbol-search hit, and no link in either direction. Option chips on the files that use them stay. Assert that on `buildModel`. Write the assertion from the flag's meaning. `build-info.json` and `symbols.json` are written on every build. They are not flags. `writeArtifacts` still emits them when the other artifact switches are off.
 
 Third-party option protos (`google.api`, `buf.validate`, and the same kind of dependency) come from `buf.yaml`. Do not vendor them under `examples/`, and do not write a test that expects a page for a stub that was only there because it had been vendored.
 
@@ -169,6 +172,6 @@ Do not delete a published tag or Release. This repo uses immutable releases: a d
 
 ## Tests
 
-Vitest files: `src/config-flags.test.ts`, `src/model.test.ts`, `src/core/markdown.test.ts`. `npm test` runs `vitest run`. `src/config-flags.test.ts` flips every `ConfigSchema` leaf and the shared CLI options; see Testing policy. Add fixture-driven tests under `fixtures/` when the change is about descriptor/model behavior.
+Vitest files: `src/config-flags.test.ts`, `src/model.test.ts`, `src/core/markdown.test.ts`. `npm test` runs `vitest run`. `src/config-flags.test.ts` exercises every `ConfigSchema` leaf at the size in Testing policy. `src/model.test.ts` covers later passes that can undo a flag. Add fixture-driven tests under `fixtures/` when the change is about descriptor/model behavior.
 
 CI also typechecks and runs `doctor` plus an example site build. Prefer that a change still builds `examples/acme`.

@@ -2,7 +2,7 @@
 import "../styles/global.css";
 import PackageTree from "../components/PackageTree.astro";
 import { activePackageName, buildPackageNavTree } from "pbschema-lens/core";
-import { configuredBase, loadModel, withBase } from "../lib/data.ts";
+import { canonicalHref, configuredBase, loadModel, withBase } from "../lib/data.ts";
 
 interface Props {
   title?: string;
@@ -12,7 +12,7 @@ interface Props {
 const { title, description } = Astro.props;
 const model = loadModel();
 const pageTitle = title ? `${title} · ${model.title}` : model.title;
-const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
+const canonical = canonicalHref(Astro.site, Astro.url.pathname);
 const base = configuredBase();
 const localPackages = model.packages.filter((item) => item.inNav && item.domain === "local");
 const wktPackages = model.packages.filter((item) => item.domain === "well-known" && item.generatePage);
