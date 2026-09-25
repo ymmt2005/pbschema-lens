@@ -3,7 +3,7 @@ import "../styles/global.css";
 import PackageTree from "../components/PackageTree.astro";
 import { activePackageName, buildPackageNavTree } from "pbschema-lens/core";
 import { canonicalHref, configuredBase, loadModel, withBase } from "../lib/data.ts";
-import { themeBootScript } from "../lib/theme.ts";
+import { THEME_CHOICES, themeBootScript, themeMenuScript } from "../lib/theme.ts";
 
 interface Props {
   title?: string;
@@ -115,9 +115,16 @@ const activePackage = activePackageName(
               Search symbols and comments…
               <kbd class="hidden sm:inline float-right text-[11px] border border-[color:var(--line)] rounded px-1">/</kbd>
             </button>
-            <button id="theme-toggle" class="rounded-md border border-[color:var(--line)] px-2 py-1 text-sm" type="button">
-              Theme
-            </button>
+            <select
+              id="theme-choice"
+              aria-label="Theme"
+              class="rounded-md border border-[color:var(--line)] bg-[color:var(--bg)] px-2 py-1 text-sm text-[color:var(--fg)]"
+            >
+              {THEME_CHOICES.map((choice) => (
+                <option value={choice.value}>{choice.label}</option>
+              ))}
+            </select>
+            <script is:inline set:html={themeMenuScript()} />
           </div>
         </header>
     <main class="w-full min-w-0 px-4 py-8 sm:px-8" data-pagefind-body>
@@ -150,20 +157,25 @@ const activePackage = activePackageName(
     <script>
       import { rankSymbol } from "pbschema-lens/core";
       import { pagefindHitHtml, symbolHitHtml } from "../lib/search-ui.ts";
-      import { THEME_STORAGE_KEY, useDarkTheme } from "../lib/theme.ts";
+      import { THEME_STORAGE_KEY, themeChoice, themeStorageValue, useDarkTheme } from "../lib/theme.ts";
 
       const html = document.documentElement;
       const desktopTheme = window.matchMedia("(prefers-color-scheme: dark)");
-      function applyDesktopTheme() {
+      const themeSelect = document.getElementById("theme-choice") as HTMLSelectElement | null;
+      function applyTheme() {
         const stored = localStorage.getItem(THEME_STORAGE_KEY);
-        if (stored === "dark" || stored === "light") return;
         html.classList.toggle("dark", useDarkTheme(stored, desktopTheme.matches));
+        if (themeSelect) themeSelect.value = themeChoice(stored);
       }
-      desktopTheme.addEventListener("change", applyDesktopTheme);
-      document.getElementById("theme-toggle")?.addEventListener("click", () => {
-        const next = html.classList.contains("dark") ? "light" : "dark";
-        html.classList.toggle("dark", useDarkTheme(next, desktopTheme.matches));
-        localStorage.setItem(THEME_STORAGE_KEY, next);
+      desktopTheme.addEventListener("change", () => {
+        if (themeChoice(localStorage.getItem(THEME_STORAGE_KEY)) !== "system") return;
+        applyTheme();
+      });
+      themeSelect?.addEventListener("change", () => {
+        const value = themeStorageValue(themeSelect.value);
+        if (value) localStorage.setItem(THEME_STORAGE_KEY, value);
+        else localStorage.removeItem(THEME_STORAGE_KEY);
+        applyTheme();
       });
       const mobile = document.getElementById("mobile-nav");
       document.getElementById("menu-btn")?.addEventListener("click", () => mobile?.classList.remove("hidden"));

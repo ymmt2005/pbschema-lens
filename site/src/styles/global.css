@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Dark utilities follow the same html.dark class as the page colors. The class is set from the desktop theme unless the visitor picked one. */
+/* Dark utilities follow the same html.dark class as the page colors. The class follows the desktop unless the visitor picked Light or Dark. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
