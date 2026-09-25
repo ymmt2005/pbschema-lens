@@ -3,6 +3,7 @@ import "../styles/global.css";
 import PackageTree from "../components/PackageTree.astro";
 import { activePackageName, buildPackageNavTree } from "pbschema-lens/core";
 import { canonicalHref, configuredBase, loadModel, withBase } from "../lib/data.ts";
+import { THEME_CHOICES, themeBootScript } from "../lib/theme.ts";
 
 interface Props {
   title?: string;
@@ -40,13 +41,7 @@ const activePackage = activePackageName(
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <script is:inline>
-      try {
-        if (localStorage.getItem("pbschema-lens-theme") === "dark") {
-          document.documentElement.classList.add("dark");
-        }
-      } catch {}
-    </script>
+    <script is:inline set:html={themeBootScript()} />
   </head>
   <body class="min-h-screen">
     <div class="lg:grid lg:grid-cols-[18rem_1fr] min-h-screen">
@@ -120,9 +115,38 @@ const activePackage = activePackageName(
               Search symbols and comments…
               <kbd class="hidden sm:inline float-right text-[11px] border border-[color:var(--line)] rounded px-1">/</kbd>
             </button>
-            <button id="theme-toggle" class="rounded-md border border-[color:var(--line)] px-2 py-1 text-sm" type="button">
-              Theme
-            </button>
+            <div class="relative shrink-0">
+              <button
+                id="theme-menu-button"
+                class="rounded-md border border-[color:var(--line)] px-2 py-1 text-sm"
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="theme-menu"
+              >
+                Theme
+              </button>
+              <div
+                id="theme-menu"
+                class="absolute right-0 z-30 mt-1 min-w-44 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-raised)] py-1 text-sm shadow-[var(--shadow)]"
+                role="menu"
+                aria-label="Theme"
+                hidden
+              >
+                {THEME_CHOICES.map((choice) => (
+                  <button
+                    class="grid w-full grid-cols-[1rem_1fr] items-center gap-2 px-3 py-1.5 text-left whitespace-nowrap text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] aria-checked:bg-[color:var(--bg-muted)]"
+                    type="button"
+                    role="menuitemradio"
+                    data-theme-choice={choice.value}
+                    aria-checked="false"
+                  >
+                    <span class="theme-mark text-[color:var(--accent)]" aria-hidden="true"></span>
+                    {choice.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </header>
     <main class="w-full min-w-0 px-4 py-8 sm:px-8" data-pagefind-body>
@@ -155,12 +179,64 @@ const activePackage = activePackageName(
     <script>
       import { rankSymbol } from "pbschema-lens/core";
       import { pagefindHitHtml, symbolHitHtml } from "../lib/search-ui.ts";
+      import { THEME_STORAGE_KEY, themeChoice, themeStorageValue, useDarkTheme } from "../lib/theme.ts";
 
       const html = document.documentElement;
-      document.getElementById("theme-toggle")?.addEventListener("click", () => {
-        html.classList.toggle("dark");
-        localStorage.setItem("pbschema-lens-theme", html.classList.contains("dark") ? "dark" : "light");
+      const desktopTheme = window.matchMedia("(prefers-color-scheme: dark)");
+      const themeButton = document.getElementById("theme-menu-button");
+      const themeMenu = document.getElementById("theme-menu");
+      const themeItems = () => [...(themeMenu?.querySelectorAll<HTMLButtonElement>("[data-theme-choice]") ?? [])];
+      function applyTheme() {
+        const stored = localStorage.getItem(THEME_STORAGE_KEY);
+        html.classList.toggle("dark", useDarkTheme(stored, desktopTheme.matches));
+        const current = themeChoice(stored);
+        for (const item of themeItems()) {
+          item.setAttribute("aria-checked", item.dataset.themeChoice === current ? "true" : "false");
+        }
+      }
+      function setThemeMenuOpen(open: boolean) {
+        if (!themeMenu || !themeButton) return;
+        themeMenu.hidden = !open;
+        themeButton.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) themeItems().find((item) => item.getAttribute("aria-checked") === "true")?.focus();
+      }
+      desktopTheme.addEventListener("change", () => {
+        if (themeChoice(localStorage.getItem(THEME_STORAGE_KEY)) !== "system") return;
+        applyTheme();
       });
+      themeButton?.addEventListener("click", () => setThemeMenuOpen(themeMenu?.hidden !== false));
+      themeMenu?.addEventListener("click", (event) => {
+        const item = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-theme-choice]");
+        if (!item?.dataset.themeChoice) return;
+        const value = themeStorageValue(item.dataset.themeChoice);
+        if (value) localStorage.setItem(THEME_STORAGE_KEY, value);
+        else localStorage.removeItem(THEME_STORAGE_KEY);
+        applyTheme();
+        setThemeMenuOpen(false);
+        themeButton?.focus();
+      });
+      themeMenu?.addEventListener("keydown", (event) => {
+        const items = themeItems();
+        const index = items.indexOf(document.activeElement as HTMLButtonElement);
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          const next = event.key === "ArrowDown" ? index + 1 : index - 1;
+          items[(next + items.length) % items.length]?.focus();
+        }
+      });
+      document.addEventListener("click", (event) => {
+        if (!themeMenu || themeMenu.hidden) return;
+        const target = event.target as Node;
+        if (themeMenu.contains(target) || themeButton?.contains(target)) return;
+        setThemeMenuOpen(false);
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && themeMenu && !themeMenu.hidden) {
+          setThemeMenuOpen(false);
+          themeButton?.focus();
+        }
+      });
+      applyTheme();
       const mobile = document.getElementById("mobile-nav");
       document.getElementById("menu-btn")?.addEventListener("click", () => mobile?.classList.remove("hidden"));
       document.getElementById("menu-close")?.addEventListener("click", () => mobile?.classList.add("hidden"));
