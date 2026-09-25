@@ -45,6 +45,10 @@ html {
   scroll-padding-top: 6rem;
 }
 
+#theme-menu [aria-checked="true"] .theme-mark::before {
+  content: "✓";
+}
+
 html,
 body {
   background: var(--bg);

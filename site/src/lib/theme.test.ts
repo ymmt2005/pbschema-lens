@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { THEME_STORAGE_KEY, themeBootScript, themeChoice, themeMenuScript, themeStorageValue, useDarkTheme } from "./theme.ts";
+import { THEME_STORAGE_KEY, themeBootScript, themeChoice, themeStorageValue, useDarkTheme } from "./theme.ts";
 
 describe("themeChoice", () => {
   it("follows the desktop unless light or dark is saved", () => {
@@ -56,33 +56,5 @@ describe("themeBootScript", () => {
     expect(run(null, true)).toBe(true);
     expect(run(null, false)).toBe(false);
     expect(run("light", true)).toBe(false);
-  });
-});
-
-describe("themeMenuScript", () => {
-  function selected(stored: string | null): string {
-    let value = "system";
-    const document = {
-      getElementById() {
-        return {
-          get value() {
-            return value;
-          },
-          set value(next: string) {
-            value = next;
-          },
-        };
-      },
-    };
-    const localStorage = { getItem: (key: string) => (key === THEME_STORAGE_KEY ? stored : null) };
-    const apply = new Function("document", "localStorage", themeMenuScript());
-    apply(document, localStorage);
-    return value;
-  }
-
-  it("selects the saved choice, or desktop when nothing is saved", () => {
-    expect(selected(null)).toBe("system");
-    expect(selected("light")).toBe("light");
-    expect(selected("dark")).toBe("dark");
   });
 });

@@ -32,8 +32,3 @@ export function useDarkTheme(stored: string | null, systemPrefersDark: boolean):
 export function themeBootScript(): string {
   return `try{var stored=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});var systemDark=window.matchMedia("(prefers-color-scheme: dark)").matches;var themeChoice=${themeChoice.toString()};var useDark=${useDarkTheme.toString()};if(useDark(stored,systemDark))document.documentElement.classList.add("dark");}catch(e){}`;
 }
-
-/** Sets the theme menu to the saved choice before paint. */
-export function themeMenuScript(): string {
-  return `try{var stored=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});var choice=${themeChoice.toString()};var el=document.getElementById("theme-choice");if(el)el.value=choice(stored);}catch(e){}`;
-}
