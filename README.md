@@ -137,12 +137,6 @@ externalLinks:
 | `artifacts.references` | `true` | `false` skips the exported `assets/protobuf/references.json`. The explorer always reads `assets/model/references.json`. `symbols.json` and `build-info.json` are written on every build. |
 | `externalLinks` | omitted | Rules that send a package to another site. `package` is a name or a `.**` pattern. A match is documented externally: no local page, and links use `urlTemplate`. `{symbol}` is the full name, `{kind}` is the symbol kind, and `{package}` is the package. |
 
-## Breaking changes from the Node CLI
-
-- Plugins are not loaded. Remove `plugins` from the config. A non-empty list fails the build.
-- `buf breaking` is not run. `diff` compares two FileDescriptorSets and does not invoke Buf.
-- The commit in repository links comes from `--commit` or `source.commit`. pbschema-lens does not run `git rev-parse`.
-
 ## What the site includes
 
 - Package, service, RPC, message, field, oneof, enum, and extension pages
