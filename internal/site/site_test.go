@@ -7,7 +7,40 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ymmt2005/pbschema-lens/internal/model"
 )
+
+func TestWriteShellsIncludes404AndOmitsSearch(t *testing.T) {
+	dir := t.TempDir()
+	shell := []byte("<!doctype html><title>shell</title>")
+	if err := writeShells(dir, shell, &model.SchemaModel{}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "404.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(shell) {
+		t.Fatalf("404.html = %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "search", "index.html")); !os.IsNotExist(err) {
+		t.Fatalf("search/index.html should not be written: %v", err)
+	}
+	for _, route := range []string{"explore/index.html", "graph/index.html", "diff/index.html"} {
+		if _, err := os.Stat(filepath.Join(dir, route)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestRoutesHaveNoSearchPage(t *testing.T) {
+	for _, route := range routes(&model.SchemaModel{}) {
+		if route == "/search/" {
+			t.Fatal("search opens from the header on any page and has no page of its own")
+		}
+	}
+}
 
 func TestStampEscapesHTML(t *testing.T) {
 	raw := stamp([]byte(`<title>__TITLE__</title><html data-base="__DATA_BASE__" data-site-url="__SITE_URL__">`), "/", Options{

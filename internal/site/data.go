@@ -145,9 +145,6 @@ func buildIndex(schema *model.SchemaModel) siteIndex {
 		index.WKTNotes = map[string]string{}
 	}
 	for _, pkg := range schema.Packages {
-		if !pkg.InNav && !pkg.GeneratePage {
-			continue
-		}
 		index.Packages = append(index.Packages, packageCard{
 			ID: pkg.ID, FullName: pkg.FullName, URLPath: pkg.URLPath, Domain: pkg.Domain,
 			GeneratePage: pkg.GeneratePage, InNav: pkg.InNav,
@@ -237,6 +234,9 @@ func symbolPayload(schema *model.SchemaModel, id string) symbolFile {
 	case *model.DocMessage:
 		putIDs(schema, related, sym.FieldIDs)
 		putIDs(schema, related, sym.OneofIDs)
+		putIDs(schema, related, sym.NestedMessageIDs)
+		putIDs(schema, related, sym.NestedEnumIDs)
+		putIDs(schema, related, sym.NestedExtensionIDs)
 	case *model.DocEnum:
 		putIDs(schema, related, sym.ValueIDs)
 	case *model.DocService:

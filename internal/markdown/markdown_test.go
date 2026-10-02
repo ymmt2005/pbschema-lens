@@ -31,6 +31,13 @@ func TestAllowsSafeHTML(t *testing.T) {
 	}
 }
 
+func TestHardBreakDoesNotIndentTheNextLine(t *testing.T) {
+	html := RenderSafe("support\nworkflows")
+	if !strings.Contains(html, "<br>workflows") {
+		t.Fatalf("hard break %s", html)
+	}
+}
+
 func TestEscapeHTML(t *testing.T) {
 	got := EscapeHTML(`<foo & "bar">`)
 	want := "&lt;foo &amp; &quot;bar&quot;&gt;"

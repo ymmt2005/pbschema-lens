@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
-	"google.golang.org/protobuf/reflect/protoregistry"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -32,8 +32,22 @@ func Read(path string, stdin io.Reader) ([]byte, error) {
 	return raw, nil
 }
 
+// FileSet is a linked descriptor set. RangeFiles visits files in descriptor order.
+type FileSet struct {
+	list []protoreflect.FileDescriptor
+}
+
+// RangeFiles visits files in the order they appear in the FileDescriptorSet.
+func (s *FileSet) RangeFiles(fn func(protoreflect.FileDescriptor) bool) {
+	for _, fd := range s.list {
+		if !fn(fd) {
+			return
+		}
+	}
+}
+
 // Files parses descriptor bytes into a linked file registry.
-func Files(raw []byte) (*protoregistry.Files, error) {
+func Files(raw []byte) (*FileSet, error) {
 	var set descriptorpb.FileDescriptorSet
 	if err := proto.Unmarshal(raw, &set); err != nil {
 		return nil, fmt.Errorf("parse FileDescriptorSet: %w", err)
@@ -41,9 +55,17 @@ func Files(raw []byte) (*protoregistry.Files, error) {
 	if len(set.File) == 0 {
 		return nil, fmt.Errorf("FileDescriptorSet contains no files")
 	}
-	files, err := protodesc.NewFiles(&set)
+	reg, err := protodesc.NewFiles(&set)
 	if err != nil {
 		return nil, fmt.Errorf("link FileDescriptorSet: %w", err)
 	}
-	return files, nil
+	list := make([]protoreflect.FileDescriptor, 0, len(set.File))
+	for _, file := range set.File {
+		fd, err := reg.FindFileByPath(file.GetName())
+		if err != nil {
+			return nil, fmt.Errorf("descriptor %s: %w", file.GetName(), err)
+		}
+		list = append(list, fd)
+	}
+	return &FileSet{list: list}, nil
 }

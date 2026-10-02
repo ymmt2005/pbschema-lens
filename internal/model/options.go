@@ -69,7 +69,11 @@ func (f OptionField) MarshalJSON() ([]byte, error) {
 }
 
 func (e OptionMapEntry) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]any{"key": e.Key, "value": e.Value})
+	m := map[string]any{"key": e.Key, "value": e.Value}
+	if e.KeyKind != "" {
+		m["keyKind"] = e.KeyKind
+	}
+	return json.Marshal(m)
 }
 
 var optionExtendees = map[string]string{
@@ -133,7 +137,33 @@ func resolveOptions(msg proto.Message, types *protoregistry.Types) proto.Message
 	return out
 }
 
-func extractOptions(msg protoreflect.Message, target string) []*DocOption {
+func extensionOrder(files FileSource) map[string]int {
+	rank := map[string]int{}
+	n := 0
+	var walk func(md protoreflect.MessageDescriptor)
+	add := func(list protoreflect.ExtensionDescriptors) {
+		for i := 0; i < list.Len(); i++ {
+			rank[string(list.Get(i).FullName())] = n
+			n++
+		}
+	}
+	walk = func(md protoreflect.MessageDescriptor) {
+		add(md.Extensions())
+		for i := 0; i < md.Messages().Len(); i++ {
+			walk(md.Messages().Get(i))
+		}
+	}
+	files.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+		add(fd.Extensions())
+		for i := 0; i < fd.Messages().Len(); i++ {
+			walk(fd.Messages().Get(i))
+		}
+		return true
+	})
+	return rank
+}
+
+func extractOptions(msg protoreflect.Message, target string, order map[string]int) []*DocOption {
 	if msg == nil || !msg.IsValid() {
 		return []*DocOption{}
 	}
@@ -173,7 +203,7 @@ func extractOptions(msg protoreflect.Message, target string) []*DocOption {
 		return true
 	})
 	docs = append(docs, unknownOptions(msg.GetUnknown(), target, seen)...)
-	sort.SliceStable(docs, func(i, j int) bool { return docs[i].Number < docs[j].Number })
+	sort.SliceStable(docs, func(i, j int) bool { return optionLess(docs[i], docs[j], order) })
 	for _, option := range docs {
 		if semantic := renderSemantic(option); semantic != nil {
 			option.Semantic = semantic
@@ -183,6 +213,27 @@ func extractOptions(msg protoreflect.Message, target string) []*DocOption {
 		return []*DocOption{}
 	}
 	return docs
+}
+
+func optionLess(a, b *DocOption, order map[string]int) bool {
+	if a.Extension != b.Extension {
+		return !a.Extension
+	}
+	if !a.Extension {
+		return a.Number < b.Number
+	}
+	ar, aok := order[a.FullName]
+	br, bok := order[b.FullName]
+	if !aok {
+		ar = int(^uint(0) >> 1)
+	}
+	if !bok {
+		br = int(^uint(0) >> 1)
+	}
+	if ar != br {
+		return ar < br
+	}
+	return a.Number < b.Number
 }
 
 func unknownOptions(raw []byte, target string, seen map[int32]struct{}) []*DocOption {
@@ -235,8 +286,9 @@ func fieldToOption(fd protoreflect.FieldDescriptor, v protoreflect.Value) Option
 		var entries []OptionMapEntry
 		mp.Range(func(key protoreflect.MapKey, value protoreflect.Value) bool {
 			entries = append(entries, OptionMapEntry{
-				Key:   key.String(),
-				Value: scalarOrMessage(fd.MapValue(), value),
+				Key:     key.String(),
+				KeyKind: scalarName(fd.MapKey().Kind()),
+				Value:   scalarOrMessage(fd.MapValue(), value),
 			})
 			return true
 		})
@@ -276,19 +328,112 @@ func messageOption(msg protoreflect.Message) OptionValue {
 		return true
 	})
 	sort.Slice(fields, func(i, j int) bool { return fields[i].Number < fields[j].Number })
-	lines := make([]string, 0, len(fields))
+	return OptionValue{
+		Kind:      "message",
+		TypeName:  string(msg.Descriptor().FullName()),
+		Fields:    fields,
+		TextProto: strings.TrimSuffix(writeMessageBody(fields), "\n"),
+	}
+}
+
+// writeMessageBody prints a message the way protobuf text format does:
+// one field per line, `name: value`, nested messages in braces.
+func writeMessageBody(fields []OptionField) string {
+	var b strings.Builder
 	for _, field := range fields {
 		name := field.Name
 		if field.Extension {
 			name = "(" + name + ")"
 		}
-		lines = append(lines, name+" = "+formatValue(field.Value, 0))
+		writeOptionField(&b, name, field.Value, 0)
 	}
-	return OptionValue{
-		Kind:      "message",
-		TypeName:  string(msg.Descriptor().FullName()),
-		Fields:    fields,
-		TextProto: strings.Join(lines, "\n"),
+	return b.String()
+}
+
+func writeOptionField(b *strings.Builder, name string, value OptionValue, depth int) {
+	pad := strings.Repeat("  ", depth)
+	switch value.Kind {
+	case "list":
+		for _, item := range value.Values {
+			writeOptionField(b, name, item, depth)
+		}
+	case "map":
+		for _, entry := range value.Entries {
+			fmt.Fprintf(b, "%s%s: {\n", pad, name)
+			fmt.Fprintf(b, "%s  key: %s\n", pad, quotedMapKey(entry.Key, entry.KeyKind))
+			writeOptionField(b, "value", entry.Value, depth+1)
+			fmt.Fprintf(b, "%s}\n", pad)
+		}
+	case "message":
+		if len(value.Fields) == 0 {
+			fmt.Fprintf(b, "%s%s: {}\n", pad, name)
+			return
+		}
+		fmt.Fprintf(b, "%s%s: {\n", pad, name)
+		for _, field := range value.Fields {
+			child := field.Name
+			if field.Extension {
+				child = "(" + field.Name + ")"
+			}
+			writeOptionField(b, child, field.Value, depth+1)
+		}
+		fmt.Fprintf(b, "%s}\n", pad)
+	default:
+		fmt.Fprintf(b, "%s%s: %s\n", pad, name, optionScalarText(value))
+	}
+}
+
+func optionScalarText(value OptionValue) string {
+	switch value.Kind {
+	case "enum":
+		if value.Name != "" {
+			return value.Name
+		}
+		return strconv.FormatInt(int64(value.Number), 10)
+	case "bytes":
+		prefix := value.Base64
+		if len(prefix) > 16 {
+			prefix = prefix[:16]
+		}
+		return `"<bytes ` + prefix + `…>"`
+	case "scalar":
+		if s, ok := value.Value.(string); ok {
+			if value.Scalar == "string" {
+				return strconv.Quote(s)
+			}
+			return s
+		}
+		if value.Scalar == "bool" {
+			if b, ok := value.Value.(bool); ok && !b {
+				return "false"
+			}
+			return "true"
+		}
+		return fmt.Sprint(value.Value)
+	default:
+		return formatValue(value, 0)
+	}
+}
+
+func quotedMapKey(key, kind string) string {
+	switch kind {
+	case "string", "bytes":
+		return strconv.Quote(key)
+	case "bool":
+		if key == "true" || key == "false" {
+			return key
+		}
+		return strconv.Quote(key)
+	case "":
+		if _, err := strconv.ParseInt(key, 10, 64); err == nil {
+			return key
+		}
+		if _, err := strconv.ParseUint(key, 10, 64); err == nil {
+			return key
+		}
+		return strconv.Quote(key)
+	default:
+		return key
 	}
 }
 

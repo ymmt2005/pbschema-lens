@@ -1,27 +1,27 @@
 import "../../site/src/styles/global.css";
-import { fieldTableEntries, type FieldTableEntry } from "../../src/core/field-table.ts";
 import { activePackageName, buildPackageNavTree, homePackageAreas } from "../../src/core/package-nav.ts";
+import {
+  diffPageHtml,
+  enumPageHtml,
+  explorePageHtml,
+  extensionPageHtml,
+  graphPageHtml,
+  homeWarningsHtml,
+  messagePageHtml,
+  methodPageHtml,
+  notFoundHtml,
+  packagePageHtml,
+  servicePageHtml,
+  type PageContext,
+} from "../../site/src/lib/pages.ts";
+import { documentTitle } from "../../site/src/lib/document-title.ts";
 import { homeAreasHtml, packageTreeHtml, sourceFilePageHtml, sourceIndexHtml } from "../../site/src/lib/trees.ts";
 import { rankSymbol } from "../../src/core/search.ts";
-import type {
-  DocEnum,
-  DocExtension,
-  DocField,
-  DocFile,
-  DocMessage,
-  DocMethod,
-  DocOneof,
-  DocOption,
-  DocPackage,
-  DocService,
-  DocSymbol,
-  SymbolIndexEntry,
-  SymbolReference,
-  TypeRef,
-} from "../../src/core/types.ts";
-import { isExternalHref, repositoryLinkLabel } from "../../site/src/lib/repository-link.ts";
+import type { DocEnum, DocExtension, DocFile, DocMessage, DocMethod, DocPackage, DocService, DocSymbol, SymbolIndexEntry, SymbolReference } from "../../src/core/types.ts";
+import { isExternalHref } from "../../site/src/lib/repository-link.ts";
+import { incomingReferencesHtml, symbolHitHtml } from "../../site/src/lib/search-ui.ts";
 import { THEME_CHOICES, THEME_STORAGE_KEY, themeChoice, themeStorageValue, useDarkTheme } from "../../site/src/lib/theme.ts";
-import { createLoader, type GraphEdge, type Loader, type SiteIndex } from "./load.ts";
+import { createLoader, type Loader, type SiteIndex } from "./load.ts";
 
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("missing #app");
@@ -64,6 +64,7 @@ async function loadIndex(): Promise<SiteIndex> {
 }
 
 async function navigate() {
+  document.querySelector<HTMLDialogElement>("#search-dialog")?.close();
   const token = ++navToken;
   const path = routePath();
   const main = document.querySelector("#main");
@@ -71,6 +72,7 @@ async function navigate() {
   const html = await renderRoute(path);
   if (token !== navToken) return;
   main.innerHTML = html;
+  bindPage(path);
   const hash = window.location.hash.slice(1);
   if (hash) document.getElementById(hash)?.scrollIntoView();
   document.title = pageTitle(path);
@@ -81,7 +83,6 @@ async function navigate() {
 
 async function renderRoute(path: string): Promise<string> {
   if (path === "/") return renderHome();
-  if (path === "/search/") return renderSearchPage();
   if (path === "/explore/") return renderExplore();
   if (path === "/graph/") return renderGraph();
   if (path === "/diff/") return renderDiff();
@@ -116,7 +117,21 @@ async function renderRoute(path: string): Promise<string> {
 }
 
 function notFound(): string {
-  return `<h1 class="text-3xl font-semibold">Page not found</h1><p class="mt-3 text-[color:var(--fg-muted)]">No documented symbol lives at this path.</p>`;
+  return notFoundHtml(href("/"));
+}
+
+function pageContext(): PageContext {
+  return {
+    href,
+    byId: new Map(
+      index.symbolIndex.map((entry) => [
+        entry.id,
+        { id: entry.id, name: entry.name, fullName: entry.fullName, urlPath: entry.urlPath, kind: entry.kind, shard: entry.shard },
+      ]),
+    ),
+    packageByName: new Map(index.packages.map((pkg) => [pkg.fullName, pkg])),
+    fileByName: new Map(index.files.map((file) => [file.fullName, file])),
+  };
 }
 
 function renderHome(): string {
@@ -149,107 +164,32 @@ function renderHome(): string {
     </dl>
     <section class="mb-10"><h2 class="text-xl font-semibold mb-3">Packages</h2>${homeAreasHtml(areas, href)}</section>
     ${wktHtml}
-    ${index.hasDiff ? `<p><a href="${href("/diff/")}">Schema diff</a></p>` : ""}
+    ${homeWarningsHtml(index.buildInfo.warnings)}
   `;
 }
 
 function renderPackage(pkg: DocPackage): string {
-  return `
-    ${crumb(pkg.fullName)}
-    <h1 class="text-3xl font-semibold mt-2">${esc(pkg.fullName)}</h1>
-    ${comment(pkg)}
-    ${symbolList("Services", packageEntries(pkg, "service", false))}
-    ${symbolList("Messages", packageEntries(pkg, "message", true))}
-    ${symbolList("Enums", packageEntries(pkg, "enum", false))}
-    ${symbolList("Extensions", packageEntries(pkg, "extension", false))}
-    ${symbolList("Files", packageEntries(pkg, "file", false))}
-  `;
+  return packagePageHtml(pkg, pageContext());
 }
 
 function renderMessage(message: DocMessage, related: Record<string, DocSymbol>): string {
-  const fields = idsOf<DocField>(message.fieldIds, related);
-  const oneofs = idsOf<DocOneof>(message.oneofIds, related);
-  const note = index.wktNotes[message.fullName] ?? "";
-  return `
-    ${header(message)}
-    ${note ? `<div class="prose-doc mt-4">${note}</div>` : ""}
-    ${comment(message)}
-    ${featuresBlock(message)}
-    ${optionsBlock(message.options)}
-    <h2 class="text-xl font-semibold mt-8 mb-3">Fields</h2>
-    ${fieldTable(fields, oneofs)}
-    ${symbolList("Nested messages", entriesById(message.nestedMessageIds))}
-    ${symbolList("Nested enums", entriesById(message.nestedEnumIds))}
-    ${symbolList("Extensions", entriesById(message.nestedExtensionIds))}
-    ${reserved(message.reservedNames, message.reservedRanges)}
-    ${examples(message)}
-    ${usedBy(message)}
-  `;
+  return messagePageHtml(message, related, index.wktNotes[message.fullName], pageContext());
 }
 
 function renderEnum(doc: DocEnum, related: Record<string, DocSymbol>): string {
-  const rows = idsOf<DocSymbol & { number: number }>(doc.valueIds, related)
-    .map(
-      (value) => `<tr id="${esc(value.anchor ?? "")}"><td class="font-mono">${esc(value.shortName)}</td><td>${value.number}</td><td>${commentCell(value)}</td></tr>`,
-    )
-    .join("");
-  return `
-    ${header(doc)}
-    ${comment(doc)}
-    ${featuresBlock(doc)}
-    ${optionsBlock(doc.options)}
-    <p class="text-sm text-[color:var(--fg-muted)] mt-2">${doc.open ? "Open" : "Closed"} enum${doc.allowAlias ? " · aliases allowed" : ""}</p>
-    <div class="table-wrap mt-6"><table><thead><tr><th>Name</th><th>Number</th><th>Description</th></tr></thead><tbody>${rows}</tbody></table></div>
-    ${usedBy(doc)}
-  `;
+  return enumPageHtml(doc, related, index.wktNotes[doc.fullName], pageContext());
 }
 
 function renderService(service: DocService, related: Record<string, DocSymbol>): string {
-  const rows = idsOf<DocMethod>(service.methodIds, related)
-    .map((method) => {
-      const http = method.options.find((option) => option.semantic?.rendererId === "google.api.http");
-      return `<tr><td><a href="${href(method.urlPath)}">${esc(method.shortName)}</a></td><td class="font-mono text-xs">${typeLink(method.input)} → ${typeLink(method.output)}</td><td>${esc(http?.semantic?.summary ?? method.streamingKind)}</td><td>${commentCell(method)}</td></tr>`;
-    })
-    .join("");
-  return `
-    ${header(service)}
-    ${comment(service)}
-    ${optionsBlock(service.options)}
-    <div class="table-wrap mt-6"><table><thead><tr><th>Method</th><th>Types</th><th>Mapping</th><th>Description</th></tr></thead><tbody>${rows}</tbody></table></div>
-    ${usedBy(service)}
-  `;
+  return servicePageHtml(service, related, pageContext());
 }
 
 function renderMethod(method: DocMethod, related: Record<string, DocSymbol>): string {
-  const service = byId.get(method.parentId);
-  const http = method.options.filter((option) => option.semantic?.rendererId === "google.api.http");
-  return `
-    ${header(method)}
-    ${service ? `<p class="mt-2 text-sm">Service <a href="${href(service.urlPath)}">${esc(service.fullName)}</a></p>` : ""}
-    <pre class="mt-4 overflow-x-auto rounded-lg bg-[color:var(--bg-muted)] p-4 text-sm"><code>${esc(method.signature)}</code></pre>
-    ${comment(method)}
-    <dl class="grid sm:grid-cols-2 gap-3 my-6">
-      <div class="rounded-xl border border-[color:var(--line)] p-4"><dt class="text-xs text-[color:var(--fg-muted)]">Request</dt><dd class="mt-1">${typeLink(method.input)}</dd></div>
-      <div class="rounded-xl border border-[color:var(--line)] p-4"><dt class="text-xs text-[color:var(--fg-muted)]">Response</dt><dd class="mt-1">${typeLink(method.output)}</dd></div>
-    </dl>
-    ${http.map((option) => `<p class="mb-2"><span class="rounded bg-[color:var(--bg-muted)] px-2 py-1 font-mono text-sm">${esc(option.semantic?.summary ?? "")}</span></p>`).join("")}
-    ${optionsBlock(method.options)}
-    ${messageFields("Request fields", method.input, related)}
-    ${messageFields("Response fields", method.output, related)}
-    ${usedBy(method)}
-  `;
+  return methodPageHtml(method, related, pageContext());
 }
 
 function renderExtension(ext: DocExtension): string {
-  return `
-    ${header(ext)}
-    ${comment(ext)}
-    ${optionsBlock(ext.options)}
-    <pre class="mt-4 overflow-x-auto rounded-lg bg-[color:var(--bg-muted)] p-4 text-sm"><code>${esc(ext.declaration)}</code></pre>
-    <p class="mt-4">Extends ${typeLink(ext.extendee)} · type ${typeLink(ext.type)} · number ${ext.number}</p>
-    ${ext.optionTarget ? `<p class="mt-2 text-sm text-[color:var(--fg-muted)]">Custom option on ${esc(ext.optionTarget)} declarations.</p>` : ""}
-    ${usedBy(ext)}
-  `;
+  return extensionPageHtml(ext, pageContext());
 }
 
 function sourceFiles() {
@@ -266,243 +206,57 @@ function renderSourceIndex(): string {
   return sourceIndexHtml(sourceFiles(), href);
 }
 
-function renderSearchPage(): string {
-  return `<h1 class="text-3xl font-semibold">Search</h1><p class="mt-3 text-[color:var(--fg-muted)]">Use the search box in the header. It matches symbol names${fullText ? " and comment text" : ""}.</p>`;
-}
+let exploreIncoming = new Map<string, SymbolReference[]>();
+let searchKind = "all";
 
 async function renderExplore(): Promise<string> {
   const refs = await loader.references();
-  const counts = new Map<string, number>();
-  for (const ref of refs) counts.set(ref.toId, (counts.get(ref.toId) ?? 0) + 1);
-  const rows = index.symbolIndex
-    .filter((entry) => !entry.urlPath.includes("#") && (counts.get(entry.id) ?? 0) > 0)
-    .sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || a.fullName.localeCompare(b.fullName));
-  const item = (entry: SymbolIndexEntry) =>
-    `<li><a href="${href(entry.urlPath)}">${esc(entry.fullName)}</a> <span class="text-[color:var(--fg-muted)]">${counts.get(entry.id)}</span></li>`;
-  const head = rows.slice(0, 100).map(item).join("");
-  const rest = rows.slice(100);
-  const more = rest.length
-    ? `<details class="mt-3"><summary>Show ${rest.length} more</summary><ul class="space-y-1 mt-2">${rest.map(item).join("")}</ul></details>`
-    : "";
-  return `<h1 class="text-3xl font-semibold mb-4">Used by</h1><ul class="space-y-1">${head || "<li>No incoming references.</li>"}</ul>${more}`;
+  exploreIncoming = new Map();
+  for (const ref of refs) {
+    const list = exploreIncoming.get(ref.toId) ?? [];
+    list.push(ref);
+    exploreIncoming.set(ref.toId, list);
+  }
+  const pages = index.symbolIndex.filter((entry) => entry.shard);
+  const files = index.files
+    .filter((file) => file.generatePage)
+    .map((file) => ({ id: file.id, name: file.fullName, fullName: file.fullName, urlPath: file.urlPath, kind: "file" }));
+  return explorePageHtml([...pages, ...files]);
 }
 
 async function renderGraph(): Promise<string> {
   const graph = await loader.graph();
-  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
-  const linkFor = (id: string) => {
-    const node = nodes.get(id);
-    if (!node) return esc(id);
-    if (node.generatePage && node.urlPath) return `<a href="${href(node.urlPath)}">${esc(node.fullName)}</a>`;
-    return esc(node.fullName);
-  };
-  const list = (edges: GraphEdge[], end: "to" | "from") => {
-    if (!edges.length) return `<p class="text-sm text-[color:var(--fg-muted)]">None</p>`;
-    return `<ul class="space-y-1">${edges
-      .map((edge) => {
-        const id = end === "to" ? edge.to : edge.from;
-        const pub = edge.public ? ` <span class="text-xs text-[color:var(--fg-muted)]">public</span>` : "";
-        return `<li>${linkFor(id)}${pub}</li>`;
-      })
-      .join("")}</ul>`;
-  };
-  const blocks = graph.nodes
-    .filter((node) => node.generatePage)
-    .map((node) => {
-      const imports = graph.edges.filter((edge) => edge.from === node.id);
-      const imported = graph.edges.filter((edge) => edge.to === node.id);
-      const title = node.urlPath ? `<a href="${href(node.urlPath)}">${esc(node.fullName)}</a>` : esc(node.fullName);
-      return `<section class="mb-8"><h2 class="text-xl font-semibold">${title}</h2><h3 class="text-sm font-semibold mt-3 mb-1">Imports</h3>${list(imports, "to")}<h3 class="text-sm font-semibold mt-3 mb-1">Imported by</h3>${list(imported, "from")}</section>`;
-    })
-    .join("");
-  return `<h1 class="text-3xl font-semibold mb-6">Package graph</h1>${blocks || `<p class="text-[color:var(--fg-muted)]">No packages.</p>`}`;
+  return graphPageHtml(graph.nodes, graph.edges, href);
 }
 
 async function renderDiff(): Promise<string> {
-  if (!index.hasDiff) return `<h1 class="text-3xl font-semibold">No schema diff</h1><p class="mt-3">Build again with <code>--against</code> to compare two descriptor sets.</p>`;
-  const diff = await loader.diff();
-  const list = (title: string, items: { fullName: string; kind: string; details: string[] }[]) =>
-    `<h2 class="text-xl font-semibold mt-6 mb-2">${title} (${items.length})</h2><ul class="space-y-2">${items
-      .map((item) => `<li><span class="font-mono">${esc(item.kind)}</span> ${esc(item.fullName)}<div class="text-sm text-[color:var(--fg-muted)]">${item.details.map(esc).join("<br>")}</div></li>`)
-      .join("")}</ul>`;
-  return `<h1 class="text-3xl font-semibold">Schema diff</h1><p class="mt-2 text-[color:var(--fg-muted)]">Against ${esc(diff.againstLabel)}</p>${list("Added", diff.added)}${list("Removed", diff.removed)}${list("Modified", diff.modified)}`;
+  if (!index.hasDiff) return diffPageHtml(undefined);
+  return diffPageHtml(await loader.diff());
 }
 
-function fieldTable(fields: DocField[], oneofs: DocOneof[]): string {
-  const entries = fieldTableEntries(fields, oneofs);
-  const rows = entries.map((entry) => fieldRow(entry)).join("");
-  return `<div class="table-wrap"><table class="fields schema-fields"><thead><tr><th>Field</th><th>Number</th><th>Type</th><th>Cardinality</th><th>Validation</th><th>Description</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-}
-
-function fieldRow(entry: FieldTableEntry): string {
-  if (entry.kind === "oneof") {
-    const chips = validationChips(entry.oneof.options);
-    const head = `<tr id="${esc(entry.oneof.anchor ?? "")}" class="oneof"><td class="font-mono">${esc(entry.oneof.shortName)}<div class="text-[11px] text-[color:var(--fg-muted)]">oneof</div></td><td>—</td><td>oneof</td><td>${chips.includes("required") ? "required" : "optional"}</td><td>${chipsHtml(chips)}</td><td>${commentCell(entry.oneof)}</td></tr>`;
-    return head + entry.members.map((field) => fieldCells(field, true)).join("");
-  }
-  return fieldCells(entry.field, false);
-}
-
-function fieldCells(field: DocField, nested: boolean): string {
-  const type = field.cardinality === "map" ? `map&lt;${esc(field.mapKey?.name ?? "string")}, ${linkName(field.mapValue)}&gt;` : typeLink(field.type);
-  const badges = field.options.flatMap((option) =>
-    option.semantic && !isValidation(option.semantic.rendererId) ? option.semantic.badges ?? [] : [],
-  );
-  return `<tr id="${esc(field.anchor ?? "")}"><td class="${nested ? "pl-6" : ""} font-mono">${esc(field.shortName)}${field.deprecated ? ` <span class="text-xs">deprecated</span>` : ""}${badges.length ? `<div>${chipsHtml(badges)}</div>` : ""}</td><td>${field.number}</td><td class="font-mono text-xs">${type}</td><td>${esc(field.cardinality)}</td><td>${chipsHtml(validationChips(field.options))}</td><td>${commentCell(field)}${fieldDetails(field)}</td></tr>`;
-}
-
-function fieldDetails(field: DocField): string {
-  const packed = field.packed == null ? "" : `<div><span class="text-[color:var(--fg-muted)]">Packed</span> ${field.packed ? "true" : "false"}</div>`;
-  const fallback = field.defaultValue ? `<div><span class="text-[color:var(--fg-muted)]">Default</span> <span class="font-mono">${esc(field.defaultValue)}</span></div>` : "";
-  const raw = field.options.map((option) => option.textProto).filter(Boolean);
-  const options = raw.length ? `<div><span class="text-[color:var(--fg-muted)]">Options</span> <span class="font-mono">${raw.map((text) => esc(text)).join("; ")}</span></div>` : "";
-  return `<details class="mt-1"><summary class="cursor-pointer text-xs">Details</summary><div class="text-xs space-y-1 mt-1"><div><span class="text-[color:var(--fg-muted)]">JSON name</span> <span class="font-mono">${esc(field.jsonName)}</span></div><div><span class="text-[color:var(--fg-muted)]">Presence</span> ${esc(field.presence)}</div>${packed}${fallback}${options}</div></details>`;
-}
-
-function messageFields(title: string, ref: TypeRef, related: Record<string, DocSymbol>): string {
-  const message = ref.id ? (related[ref.id] as DocMessage | undefined) : undefined;
-  if (!message || message.kind !== "message") return "";
-  const fields = idsOf<DocField>(message.fieldIds, related);
-  const oneofs = idsOf<DocOneof>(message.oneofIds, related);
-  return `<h2 class="text-xl font-semibold mt-8 mb-3">${esc(title)}</h2>${fieldTable(fields, oneofs)}`;
-}
-
-function header(symbol: DocSymbol): string {
-  const source = symbol.sourceLink ? `<a href="${esc(hrefFor(symbol.sourceLink.url))}">View source</a>` : "";
-  const repo = symbol.repositoryLink ? `<a href="${esc(symbol.repositoryLink.url)}">${repositoryLinkLabel(symbol.repositoryLink.url)}</a>` : "";
-  return `${crumb(symbol.fullName)}<p class="text-xs uppercase tracking-wider text-[color:var(--accent)] mt-2">${esc(symbol.kind)}</p><h1 class="text-3xl font-semibold mt-1">${esc(symbol.shortName)}</h1><p class="font-mono text-sm text-[color:var(--fg-muted)] mt-1">${esc(symbol.fullName)}</p><p class="mt-3 flex gap-4 text-sm">${source}${repo}</p>`;
-}
-
-function comment(symbol: DocSymbol): string {
-  const html = symbol.comments?.markdownHtml;
-  if (!html) return "";
-  return `<div class="prose-doc mt-4">${html}</div>`;
-}
-
-function commentCell(symbol: DocSymbol): string {
-  return symbol.comments?.markdownHtml ?? "";
-}
-
-function featuresBlock(symbol: DocSymbol): string {
-  const features = symbol.features ?? [];
-  if (!features.length) return "";
-  const rows = features
-    .map((feature) => {
-      const from = feature.inheritedFrom ? ` (${esc(feature.inheritedFrom)})` : "";
-      return `<tr><td class="font-mono text-xs">${esc(feature.name)}</td><td class="font-mono text-xs">${esc(feature.effective)}</td><td>${esc(feature.source)}${from}</td><td class="font-mono text-xs">${esc(feature.declared ?? "")}</td></tr>`;
-    })
-    .join("");
-  return `<h2 class="text-xl font-semibold mt-8 mb-3">Features</h2><div class="table-wrap"><table><thead><tr><th>Feature</th><th>Effective</th><th>Source</th><th>Declared</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-}
-
-function optionsBlock(options: DocOption[] | undefined): string {
-  const list = options ?? [];
-  if (!list.length) return "";
-  const rows = list
-    .map((option) => {
-      const title = option.semantic?.title ?? option.fullName;
-      const summary = option.semantic?.summary ?? option.textProto;
-      const def = option.definitionId ? byId.get(option.definitionId) : undefined;
-      const link = def ? ` <a href="${href(def.urlPath)}">definition</a>` : "";
-      return `<li><span class="font-medium">${esc(title)}</span> ${esc(summary)}${link}</li>`;
-    })
-    .join("");
-  return `<h2 class="text-xl font-semibold mt-8 mb-3">Options</h2><ul class="space-y-1">${rows}</ul>`;
-}
-
-function examples(message: DocMessage): string {
-  if (message.exampleJson == null && !message.exampleTextProto) return "";
-  const json = message.exampleJson != null ? JSON.stringify(message.exampleJson, null, 2) : "";
-  return `<h2 class="text-xl font-semibold mt-8 mb-3">Example</h2>${json ? `<pre class="overflow-x-auto rounded-lg bg-[color:var(--bg-muted)] p-4 text-sm"><code>${esc(json)}</code></pre>` : ""}${message.exampleTextProto ? `<pre class="mt-3 overflow-x-auto rounded-lg bg-[color:var(--bg-muted)] p-4 text-sm"><code>${esc(message.exampleTextProto)}</code></pre>` : ""}`;
-}
-
-function usedBy(symbol: DocSymbol): string {
-  const refs = symbol.referencedBy ?? [];
-  if (!refs.length) return "";
-  const item = (ref: SymbolReference) => {
-    const from = byId.get(ref.fromId);
-    const label = from ? esc(from.fullName) : esc(ref.fromId);
-    const link = from?.urlPath ? `<a href="${href(from.urlPath)}">${label}</a>` : label;
-    return `<li>${link} <span class="text-[color:var(--fg-muted)]">${esc(ref.kind)}</span></li>`;
-  };
-  const head = refs.slice(0, 100).map(item).join("");
-  const rest = refs.slice(100);
-  const more = rest.length
-    ? `<details class="mt-2"><summary>Show ${rest.length} more</summary><ul class="space-y-1 mt-2">${rest.map(item).join("")}</ul></details>`
-    : "";
-  return `<h2 class="text-xl font-semibold mt-8 mb-3">Used by</h2><ul class="space-y-1">${head}</ul>${more}`;
-}
-
-function symbolList(title: string, entries: SymbolIndexEntry[]): string {
-  if (!entries.length) return "";
-  return `<h2 class="text-xl font-semibold mt-8 mb-3">${esc(title)}</h2><ul class="space-y-1">${entries
-    .map((item) => `<li><a href="${href(item.urlPath)}">${esc(item.name)}</a> <span class="text-[color:var(--fg-muted)] font-mono text-xs">${esc(item.fullName)}</span></li>`)
-    .join("")}</ul>`;
-}
-
-function packageEntries(pkg: DocPackage, kind: string, topLevel: boolean): SymbolIndexEntry[] {
-  const names = new Set([pkg.fullName, pkg.packageName]);
-  if (pkg.fullName === "(unnamed)" || pkg.packageName === "(unnamed)") names.add("");
-  return index.symbolIndex.filter((entry) => {
-    if (!names.has(entry.package) || entry.kind !== kind) return false;
-    if (!topLevel) return true;
-    const rest = entry.package ? entry.fullName.slice(entry.package.length + 1) : entry.fullName;
-    return !rest.includes(".");
+function bindPage(path: string) {
+  if (path !== "/explore/") return;
+  const select = document.getElementById("symbol-select") as HTMLSelectElement | null;
+  const out = document.getElementById("explorer-out");
+  const names = Object.fromEntries(index.symbolIndex.map((entry) => [entry.id, entry.fullName]));
+  const hrefs = Object.fromEntries(index.symbolIndex.map((entry) => [entry.id, entry.urlPath ? href(entry.urlPath) : ""]));
+  select?.addEventListener("change", () => {
+    if (!out || !select) return;
+    const item = index.symbolIndex.find((entry) => entry.id === select.value);
+    if (!item) {
+      out.innerHTML = "";
+      return;
+    }
+    out.innerHTML = incomingReferencesHtml(item.fullName, exploreIncoming.get(item.id) ?? [], names, hrefs, "");
   });
 }
 
-function entriesById(ids: string[] | undefined): SymbolIndexEntry[] {
-  return (ids ?? []).map((id) => byId.get(id)).filter((entry): entry is SymbolIndexEntry => Boolean(entry));
-}
-
-function reserved(names: string[] | undefined, ranges: { start: number; end: number }[] | undefined): string {
-  const nameList = names ?? [];
-  const rangeList = ranges ?? [];
-  if (!nameList.length && !rangeList.length) return "";
-  return `<p class="mt-4 text-sm text-[color:var(--fg-muted)]">Reserved ${esc([...nameList, ...rangeList.map((range) => `${range.start} to ${range.end}`)].join(", "))}</p>`;
-}
-
-function typeLink(ref: TypeRef | undefined): string {
-  if (!ref) return "";
-  if (ref.externalUrl) return `<a href="${esc(ref.externalUrl)}">${esc(ref.name)}</a>`;
-  if (ref.urlPath) return `<a href="${href(ref.urlPath)}">${esc(ref.name)}</a>`;
-  return esc(ref.name);
-}
-
-function linkName(ref: TypeRef | undefined): string {
-  return ref ? typeLink(ref) : "string";
-}
-
-function validationChips(options: DocOption[] | undefined): string[] {
-  const chips: string[] = [];
-  for (const option of options ?? []) {
-    const semantic = option.semantic;
-    if (!isValidation(semantic?.rendererId)) continue;
-    chips.push(...(semantic?.badges ?? (semantic?.summary ? [semantic.summary] : [])));
-  }
-  return chips;
-}
-
-function isValidation(id: string | undefined): boolean {
-  return id === "validation" || id === "cybozu.validate";
-}
-
-function chipsHtml(chips: string[]): string {
-  return chips.map((chip) => `<span class="inline-block rounded bg-[color:var(--bg-muted)] px-1.5 py-0.5 text-xs mr-1">${esc(chip)}</span>`).join("");
-}
-
-function idsOf<T>(list: string[] | undefined, related: Record<string, DocSymbol>): T[] {
-  return (list ?? []).map((id) => related[id] as T | undefined).filter((item): item is T => Boolean(item));
-}
-
-function crumb(fullName: string): string {
-  return `<p class="text-sm text-[color:var(--fg-muted)]"><a href="${href("/")}">Home</a> / ${esc(fullName)}</p>`;
-}
-
 function pageTitle(path: string): string {
-  if (path === "/") return index.title;
-  const symbol = index.symbolIndex.find((item) => item.urlPath === path);
-  return symbol ? `${symbol.name} · ${index.title}` : index.title;
+  const pages = [
+    ...index.symbolIndex.map((item) => ({ urlPath: item.urlPath, fullName: item.fullName })),
+    ...index.files.map((file) => ({ urlPath: file.urlPath, fullName: file.fullName })),
+  ];
+  return documentTitle(path, index.title, pages);
 }
 
 function installShell() {
@@ -516,11 +270,10 @@ function installShell() {
           ${wkt.length ? `<div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Protobuf standard library</div><ul class="space-y-1">${wkt.map((pkg) => `<li><a class="block rounded-md px-2 py-1 no-underline text-[color:var(--fg)]" href="${href(pkg.urlPath)}">${esc(pkg.fullName)}</a></li>`).join("")}</ul></div>` : ""}
           <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Explore</div>
             <ul class="space-y-1">
-              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)]" href="${href("/explore/")}">Used-by explorer</a></li>
-              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)]" href="${href("/graph/")}">Package graph</a></li>
-              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)]" href="${href("/search/")}">Search</a></li>
-              ${index.hasSource ? `<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)]" href="${href("/source/")}">Source</a></li>` : ""}
-              ${index.hasDiff ? `<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)]" href="${href("/diff/")}">Schema diff</a></li>` : ""}
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="${href("/explore/")}">Used-by explorer</a></li>
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="${href("/graph/")}">Package graph</a></li>
+              ${index.hasSource ? `<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="${href("/source/")}">Source</a></li>` : ""}
+              ${index.hasDiff ? `<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="${href("/diff/")}">Schema diff</a></li>` : ""}
             </ul>
           </div>
         </nav>
@@ -529,11 +282,11 @@ function installShell() {
         <header class="sticky top-0 z-20 border-b border-[color:var(--line)] bg-[color:var(--bg)]/90 backdrop-blur">
           <div class="flex items-center gap-3 px-4 py-3">
             <button id="menu-btn" class="lg:hidden rounded-md border border-[color:var(--line)] px-2 py-1 text-sm" type="button">Menu</button>
-            <button id="search-open" class="flex-1 text-left rounded-md border border-[color:var(--line)] bg-[color:var(--bg-raised)] px-3 py-2 text-sm text-[color:var(--fg-muted)]" type="button">Search symbols and comments… <kbd class="hidden sm:inline float-right text-[11px] border border-[color:var(--line)] rounded px-1">/</kbd></button>
-            <div class="relative">
-              <button id="theme-menu-button" class="rounded-md border border-[color:var(--line)] px-2 py-1 text-sm" type="button" aria-haspopup="menu" aria-expanded="false">Theme</button>
-              <div id="theme-menu" class="absolute right-0 z-30 mt-1 min-w-44 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-raised)] py-1 text-sm shadow-[var(--shadow)]" role="menu" hidden>
-                ${THEME_CHOICES.map((choice) => `<button class="block w-full px-3 py-1.5 text-left hover:bg-[color:var(--bg-muted)]" type="button" data-theme-choice="${choice.value}">${choice.label}</button>`).join("")}
+            <button id="search-open" class="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[color:var(--line)] px-2 py-1 text-sm text-[color:var(--fg)]" type="button" aria-haspopup="dialog" aria-controls="search-dialog">Search <kbd class="hidden sm:inline rounded border border-[color:var(--line)] px-1 text-[11px] text-[color:var(--fg-muted)]">/</kbd></button>
+            <div class="relative shrink-0">
+              <button id="theme-menu-button" class="rounded-md border border-[color:var(--line)] px-2 py-1 text-sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="theme-menu">Theme</button>
+              <div id="theme-menu" class="absolute right-0 z-30 mt-1 min-w-44 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-raised)] py-1 text-sm shadow-[var(--shadow)]" role="menu" aria-label="Theme" hidden>
+                ${THEME_CHOICES.map((choice) => `<button class="grid w-full grid-cols-[1rem_1fr] items-center gap-2 px-3 py-1.5 text-left whitespace-nowrap text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] aria-checked:bg-[color:var(--bg-muted)]" type="button" role="menuitemradio" data-theme-choice="${choice.value}" aria-checked="false"><span class="theme-mark text-[color:var(--accent)]" aria-hidden="true"></span>${choice.label}</button>`).join("")}
               </div>
             </div>
           </div>
@@ -542,48 +295,116 @@ function installShell() {
       </div>
     </div>
     <div id="mobile-nav" class="hidden fixed inset-0 z-30 bg-black/50 lg:hidden"><div id="mobile-panel" class="h-full w-72 bg-[color:var(--bg-raised)] p-4 overflow-y-auto"></div></div>
-    <dialog id="search-dialog" class="w-[min(720px,92vw)] rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-0 text-[color:var(--fg)]">
-      <div class="p-3 border-b border-[color:var(--line)]"><input id="search-input" class="w-full bg-transparent outline-none text-base" placeholder="Search symbols, comments, options…" /></div>
-      <div id="search-results" class="max-h-[60vh] overflow-y-auto p-2 text-sm"></div>
+    <dialog id="search-dialog" class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-0 text-[color:var(--fg)] shadow-[var(--shadow)]" aria-label="Search">
+      <div class="flex shrink-0 items-start gap-3 border-b border-[color:var(--line)] p-3">
+        <form id="search-form" class="min-w-0 flex-1" role="search" autocomplete="off">
+          <input id="search-input" class="w-full bg-transparent outline-none text-base" type="search" name="protobuf-symbol-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Search symbols and comments" placeholder="Search symbols and comments…" />
+          <div id="search-filters" class="flex flex-wrap gap-1 mt-2 text-xs"></div>
+        </form>
+        <button id="search-close" class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-muted)] px-2 py-1 text-xs text-[color:var(--fg)]" type="button" aria-label="Close search">Close <kbd class="rounded border border-[color:var(--line)] bg-[color:var(--bg-raised)] px-1 text-[11px] text-[color:var(--fg-muted)]">Esc</kbd></button>
+      </div>
+      <div id="search-results" class="p-2 text-sm"></div>
     </dialog>
     ${siteUrl ? `<link rel="canonical" href="${esc(siteUrl)}" />` : ""}
   `;
   document.getElementById("menu-btn")?.addEventListener("click", () => {
     const panel = document.getElementById("mobile-panel");
     const nav = document.getElementById("side-nav");
-    if (panel && nav) panel.innerHTML = nav.innerHTML;
+    if (panel) {
+      panel.innerHTML = `<button id="menu-close" class="mb-4 text-sm" type="button">Close</button><a href="${href("/")}" class="block font-semibold mb-4 no-underline text-[color:var(--fg)]">${esc(index.title)}</a>${nav?.innerHTML ?? ""}`;
+      document.getElementById("menu-close")?.addEventListener("click", () => document.getElementById("mobile-nav")?.classList.add("hidden"));
+    }
     document.getElementById("mobile-nav")?.classList.remove("hidden");
   });
   document.getElementById("mobile-nav")?.addEventListener("click", (event) => {
-    if ((event.target as HTMLElement).id === "mobile-nav") document.getElementById("mobile-nav")?.classList.add("hidden");
+    const target = event.target as HTMLElement;
+    if (target.id === "mobile-nav" || target.closest("a")) document.getElementById("mobile-nav")?.classList.add("hidden");
   });
   const themeButton = document.getElementById("theme-menu-button");
   const themeMenu = document.getElementById("theme-menu");
-  themeButton?.addEventListener("click", () => {
-    if (!themeMenu) return;
-    themeMenu.hidden = !themeMenu.hidden;
+  const desktopTheme = window.matchMedia("(prefers-color-scheme: dark)");
+  const themeItems = () => [...(themeMenu?.querySelectorAll<HTMLButtonElement>("[data-theme-choice]") ?? [])];
+  function setThemeMenuOpen(open: boolean) {
+    if (!themeMenu || !themeButton) return;
+    themeMenu.hidden = !open;
+    themeButton.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) themeItems().find((item) => item.getAttribute("aria-checked") === "true")?.focus();
+  }
+  desktopTheme.addEventListener("change", () => {
+    if (themeChoice(localStorage.getItem(THEME_STORAGE_KEY)) !== "system") return;
+    applyTheme();
   });
+  themeButton?.addEventListener("click", () => setThemeMenuOpen(themeMenu?.hidden !== false));
   themeMenu?.addEventListener("click", (event) => {
-    const choice = (event.target as HTMLElement).closest("[data-theme-choice]")?.getAttribute("data-theme-choice");
-    if (!choice) return;
-    const stored = themeStorageValue(choice);
-    if (stored) localStorage.setItem(THEME_STORAGE_KEY, stored);
+    const item = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-theme-choice]");
+    if (!item?.dataset.themeChoice) return;
+    const value = themeStorageValue(item.dataset.themeChoice);
+    if (value) localStorage.setItem(THEME_STORAGE_KEY, value);
     else localStorage.removeItem(THEME_STORAGE_KEY);
     applyTheme();
-    if (themeMenu) themeMenu.hidden = true;
+    setThemeMenuOpen(false);
+    themeButton?.focus();
+  });
+  themeMenu?.addEventListener("keydown", (event) => {
+    const items = themeItems();
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const next = event.key === "ArrowDown" ? current + 1 : current - 1;
+      items[(next + items.length) % items.length]?.focus();
+    }
+  });
+  document.addEventListener("click", (event) => {
+    if (!themeMenu || themeMenu.hidden) return;
+    const target = event.target as Node;
+    if (themeMenu.contains(target) || themeButton?.contains(target)) return;
+    setThemeMenuOpen(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && themeMenu && !themeMenu.hidden) {
+      setThemeMenuOpen(false);
+      themeButton?.focus();
+    }
   });
   applyTheme();
   const dialog = document.querySelector<HTMLDialogElement>("#search-dialog");
   const input = document.querySelector<HTMLInputElement>("#search-input");
-  document.getElementById("search-open")?.addEventListener("click", () => {
+  const filters = document.getElementById("search-filters");
+  const kinds = ["all", "service", "method", "message", "field", "enum", "extension", "package"];
+  for (const kind of kinds) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = kind;
+    button.className = "rounded-full border border-[color:var(--line)] px-2 py-0.5 capitalize";
+    button.dataset.kind = kind;
+    button.addEventListener("click", () => {
+      searchKind = kind;
+      filters?.querySelectorAll("button").forEach((child) => child.classList.toggle("bg-[color:var(--bg-muted)]", child.dataset.kind === kind));
+      void renderHits(input?.value ?? "");
+    });
+    filters?.append(button);
+  }
+  filters?.querySelector("button")?.classList.add("bg-[color:var(--bg-muted)]");
+  function openSearch() {
+    setThemeMenuOpen(false);
     dialog?.showModal();
     input?.focus();
+    void renderHits(input?.value ?? "");
+  }
+  document.getElementById("search-form")?.addEventListener("submit", (event) => event.preventDefault());
+  document.getElementById("search-open")?.addEventListener("click", openSearch);
+  document.getElementById("search-close")?.addEventListener("click", () => dialog?.close());
+  dialog?.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "/" && document.activeElement?.tagName !== "INPUT") {
+    if (event.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
       event.preventDefault();
-      dialog?.showModal();
-      input?.focus();
+      openSearch();
+    }
+    if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      openSearch();
     }
   });
   input?.addEventListener("input", () => {
@@ -606,15 +427,19 @@ async function renderHits(query: string) {
   const box = document.getElementById("search-results");
   if (!box) return;
   const q = query.trim();
+  const kind = searchKind;
   if (!q) {
-    box.innerHTML = "";
+    box.innerHTML = `<p class="p-3 text-[color:var(--fg-muted)]">Type a protobuf name, or search comments.</p>`;
     return;
   }
-  const hits: { entry: SymbolIndexEntry; score: number }[] = [];
+  const allowed = (entry: SymbolIndexEntry) => kind === "all" || entry.kind === kind;
+  const hits: { entry: SymbolIndexEntry; score: number; text: boolean }[] = [];
   for (const entry of index.symbolIndex) {
+    if (!allowed(entry)) continue;
     const score = rankSymbol(entry, q);
-    if (score) hits.push({ entry, score });
+    if (score) hits.push({ entry, score, text: false });
   }
+  const textHits: SymbolIndexEntry[] = [];
   if (fullText) {
     const comments = await loader.comments();
     const lower = q.toLowerCase();
@@ -622,18 +447,28 @@ async function renderHits(query: string) {
       if (!text.toLowerCase().includes(lower)) continue;
       if (hits.some((hit) => hit.entry.id === id)) continue;
       const entry = byId.get(id);
-      if (!entry) continue;
-      hits.push({ entry, score: 15 });
+      if (!entry || !allowed(entry)) continue;
+      textHits.push(entry);
     }
   }
   hits.sort((a, b) => b.score - a.score || a.entry.fullName.localeCompare(b.entry.fullName));
-  box.innerHTML = hits
-    .slice(0, 50)
+  const symbolHtml = hits
+    .slice(0, 20)
     .map(
       (hit) =>
-        `<a class="block rounded-md px-2 py-2 no-underline hover:bg-[color:var(--bg-muted)]" href="${href(hit.entry.urlPath)}"><div class="text-xs text-[color:var(--fg-muted)]">${esc(hit.entry.kind)}</div><div>${esc(hit.entry.fullName)}</div></a>`,
+        `<a class="block rounded-md px-3 py-2 hover:bg-[color:var(--bg-muted)] no-underline text-[color:var(--fg)]" href="${href(hit.entry.urlPath)}">${symbolHitHtml(hit.entry.kind, hit.entry.fullName)}</a>`,
     )
-    .join("") || `<p class="p-3 text-[color:var(--fg-muted)]">No matches.</p>`;
+    .join("");
+  const textHtml = textHits.length
+    ? `<div class="px-3 pt-3 text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)]">Full-text</div>${textHits
+        .slice(0, 8)
+        .map(
+          (entry) =>
+            `<a class="block rounded-md px-3 py-2 hover:bg-[color:var(--bg-muted)] no-underline text-[color:var(--fg)]" href="${href(entry.urlPath)}">${symbolHitHtml(entry.kind, entry.fullName)}</a>`,
+        )
+        .join("")}`
+    : "";
+  box.innerHTML = symbolHtml || textHtml ? `${symbolHtml || `<p class="p-3">No symbol matches.</p>`}${textHtml}` : `<p class="p-3">No symbol matches.</p>`;
 }
 
 function refreshPackageTree() {

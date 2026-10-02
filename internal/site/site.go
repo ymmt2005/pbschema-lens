@@ -71,6 +71,13 @@ func Write(outDir string, schema *model.SchemaModel, opts Options) error {
 	if err != nil {
 		return err
 	}
+	if err := writeShells(out, shell, schema); err != nil {
+		return err
+	}
+	return writeArtifacts(out, schema, opts)
+}
+
+func writeShells(out string, shell []byte, schema *model.SchemaModel) error {
 	for _, route := range routes(schema) {
 		if route == "/" {
 			continue
@@ -80,7 +87,7 @@ func Write(outDir string, schema *model.SchemaModel, opts Options) error {
 			return err
 		}
 	}
-	return writeArtifacts(out, schema, opts)
+	return writeFile(out, "404.html", shell)
 }
 
 func writeArtifacts(out string, schema *model.SchemaModel, opts Options) error {
@@ -191,7 +198,7 @@ func referencesOf(symbol any) []model.SymbolReference {
 }
 
 func routes(schema *model.SchemaModel) []string {
-	seen := map[string]struct{}{"/": {}, "/search/": {}, "/explore/": {}, "/graph/": {}}
+	seen := map[string]struct{}{"/": {}, "/explore/": {}, "/graph/": {}}
 	add := func(route string) {
 		if route == "" {
 			return
@@ -236,9 +243,7 @@ func routes(schema *model.SchemaModel) []string {
 	if source {
 		add("/source/")
 	}
-	if schema.Diff != nil {
-		add("/diff/")
-	}
+	add("/diff/")
 	out := make([]string, 0, len(seen))
 	for route := range seen {
 		out = append(out, route)

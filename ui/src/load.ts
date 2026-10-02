@@ -26,7 +26,7 @@ export interface FileCard {
 
 export interface SiteIndex {
   title: string;
-  buildInfo: { symbolCount: number; fileCount: number };
+  buildInfo: { symbolCount: number; fileCount: number; warnings?: string[] };
   packages: PackageCard[];
   files: FileCard[];
   symbolIndex: SymbolIndexEntry[];

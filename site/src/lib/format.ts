@@ -1,14 +1,7 @@
-import type { DocSymbol, ReferenceKind, SymbolKind, TypeRef } from "../../../src/core/types.ts";
+import type { DocSymbol, TypeRef } from "../../../src/core/types.ts";
 import { withBase } from "./data.ts";
 
-export function kindLabel(kind: SymbolKind): string {
-  switch (kind) {
-    case "enum-value":
-      return "enum value";
-    default:
-      return kind;
-  }
-}
+export { kindLabel, relationLabel } from "./labels.ts";
 
 export function typeHref(type: TypeRef | undefined): string | undefined {
   if (!type) {
@@ -52,31 +45,6 @@ export function linkedPath(
 export function linkedHref(symbol: DocSymbol, symbols: Record<string, DocSymbol>): string | undefined {
   const path = linkedPath(symbol, symbols);
   return path ? withBase(path) : undefined;
-}
-
-export function relationLabel(kind: ReferenceKind): string {
-  switch (kind) {
-    case "field-type":
-      return "Field type";
-    case "map-value-type":
-      return "Map value";
-    case "map-key-type":
-      return "Map key";
-    case "rpc-input":
-      return "RPC request";
-    case "rpc-output":
-      return "RPC response";
-    case "extension-target":
-      return "Extension target";
-    case "option-definition":
-      return "Option";
-    case "nested-type":
-      return "Nested type";
-    case "file-import":
-      return "Import";
-    default:
-      return "Reference";
-  }
 }
 
 export { highlightProto } from "./highlight.ts";

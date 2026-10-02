@@ -83,7 +83,7 @@ export interface ListOptionValue {
 
 export interface MapOptionValue {
   kind: "map";
-  entries: { key: string; value: OptionValue }[];
+  entries: { key: string; keyKind?: string; value: OptionValue }[];
 }
 
 export interface BytesOptionValue {

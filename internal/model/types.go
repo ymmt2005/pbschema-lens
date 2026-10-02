@@ -117,8 +117,9 @@ type OptionField struct {
 }
 
 type OptionMapEntry struct {
-	Key   string
-	Value OptionValue
+	Key     string
+	KeyKind string
+	Value   OptionValue
 }
 
 type EffectiveFeature struct {

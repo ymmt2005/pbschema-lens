@@ -156,6 +156,32 @@ func TestWriteModelSplitsPayloads(t *testing.T) {
 	}
 }
 
+func TestIndexKeepsPackagesWithoutPages(t *testing.T) {
+	hidden := &model.DocPackage{}
+	hidden.ID = "package:buf.validate"
+	hidden.Kind = "package"
+	hidden.FullName = "buf.validate"
+	hidden.Domain = "external-undocumented"
+	shown := &model.DocPackage{}
+	shown.ID = "package:acme"
+	shown.Kind = "package"
+	shown.FullName = "acme"
+	shown.GeneratePage = true
+	shown.InNav = true
+	shown.Domain = "local"
+	schema := &model.SchemaModel{
+		Packages:    []*model.DocPackage{hidden, shown},
+		Symbols:     map[string]any{},
+		SymbolIndex: []model.SymbolIndexEntry{},
+		WKTNotes:    map[string]string{},
+		BuildInfo:   model.BuildInfo{Warnings: []string{}, Timings: map[string]int{}},
+	}
+	index := buildIndex(schema)
+	if len(index.Packages) != 2 || index.Packages[0].FullName != "buf.validate" {
+		t.Fatalf("packages %+v", index.Packages)
+	}
+}
+
 func TestWriteModelSkipsCommentsWhenFullTextIsOff(t *testing.T) {
 	dir := t.TempDir()
 	schema := &model.SchemaModel{

@@ -38,22 +38,15 @@ func Build(files FileSource, options BuildOptions) (*SchemaModel, error) {
 		byFullName: map[string]string{},
 		packages:   map[string]*DocPackage{},
 		extTypes:   extensionTypes(files),
+		extOrder:   extensionOrder(files),
 	}
-	var names []string
+	var walkErr error
 	files.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
-		names = append(names, string(fd.Path()))
-		return true
+		walkErr = b.walkFile(fd)
+		return walkErr == nil
 	})
-	sort.Strings(names)
-	byPath := map[string]protoreflect.FileDescriptor{}
-	files.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
-		byPath[string(fd.Path())] = fd
-		return true
-	})
-	for _, name := range names {
-		if err := b.walkFile(byPath[name]); err != nil {
-			return nil, err
-		}
+	if walkErr != nil {
+		return nil, walkErr
 	}
 	return b.finish(), nil
 }
@@ -74,6 +67,7 @@ type builder struct {
 	exts       []*DocExtension
 	forward    []SymbolReference
 	extTypes   *protoregistry.Types
+	extOrder   map[string]int
 }
 
 func (b *builder) optionsOf(msg proto.Message, target string) []*DocOption {
@@ -81,7 +75,7 @@ func (b *builder) optionsOf(msg proto.Message, target string) []*DocOption {
 	if resolved == nil {
 		return []*DocOption{}
 	}
-	return extractOptions(resolved.ProtoReflect(), target)
+	return extractOptions(resolved.ProtoReflect(), target, b.extOrder)
 }
 
 func (b *builder) remember(symbol any, base *baseSymbol) {
@@ -785,7 +779,7 @@ func cardinalityOf(fd protoreflect.FieldDescriptor) string {
 		return "repeated"
 	case fd.Cardinality() == protoreflect.Required:
 		return "required"
-	case fd.HasOptionalKeyword() || fd.Syntax() == protoreflect.Proto2:
+	case fd.HasPresence():
 		return "optional"
 	default:
 		return "implicit"

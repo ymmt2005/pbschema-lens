@@ -312,6 +312,24 @@ func TestAcmeIncludeExclude(t *testing.T) {
 	if email == nil || email.URLPath != "/reference/messages/acme.user.v1.User/" {
 		t.Fatalf("email %+v", email)
 	}
+	var validation string
+	for _, option := range email.Options {
+		if option.FullName == "buf.validate.field" {
+			validation = option.TextProto
+		}
+	}
+	if validation != "(buf.validate.field) = {\n  string: {\n    email: true\n  }\n}" {
+		t.Fatalf("validation textproto %q", validation)
+	}
+	emailOrder := make([]string, 0, len(email.Options))
+	for _, option := range email.Options {
+		if option.Extension {
+			emailOrder = append(emailOrder, option.FullName)
+		}
+	}
+	if strings.Join(emailOrder, ",") != "acme.security.pii,buf.validate.field,google.api.field_behavior" {
+		t.Fatalf("option order %v", emailOrder)
+	}
 	if !hasSemantic(email.Options, "validation") || email.Options == nil {
 		t.Fatal("email validation")
 	}
@@ -332,8 +350,23 @@ func TestAcmeIncludeExclude(t *testing.T) {
 	if flag == nil || !hasSemantic(flag.Options, "cybozu.validate") {
 		t.Fatalf("cybozu %+v", flag)
 	}
-	if user := findMessage(model, "acme.user.v1.User"); user == nil || !user.GeneratePage {
+	user := findMessage(model, "acme.user.v1.User")
+	if user == nil || !user.GeneratePage {
 		t.Fatal("user page")
+	}
+	raw, ok := user.ExampleJSON.(json.RawMessage)
+	if !ok || !strings.HasPrefix(string(raw), `{"id":`) {
+		t.Fatalf("example json %T %s", user.ExampleJSON, user.ExampleJSON)
+	}
+	if feat := featureByNameMessage(user, "json_format"); feat == nil || feat.InheritedFrom != "acme/user/v1/user" {
+		t.Fatalf("json format inherited from %+v", feat)
+	}
+	if created := findField(model, "acme.user.v1.User.created_at"); created == nil || created.Cardinality != "optional" {
+		t.Fatalf("message field cardinality %+v", created)
+	}
+	state := findEnum(model, "acme.user.v1.UserState")
+	if feat := featureByNameEnum(state, "enum_type"); feat == nil || feat.InheritedFrom != "acme/user/v1/user" {
+		t.Fatalf("enum type inherited from %+v", feat)
 	}
 	ts := findMessage(model, "google.protobuf.Timestamp")
 	if ts == nil || ts.Domain != "well-known" || !ts.GeneratePage || !ts.InNav {
@@ -449,11 +482,31 @@ func filesFrom(t *testing.T, dir string) FileSource {
 	if err := proto.Unmarshal(out, &set); err != nil {
 		t.Fatal(err)
 	}
-	files, err := protodesc.NewFiles(&set)
+	reg, err := protodesc.NewFiles(&set)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return files
+	list := make([]protoreflect.FileDescriptor, 0, len(set.File))
+	for _, file := range set.File {
+		fd, err := reg.FindFileByPath(file.GetName())
+		if err != nil {
+			t.Fatal(err)
+		}
+		list = append(list, fd)
+	}
+	return descriptorOrder{list: list}
+}
+
+type descriptorOrder struct {
+	list []protoreflect.FileDescriptor
+}
+
+func (d descriptorOrder) RangeFiles(fn func(protoreflect.FileDescriptor) bool) {
+	for _, fd := range d.list {
+		if !fn(fd) {
+			return
+		}
+	}
 }
 
 func findBuf(t *testing.T) string {
