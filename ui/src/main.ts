@@ -10,7 +10,6 @@ import {
   messagePageHtml,
   methodPageHtml,
   packagePageHtml,
-  searchPageHtml,
   servicePageHtml,
   type PageContext,
 } from "../../site/src/lib/pages.ts";
@@ -82,7 +81,6 @@ async function navigate() {
 
 async function renderRoute(path: string): Promise<string> {
   if (path === "/") return renderHome();
-  if (path === "/search/") return renderSearchPage();
   if (path === "/explore/") return renderExplore();
   if (path === "/graph/") return renderGraph();
   if (path === "/diff/") return renderDiff();
@@ -206,10 +204,6 @@ function renderSourceIndex(): string {
   return sourceIndexHtml(sourceFiles(), href);
 }
 
-function renderSearchPage(): string {
-  return searchPageHtml(index.symbolIndex.length, index.packages.length);
-}
-
 let exploreIncoming = new Map<string, SymbolReference[]>();
 let searchKind = "all";
 
@@ -274,7 +268,6 @@ function installShell() {
             <ul class="space-y-1">
               <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="${href("/explore/")}">Used-by explorer</a></li>
               <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="${href("/graph/")}">Package graph</a></li>
-              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="${href("/search/")}">Search</a></li>
               ${index.hasSource ? `<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="${href("/source/")}">Source</a></li>` : ""}
               ${index.hasDiff ? `<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="${href("/diff/")}">Schema diff</a></li>` : ""}
             </ul>
@@ -285,7 +278,7 @@ function installShell() {
         <header class="sticky top-0 z-20 border-b border-[color:var(--line)] bg-[color:var(--bg)]/90 backdrop-blur">
           <div class="flex items-center gap-3 px-4 py-3">
             <button id="menu-btn" class="lg:hidden rounded-md border border-[color:var(--line)] px-2 py-1 text-sm" type="button">Menu</button>
-            <button id="search-open" class="flex-1 text-left rounded-md border border-[color:var(--line)] bg-[color:var(--bg-raised)] px-3 py-2 text-sm text-[color:var(--fg-muted)]" type="button">Search symbols and comments… <kbd class="hidden sm:inline float-right text-[11px] border border-[color:var(--line)] rounded px-1">/</kbd></button>
+            <button id="search-open" class="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[color:var(--line)] px-2 py-1 text-sm text-[color:var(--fg)]" type="button" aria-haspopup="dialog" aria-controls="search-dialog">Search <kbd class="hidden sm:inline rounded border border-[color:var(--line)] px-1 text-[11px] text-[color:var(--fg-muted)]">/</kbd></button>
             <div class="relative shrink-0">
               <button id="theme-menu-button" class="rounded-md border border-[color:var(--line)] px-2 py-1 text-sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="theme-menu">Theme</button>
               <div id="theme-menu" class="absolute right-0 z-30 mt-1 min-w-44 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-raised)] py-1 text-sm shadow-[var(--shadow)]" role="menu" aria-label="Theme" hidden>
@@ -300,7 +293,10 @@ function installShell() {
     <div id="mobile-nav" class="hidden fixed inset-0 z-30 bg-black/50 lg:hidden"><div id="mobile-panel" class="h-full w-72 bg-[color:var(--bg-raised)] p-4 overflow-y-auto"></div></div>
     <dialog id="search-dialog" class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-0 text-[color:var(--fg)] shadow-[var(--shadow)]" aria-label="Search">
       <div class="flex shrink-0 items-start gap-3 border-b border-[color:var(--line)] p-3">
-        <div class="min-w-0 flex-1"><input id="search-input" class="w-full bg-transparent outline-none text-base" placeholder="Search symbols, comments, options…" /><div id="search-filters" class="flex flex-wrap gap-1 mt-2 text-xs"></div></div>
+        <form id="search-form" class="min-w-0 flex-1" role="search" autocomplete="off">
+          <input id="search-input" class="w-full bg-transparent outline-none text-base" type="search" name="protobuf-symbol-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Search symbols and comments" placeholder="Search symbols, comments, options…" />
+          <div id="search-filters" class="flex flex-wrap gap-1 mt-2 text-xs"></div>
+        </form>
         <button id="search-close" class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-muted)] px-2 py-1 text-xs text-[color:var(--fg)]" type="button" aria-label="Close search">Close <kbd class="rounded border border-[color:var(--line)] bg-[color:var(--bg-raised)] px-1 text-[11px] text-[color:var(--fg-muted)]">Esc</kbd></button>
       </div>
       <div id="search-results" class="p-2 text-sm"></div>
@@ -343,6 +339,7 @@ function installShell() {
   const kinds = ["all", "service", "method", "message", "field", "enum", "extension", "package"];
   for (const kind of kinds) {
     const button = document.createElement("button");
+    button.type = "button";
     button.textContent = kind;
     button.className = "rounded-full border border-[color:var(--line)] px-2 py-0.5 capitalize";
     button.dataset.kind = kind;
@@ -359,6 +356,7 @@ function installShell() {
     input?.focus();
     void renderHits(input?.value ?? "");
   }
+  document.getElementById("search-form")?.addEventListener("submit", (event) => event.preventDefault());
   document.getElementById("search-open")?.addEventListener("click", openSearch);
   document.getElementById("search-close")?.addEventListener("click", () => dialog?.close());
   dialog?.addEventListener("click", (event) => {

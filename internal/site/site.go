@@ -191,7 +191,7 @@ func referencesOf(symbol any) []model.SymbolReference {
 }
 
 func routes(schema *model.SchemaModel) []string {
-	seen := map[string]struct{}{"/": {}, "/search/": {}, "/explore/": {}, "/graph/": {}}
+	seen := map[string]struct{}{"/": {}, "/explore/": {}, "/graph/": {}}
 	add := func(route string) {
 		if route == "" {
 			return

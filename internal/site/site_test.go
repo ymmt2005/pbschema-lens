@@ -7,7 +7,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ymmt2005/pbschema-lens/internal/model"
 )
+
+func TestRoutesHaveNoSearchPage(t *testing.T) {
+	for _, route := range routes(&model.SchemaModel{}) {
+		if route == "/search/" {
+			t.Fatal("search opens from the header on any page and has no page of its own")
+		}
+	}
+}
 
 func TestStampEscapesHTML(t *testing.T) {
 	raw := stamp([]byte(`<title>__TITLE__</title><html data-base="__DATA_BASE__" data-site-url="__SITE_URL__">`), "/", Options{

@@ -488,8 +488,9 @@ a.home-area-leaf:hover .home-area-name {
 }
 
 /* Tailwind's base reset sets margin: 0 on every element, which overrides the
-   browser rule that centers a modal dialog and pins showModal() to the top-left. */
-#search-dialog {
+   browser rule that centers a modal dialog and pins showModal() to the top-left.
+   Scope the layout to [open] so a closed dialog keeps the browser's display: none. */
+#search-dialog[open] {
   position: fixed;
   top: 12vh;
   right: auto;
@@ -516,6 +517,12 @@ html.dark #search-dialog::backdrop {
 #search-results {
   min-height: 0;
   overflow-y: auto;
+}
+
+#search-input::-webkit-search-cancel-button,
+#search-input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .validation-chip {

@@ -379,10 +379,6 @@ export function extensionPageHtml(extension: DocExtension, ctx: PageContext): st
   return `${symbolHeaderHtml(extension, ctx)}<dl class="grid sm:grid-cols-2 gap-3 text-sm mb-6">${card("Kind", esc(kind))}${card("Field number", String(extension.number), "font-mono")}${card("Extends", linkedType(extension.extendee, ctx.href))}${card("Type", linkedType(extension.type, ctx.href))}</dl><pre class="proto">${esc(extension.declaration)}</pre>${optionListHtml(extension.options, ctx.href)}${usedByHtml(extension, ctx)}`;
 }
 
-export function searchPageHtml(symbolCount: number, packageCount: number): string {
-  return `<h1 class="text-3xl font-semibold mb-3">Search</h1><p class="text-[color:var(--fg-muted)] mb-6">Symbol search ranks exact protobuf names first. Full-text search covers comments, option values, and semantic notes. Use <kbd class="border border-[color:var(--line)] rounded px-1">/</kbd> from any page.</p><p class="text-sm">This schema indexes ${symbolCount} symbols across ${packageCount} packages.</p>`;
-}
-
 export function explorePageHtml(entries: PageLink[]): string {
   const options = [...entries]
     .sort((a, b) => a.fullName.localeCompare(b.fullName) || a.kind.localeCompare(b.kind))
