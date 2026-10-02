@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="__BASE__" />
+    <title>__TITLE__</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f4ef;
+        --raised: #fff;
+        --ink: #1d1a16;
+        --muted: #5e584f;
+        --line: #e2dcd2;
+        --accent: #0f6e6e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: baseline;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--line);
+        background: var(--raised);
+      }
+      header a { color: inherit; font-weight: 650; text-decoration: none; }
+      header p { margin: 0; color: var(--muted); font-size: 0.85rem; }
+      main { padding: 1.5rem; max-width: 960px; }
+      h1 { font-size: 1.7rem; margin: 0 0 0.25rem; }
+      h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
+      h3 { font-size: 0.95rem; margin: 1rem 0 0.35rem; }
+      .file, .muted { color: var(--muted); }
+      a { color: var(--accent); }
+      ul { padding-left: 1.1rem; }
+      table { width: 100%; border-collapse: collapse; background: var(--raised); }
+      th, td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+      th { font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+      code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.92em; }
+      .error { color: #8d2a2a; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a href="./">__TITLE__</a>
+      <p>Proof of concept. This page renders model.json in the browser.</p>
+    </header>
+    <main id="app">
+      <p class="muted">Loading schema…</p>
+    </main>
+    <script type="module" src="assets/app.js"></script>
+  </body>
+</html>

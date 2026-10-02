@@ -36,6 +36,17 @@ jobs:
         with:
           path: dist
 
+  poc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Test Go site proof of concept
+        working-directory: poc
+        run: go test ./...
+
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: test

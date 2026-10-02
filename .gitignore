@@ -8,6 +8,7 @@ examples/acme/dist/
 site/src/data/generated.json
 site/src/data/generated-diff.json
 site/dist/
+poc/ui/dist/
 .astro/
 agent-tools/
 uploads/
