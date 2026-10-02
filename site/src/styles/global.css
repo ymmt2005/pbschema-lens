@@ -487,6 +487,37 @@ a.home-area-leaf:hover .home-area-name {
   vertical-align: middle;
 }
 
+/* Tailwind's base reset sets margin: 0 on every element, which overrides the
+   browser rule that centers a modal dialog and pins showModal() to the top-left. */
+#search-dialog {
+  position: fixed;
+  top: 12vh;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: min(720px, 92vw);
+  height: fit-content;
+  max-height: min(70vh, 40rem);
+  margin: 0;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#search-dialog::backdrop {
+  background: rgb(28 25 23 / 0.45);
+}
+
+html.dark #search-dialog::backdrop {
+  background: rgb(0 0 0 / 0.62);
+}
+
+#search-results {
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .validation-chip {
   display: inline-block;
   font-family: var(--font-mono);

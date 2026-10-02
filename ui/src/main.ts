@@ -63,6 +63,7 @@ async function loadIndex(): Promise<SiteIndex> {
 }
 
 async function navigate() {
+  document.querySelector<HTMLDialogElement>("#search-dialog")?.close();
   const token = ++navToken;
   const path = routePath();
   const main = document.querySelector("#main");
@@ -297,9 +298,12 @@ function installShell() {
       </div>
     </div>
     <div id="mobile-nav" class="hidden fixed inset-0 z-30 bg-black/50 lg:hidden"><div id="mobile-panel" class="h-full w-72 bg-[color:var(--bg-raised)] p-4 overflow-y-auto"></div></div>
-    <dialog id="search-dialog" class="w-[min(720px,92vw)] rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-0 text-[color:var(--fg)] shadow-[var(--shadow)]">
-      <div class="p-3 border-b border-[color:var(--line)]"><input id="search-input" class="w-full bg-transparent outline-none text-base" placeholder="Search symbols, comments, options…" /><div id="search-filters" class="flex flex-wrap gap-1 mt-2 text-xs"></div></div>
-      <div id="search-results" class="max-h-[60vh] overflow-y-auto p-2 text-sm"></div>
+    <dialog id="search-dialog" class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-0 text-[color:var(--fg)] shadow-[var(--shadow)]" aria-label="Search">
+      <div class="flex shrink-0 items-start gap-3 border-b border-[color:var(--line)] p-3">
+        <div class="min-w-0 flex-1"><input id="search-input" class="w-full bg-transparent outline-none text-base" placeholder="Search symbols, comments, options…" /><div id="search-filters" class="flex flex-wrap gap-1 mt-2 text-xs"></div></div>
+        <button id="search-close" class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-muted)] px-2 py-1 text-xs text-[color:var(--fg)]" type="button" aria-label="Close search">Close <kbd class="rounded border border-[color:var(--line)] bg-[color:var(--bg-raised)] px-1 text-[11px] text-[color:var(--fg-muted)]">Esc</kbd></button>
+      </div>
+      <div id="search-results" class="p-2 text-sm"></div>
     </dialog>
     ${siteUrl ? `<link rel="canonical" href="${esc(siteUrl)}" />` : ""}
   `;
@@ -356,6 +360,10 @@ function installShell() {
     void renderHits(input?.value ?? "");
   }
   document.getElementById("search-open")?.addEventListener("click", openSearch);
+  document.getElementById("search-close")?.addEventListener("click", () => dialog?.close());
+  dialog?.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
       event.preventDefault();
