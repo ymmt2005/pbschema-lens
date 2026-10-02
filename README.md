@@ -65,6 +65,19 @@ The same page also shows **Source code (tar.gz)** and **Source code (zip)**. Tho
 
 `descriptor` is a `FileDescriptorSet` (`*.binpb`, `*.pb`, `*.desc`) or `-` for stdin. `dev` needs a file, because stdin cannot be watched. Pass `--source <dir>` when `.proto` text should appear in the site.
 
+| Flag | Commands | Effect |
+|---|---|---|
+| `-o`, `--out` | `build`, `dev`, `diff` | Output directory. Overrides `output`. |
+| `--base` | `build`, `dev`, `diff` | URL path prefix. Overrides `base`. |
+| `--title` | `build`, `dev`, `diff` | Site title. Overrides `title`. |
+| `-c`, `--config` | `build`, `dev`, `diff`, `doctor` | Config file. |
+| `--source` | `build`, `dev`, `diff` | Directory of `.proto` files for the source browser. |
+| `--commit` | `build`, `dev`, `diff` | Commit for repository links. Overrides `source.commit`. |
+| `--against` | `build`, `diff` | FileDescriptorSet to compare. Required for `diff`. |
+| `--port` | `dev` | Listen port. Default `43147`. |
+
+A flag that a command does not declare is an error. Each command accepts at most one descriptor path. `pbschema-lens <command> --help` prints that command's usage. Pass `"$(git rev-parse HEAD)"` or `$GITHUB_SHA` to `--commit` when you want a real revision. The binary does not run git.
+
 ## Configuration
 
 The config file is `pbschema-lens.yaml` or `pbschema-lens.yml`. With a descriptor path and no `--config`, pbschema-lens looks beside that file, then in the working directory. `--config` and `-c` select a file explicitly.
@@ -125,7 +138,6 @@ externalLinks:
 | `artifacts.descriptorSet` | `false` | `true` writes `assets/protobuf/schema.binpb`. |
 | `artifacts.references` | `true` | `false` skips the exported `assets/protobuf/references.json`. The explorer always reads `assets/model/references.json`. `symbols.json` and `build-info.json` are written on every build. |
 | `externalLinks` | omitted | Rules that send a package to another site. `package` is a name or a `.**` pattern. A match is documented externally: no local page, and links use `urlTemplate`. `{symbol}` is the full name, `{kind}` is the symbol kind, and `{package}` is the package. |
-`build`, `dev`, and `diff` accept `--out` (`-o`), `--base`, `--title`, `--config` (`-c`), `--source`, and `--commit`. `build` and `diff` accept `--against`; `diff` requires it. `dev` accepts `--port` and does not accept `--against`. `doctor` accepts `--config`. A flag that a command does not declare is an error. Each command accepts at most one descriptor path. `pbschema-lens <command> --help` prints that command's usage. `--commit` sets the repository-link commit and wins over `source.commit`. Pass `"$(git rev-parse HEAD)"` or `$GITHUB_SHA` when you want a real revision; the binary does not run git.
 
 ## Breaking changes from the Node CLI
 
