@@ -38,11 +38,11 @@ A static file server works the same way. Opening `dist/index.html` as a local fi
 
 ## Install from a GitHub Release
 
-This is a build-time CLI, not a library. Download a static binary for Linux, Windows, or macOS (amd64 or arm64). The released CLI does not require Node. Building this repository from source still needs Node to compile `internal/site/dist` before `go build`, and Go 1.26 or newer. The next version bump on `main` publishes those archives with [GoReleaser](https://goreleaser.com/). Until that release exists, build from source with `npm run build:ui && go build -o pbschema-lens ./cmd/pbschema-lens`.
+This is a build-time CLI, not a library. Download a static binary for Linux, Windows, or macOS (amd64 or arm64). The released CLI does not require Node. Building this repository from source still needs Node to compile `internal/site/dist` before `go build`, and Go 1.26 or newer. A version bump on `main` publishes those archives with [GoReleaser](https://goreleaser.com/).
 
 ```bash
 curl -fsSL -o pbschema-lens.tar.gz \
-  https://github.com/ymmt2005/pbschema-lens/releases/download/v0.5.0/pbschema-lens_linux_amd64.tar.gz
+  https://github.com/ymmt2005/pbschema-lens/releases/download/v0.6.0/pbschema-lens_linux_amd64.tar.gz
 tar -xzf pbschema-lens.tar.gz
 sudo mv pbschema-lens /usr/local/bin/pbschema-lens
 ```
