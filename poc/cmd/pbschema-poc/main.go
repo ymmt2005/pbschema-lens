@@ -47,8 +47,8 @@ Usage:
   pbschema-poc build [--out dir] [--base /] [--title text] [input]
   pbschema-poc serve [--dir dir] [--port 43147]
 
-input is a Buf module directory (buf on PATH) or a FileDescriptorSet
-(.binpb, .pb, .desc, .fds).
+input is a Buf module directory or a FileDescriptorSet
+(.binpb, .pb, .desc, .fds). A module is compiled in-process.
 `)
 }
 
