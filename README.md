@@ -2,9 +2,7 @@
 
 [![CI](https://github.com/ymmt2005/pbschema-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/ymmt2005/pbschema-lens/actions/workflows/ci.yml)
 
-pbschema-lens does not compile Protocol Buffers. It consumes a FileDescriptorSet.
-
-It is an open-source **static schema explorer**. Pipe a Buf `FileDescriptorSet` into the `pbschema-lens` binary and it produces a static site you can host on GitHub Pages (or anywhere else). There is no documentation server, no database, and no hosted schema registry. The binary does not invoke Buf.
+pbschema-lens is an open-source **static schema explorer** for Protocol Buffers. Pipe a Buf `FileDescriptorSet` into the binary and it writes a static site you can host on GitHub Pages, or anywhere else.
 
 The generated site is a graph over the schema: services, RPCs, messages, fields, enums, extensions, custom options, well-known types, reverse "used by" references, and two-layer search.
 
