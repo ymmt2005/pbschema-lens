@@ -1,8 +1,9 @@
-name: Release tarball
+name: Release binaries
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: release-main
@@ -12,7 +13,7 @@ permissions:
   contents: write
 
 jobs:
-  tarball:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -29,26 +30,21 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - name: Install
+      - uses: actions/setup-go@v5
         if: steps.detect.outputs.release == 'true'
-        run: npm ci
-      - name: Test
-        if: steps.detect.outputs.release == 'true'
-        run: npm test
-      - name: Pack and smoke-test
-        if: steps.detect.outputs.release == 'true'
-        run: npm run pack:smoke
-      - name: Build release tarball
+        with:
+          go-version: "1.23"
+      - name: Install and test
         if: steps.detect.outputs.release == 'true'
         run: |
-          npm run build
-          versioned="$(npm pack --silent)"
-          cp "$versioned" pbschema-lens.tgz
-          echo "VERSIONED=$versioned" >> "$GITHUB_ENV"
-      - name: Tag and publish GitHub Release
+          npm ci
+          npm test
+          npm run typecheck
+          npm run build:ui
+          go test ./...
+      - name: Tag
         if: steps.detect.outputs.release == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.detect.outputs.version }}
         run: |
           set -euo pipefail
@@ -66,11 +62,12 @@ jobs:
             echo "Tag ${tag} points at ${tag_commit}, not this commit ${GITHUB_SHA}"
             exit 1
           fi
-          if gh release view "${tag}" >/dev/null 2>&1; then
-            echo "Release ${tag} already exists"
-            exit 0
-          fi
-          gh release create "${tag}" "${VERSIONED}" pbschema-lens.tgz \
-            --title "${tag}" \
-            --generate-notes \
-            --verify-tag
+      - name: Publish binaries
+        if: steps.detect.outputs.release == 'true'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

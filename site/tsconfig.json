@@ -1,9 +1,0 @@
-{
-  "extends": "astro/tsconfigs/strict",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "pbschema-lens/core": ["../src/core/index.ts"]
-    }
-  }
-}
