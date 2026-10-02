@@ -1,6 +1,8 @@
 package model
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -441,21 +443,52 @@ func wktNotes() map[string]string {
 
 func exampleJSON(message *DocMessage, model *SchemaModel, depth int) any {
 	if depth > 4 {
-		return map[string]any{}
+		return json.RawMessage(`{}`)
 	}
-	object := map[string]any{}
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	first := true
 	for _, id := range message.FieldIDs {
 		field, _ := model.Symbols[id].(*DocField)
 		if field == nil || field.Deprecated {
 			continue
 		}
-		object[field.JSONName] = exampleField(field, model, depth)
+		if !first {
+			buf.WriteByte(',')
+		}
+		first = false
+		key, err := json.Marshal(field.JSONName)
+		if err != nil {
+			continue
+		}
+		buf.Write(key)
+		buf.WriteByte(':')
+		buf.Write(marshalExample(exampleField(field, model, depth)))
 	}
-	return object
+	buf.WriteByte('}')
+	return json.RawMessage(buf.Bytes())
+}
+
+func marshalExample(value any) []byte {
+	if raw, ok := value.(json.RawMessage); ok {
+		if len(raw) == 0 {
+			return []byte("null")
+		}
+		return raw
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return []byte("null")
+	}
+	return encoded
 }
 
 func exampleText(message *DocMessage, model *SchemaModel) string {
-	object, _ := exampleJSON(message, model, 0).(map[string]any)
+	raw, _ := exampleJSON(message, model, 0).(json.RawMessage)
+	var object map[string]any
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return ""
+	}
 	keys := make([]string, 0, len(object))
 	for key := range object {
 		keys = append(keys, key)

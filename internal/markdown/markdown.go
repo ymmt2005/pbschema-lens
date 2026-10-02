@@ -111,7 +111,11 @@ func findBody(node *html.Node) *html.Node {
 func writeAllowed(w io.Writer, node *html.Node) {
 	switch node.Type {
 	case html.TextNode:
-		io.WriteString(w, EscapeHTML(node.Data))
+		data := node.Data
+		if prev := node.PrevSibling; prev != nil && prev.Type == html.ElementNode && prev.Data == "br" {
+			data = strings.TrimLeft(data, " \n\t")
+		}
+		io.WriteString(w, EscapeHTML(data))
 	case html.ElementNode:
 		if _, ok := allowedTags[node.Data]; !ok {
 			if _, drop := dropContents[node.Data]; drop {

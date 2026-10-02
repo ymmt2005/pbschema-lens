@@ -234,6 +234,9 @@ func symbolPayload(schema *model.SchemaModel, id string) symbolFile {
 	case *model.DocMessage:
 		putIDs(schema, related, sym.FieldIDs)
 		putIDs(schema, related, sym.OneofIDs)
+		putIDs(schema, related, sym.NestedMessageIDs)
+		putIDs(schema, related, sym.NestedEnumIDs)
+		putIDs(schema, related, sym.NestedExtensionIDs)
 	case *model.DocEnum:
 		putIDs(schema, related, sym.ValueIDs)
 	case *model.DocService:

@@ -367,14 +367,16 @@ function messageSection(title: string, streaming: boolean, ref: TypeRef, related
     message && message.kind === "message"
       ? fieldTableHtml(idsOf<DocField>(message.fieldIds, related), idsOf<DocOneof>(message.oneofIds, related), ctx.href, prefix)
       : "";
-  return `<section class="mt-8"><h2 class="text-lg font-semibold mb-2 flex items-center gap-2">${esc(title)} ${chip}</h2><p class="font-mono text-sm mb-3">${linkedType(ref, ctx.href)}</p>${table}</section>`;
+  return `<section class="mt-8"><h2 class="text-lg font-semibold mb-2 flex items-center gap-2">${esc(title)}${chip}</h2><p class="font-mono text-sm mb-3">${linkedType(ref, ctx.href)}</p>${table}</section>`;
 }
 
 export function extensionPageHtml(extension: DocExtension, ctx: PageContext): string {
   const kind = extension.optionTarget ? `${extension.optionTarget} option` : "extension";
-  const card = (label: string, body: string) =>
-    `<div class="rounded-xl border border-[color:var(--line)] p-3 bg-[color:var(--bg-raised)]"><dt class="text-[color:var(--fg-muted)]">${label}</dt><dd>${body}</dd></div>`;
-  return `${symbolHeaderHtml(extension, ctx)}<dl class="grid sm:grid-cols-2 gap-3 text-sm mb-6">${card("Kind", esc(kind))}${card("Field number", `<span class="font-mono">${extension.number}</span>`)}${card("Extends", linkedType(extension.extendee, ctx.href))}${card("Type", linkedType(extension.type, ctx.href))}</dl><pre class="proto">${esc(extension.declaration)}</pre>${optionListHtml(extension.options, ctx.href)}${usedByHtml(extension, ctx)}`;
+  const card = (label: string, body: string, ddClass = "") => {
+    const cls = ddClass ? ` class="${ddClass}"` : "";
+    return `<div class="rounded-xl border border-[color:var(--line)] p-3 bg-[color:var(--bg-raised)]"><dt class="text-[color:var(--fg-muted)]">${label}</dt><dd${cls}>${body}</dd></div>`;
+  };
+  return `${symbolHeaderHtml(extension, ctx)}<dl class="grid sm:grid-cols-2 gap-3 text-sm mb-6">${card("Kind", esc(kind))}${card("Field number", String(extension.number), "font-mono")}${card("Extends", linkedType(extension.extendee, ctx.href))}${card("Type", linkedType(extension.type, ctx.href))}</dl><pre class="proto">${esc(extension.declaration)}</pre>${optionListHtml(extension.options, ctx.href)}${usedByHtml(extension, ctx)}`;
 }
 
 export function searchPageHtml(symbolCount: number, packageCount: number): string {

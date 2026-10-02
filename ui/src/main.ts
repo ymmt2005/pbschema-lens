@@ -220,7 +220,11 @@ async function renderExplore(): Promise<string> {
     list.push(ref);
     exploreIncoming.set(ref.toId, list);
   }
-  return explorePageHtml(index.symbolIndex.filter((entry) => entry.shard));
+  const pages = index.symbolIndex.filter((entry) => entry.shard);
+  const files = index.files
+    .filter((file) => file.generatePage)
+    .map((file) => ({ id: file.id, name: file.fullName, fullName: file.fullName, urlPath: file.urlPath, kind: "file" }));
+  return explorePageHtml([...pages, ...files]);
 }
 
 async function renderGraph(): Promise<string> {
