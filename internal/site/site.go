@@ -3,7 +3,9 @@ package site
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/fs"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -35,6 +37,9 @@ func Write(outDir string, schema *model.SchemaModel, opts Options) error {
 		return err
 	}
 	base := normalizeBase(opts.Base)
+	if err := validateBase(base); err != nil {
+		return err
+	}
 	if err := fs.WalkDir(Dist, "dist", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -221,8 +226,8 @@ func stamp(raw []byte, base string, opts Options) []byte {
 		assetBase += "/"
 	}
 	text = strings.ReplaceAll(text, "/__PBSCHEMA_BASE__/", "/"+assetBase)
-	text = strings.ReplaceAll(text, "__DATA_BASE__", base)
-	text = strings.ReplaceAll(text, "__SITE_URL__", opts.SiteURL)
+	text = strings.ReplaceAll(text, "__DATA_BASE__", html.EscapeString(base))
+	text = strings.ReplaceAll(text, "__SITE_URL__", html.EscapeString(opts.SiteURL))
 	full := "false"
 	if opts.FullText {
 		full = "true"
@@ -232,8 +237,39 @@ func stamp(raw []byte, base string, opts Options) []byte {
 	if title == "" {
 		title = "Protobuf API"
 	}
-	text = strings.ReplaceAll(text, "__TITLE__", title)
+	text = strings.ReplaceAll(text, "__TITLE__", html.EscapeString(title))
 	return []byte(text)
+}
+
+// Handler serves a built site. base is the path prefix stamped into the pages.
+func Handler(dir, base string) http.Handler {
+	base = normalizeBase(base)
+	files := http.FileServer(http.Dir(dir))
+	if base == "/" {
+		return files
+	}
+	prefix := strings.TrimSuffix(base, "/")
+	mux := http.NewServeMux()
+	mux.Handle(prefix+"/", http.StripPrefix(prefix, files))
+	mux.HandleFunc(prefix, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, prefix+"/", http.StatusTemporaryRedirect)
+	})
+	return mux
+}
+
+func validateBase(base string) error {
+	if strings.Contains(base, "..") {
+		return fmt.Errorf("base %q must not contain ..", base)
+	}
+	for _, r := range base {
+		switch {
+		case r == '/' || r == '-' || r == '_' || r == '.' || r == '~':
+		case r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9':
+		default:
+			return fmt.Errorf("base %q must be a URL path", base)
+		}
+	}
+	return nil
 }
 
 func normalizeBase(base string) string {

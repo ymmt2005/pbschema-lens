@@ -15,6 +15,13 @@ import (
 	"golang.org/x/net/html"
 )
 
+// dropContents tags are removed together with their children. Other disallowed
+// tags are unwrapped so a wrapper such as <div> does not delete the text inside.
+var dropContents = map[string]struct{}{
+	"script": {}, "style": {}, "iframe": {}, "noembed": {}, "noframes": {},
+	"noscript": {}, "textarea": {}, "title": {}, "svg": {}, "math": {},
+}
+
 var allowedTags = map[string]struct{}{
 	"p": {}, "br": {}, "b": {}, "i": {}, "em": {}, "strong": {}, "code": {}, "pre": {},
 	"a": {}, "ul": {}, "ol": {}, "li": {}, "blockquote": {},
@@ -107,6 +114,12 @@ func writeAllowed(w io.Writer, node *html.Node) {
 		io.WriteString(w, EscapeHTML(node.Data))
 	case html.ElementNode:
 		if _, ok := allowedTags[node.Data]; !ok {
+			if _, drop := dropContents[node.Data]; drop {
+				return
+			}
+			for child := node.FirstChild; child != nil; child = child.NextSibling {
+				writeAllowed(w, child)
+			}
 			return
 		}
 		io.WriteString(w, "<")

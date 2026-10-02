@@ -69,7 +69,7 @@ The config file is `pbschema-lens.yaml` or `pbschema-lens.yml`, next to the inpu
 
 ```yaml
 title: "Acme Protobuf API"
-input: "."
+input: "-"
 output: "dist"
 base: "/"
 siteUrl: "https://docs.example.com"

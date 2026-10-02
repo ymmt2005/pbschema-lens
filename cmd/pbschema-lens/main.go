@@ -13,6 +13,7 @@ import (
 	"github.com/ymmt2005/pbschema-lens/internal/fds"
 	"github.com/ymmt2005/pbschema-lens/internal/model"
 	"github.com/ymmt2005/pbschema-lens/internal/pipeline"
+	"github.com/ymmt2005/pbschema-lens/internal/site"
 )
 
 var version = "0.5.0"
@@ -204,8 +205,12 @@ func cmdDev(args []string) error {
 	}
 	addr := "127.0.0.1:" + port
 	go watch(req)
-	fmt.Printf("Serving %s at http://%s\n", result.OutDir, addr)
-	return http.ListenAndServe(addr, http.FileServer(http.Dir(result.OutDir)))
+	base := result.Config.Base
+	if base == "" {
+		base = "/"
+	}
+	fmt.Printf("Serving %s at http://%s%s\n", result.OutDir, addr, strings.TrimSuffix(base, "/")+"/")
+	return http.ListenAndServe(addr, site.Handler(result.OutDir, base))
 }
 
 func watch(req pipeline.Request) {
@@ -387,6 +392,14 @@ func request(f flags) (pipeline.Request, error) {
 	input := "-"
 	if len(f.rest) > 0 {
 		input = f.rest[0]
+	} else {
+		cfg, _, err := config.Load(cwd, f.config)
+		if err != nil {
+			return pipeline.Request{}, err
+		}
+		if cfg.Input != "" {
+			input = cfg.Input
+		}
 	}
 	return pipeline.Request{
 		CWD: cwd, ConfigFile: f.config, Input: input, Against: f.against,

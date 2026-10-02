@@ -55,6 +55,7 @@ func Build(req Request) (*Result, error) {
 	if input == "" {
 		input = cfg.Input
 	}
+	input = resolvePath(req.CWD, input)
 	if err := safe(input); err != nil {
 		return nil, err
 	}
@@ -71,7 +72,7 @@ func Build(req Request) (*Result, error) {
 	}
 	texts := map[string]string{}
 	if cfg.SourceEnabled() && req.SourceDir != "" {
-		texts, err = loadSources(req.SourceDir, fileNames(files))
+		texts, err = loadSources(resolvePath(req.CWD, req.SourceDir), fileNames(files))
 		if err != nil {
 			return nil, err
 		}
@@ -89,10 +90,11 @@ func Build(req Request) (*Result, error) {
 		return nil, err
 	}
 	if req.Against != "" {
-		if err := safe(req.Against); err != nil {
+		against := resolvePath(req.CWD, req.Against)
+		if err := safe(against); err != nil {
 			return nil, err
 		}
-		previousRaw, err := fds.Read(req.Against, nil)
+		previousRaw, err := fds.Read(against, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -164,10 +166,6 @@ func loadSources(root string, names []string) (map[string]string, error) {
 	if err := safe(root); err != nil {
 		return nil, err
 	}
-	want := map[string]string{}
-	for _, name := range names {
-		want[name] = name
-	}
 	texts := map[string]string{}
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -188,17 +186,37 @@ func loadSources(root string, names []string) (map[string]string, error) {
 		}
 		rel = filepath.ToSlash(rel)
 		for _, name := range names {
-			if rel == name || strings.HasSuffix(name, "/"+rel) || strings.HasSuffix(rel, name) {
-				raw, err := os.ReadFile(path)
-				if err != nil {
-					return err
-				}
-				texts[name] = string(raw)
+			if !sourceMatches(rel, name) {
+				continue
 			}
+			if prev, ok := texts[name]; ok && prev != "" {
+				return fmt.Errorf("proto %s matches more than one file under %s", name, root)
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			texts[name] = string(raw)
 		}
 		return nil
 	})
 	return texts, err
+}
+
+// sourceMatches reports whether a file walked under --source is the descriptor path.
+// The match is exact, or either path is a slash-bounded suffix of the other.
+func sourceMatches(rel, name string) bool {
+	return rel == name || strings.HasSuffix(name, "/"+rel) || strings.HasSuffix(rel, "/"+name)
+}
+
+func resolvePath(cwd, path string) string {
+	if path == "" || path == "-" || filepath.IsAbs(path) {
+		return path
+	}
+	if cwd == "" {
+		return path
+	}
+	return filepath.Join(cwd, path)
 }
 
 func safe(path string) error {

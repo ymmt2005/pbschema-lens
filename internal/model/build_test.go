@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,42 @@ import (
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
+
+func TestEmptyCollectionsMarshalAsArrays(t *testing.T) {
+	fd := &descriptorpb.FileDescriptorProto{
+		Name:    proto.String("demo.proto"),
+		Package: proto.String("demo"),
+		Syntax:  proto.String("proto3"),
+		MessageType: []*descriptorpb.DescriptorProto{{
+			Name: proto.String("Empty"),
+		}},
+	}
+	files, err := protodesc.NewFiles(&descriptorpb.FileDescriptorSet{File: []*descriptorpb.FileDescriptorProto{fd}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, err := Build(files, BuildOptions{Title: "demo", InputLabel: "demo.proto"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"services", "methods", "enums", "extensions", "fields", "oneofs"} {
+		value, ok := decoded[key].([]any)
+		if !ok {
+			t.Fatalf("%s marshaled as %T, want an array", key, decoded[key])
+		}
+		if len(value) != 0 {
+			t.Fatalf("%s = %v", key, value)
+		}
+	}
+}
 
 func TestProto2RequiredAliasExtension(t *testing.T) {
 	model := buildDir(t, filepath.Join(root(t), "fixtures/proto2"), BuildOptions{Title: "test", InputLabel: "proto2"})
@@ -112,6 +149,20 @@ func TestSourceLinks(t *testing.T) {
 	file := findFile(bare, "options.proto")
 	if file == nil || file.SourceText != "" || file.GeneratePage {
 		t.Fatalf("file page %+v", file)
+	}
+	remote, err := Build(files, BuildOptions{
+		Title: "test", InputLabel: "options",
+		Source: &SourceConfig{Repository: "gitlab:acme/apis", Commit: "deadbeef"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	remoteMsg := findMessage(remote, "fixtures.options.Item")
+	if remoteMsg == nil || remoteMsg.SourceLink == nil || !strings.Contains(remoteMsg.SourceLink.URL, "https://gitlab.com/acme/apis/-/blob/deadbeef/options.proto#L") {
+		t.Fatalf("view source should use the repository when proto text is absent: %+v", remoteMsg)
+	}
+	if remoteMsg.RepositoryLink != nil {
+		t.Fatalf("repository link duplicated the view-source url: %+v", remoteMsg.RepositoryLink)
 	}
 }
 
@@ -308,6 +359,9 @@ func findBuf(t *testing.T) string {
 		if st, err := os.Stat(candidate); err == nil && !st.IsDir() {
 			return candidate
 		}
+	}
+	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
+		t.Fatal("buf is not available")
 	}
 	t.Skip("buf is not available")
 	return ""

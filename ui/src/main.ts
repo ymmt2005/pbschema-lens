@@ -24,6 +24,7 @@ import type {
   SymbolIndexEntry,
   TypeRef,
 } from "../../src/core/types.ts";
+import { isExternalHref, repositoryLinkLabel } from "../../site/src/lib/repository-link.ts";
 import { THEME_CHOICES, THEME_STORAGE_KEY, themeChoice, themeStorageValue, useDarkTheme } from "../../site/src/lib/theme.ts";
 
 const app = document.querySelector<HTMLElement>("#app");
@@ -39,6 +40,17 @@ if (!response.ok) {
   throw new Error("model.json");
 }
 const model = (await response.json()) as SchemaModel;
+model.packages = model.packages ?? [];
+model.files = model.files ?? [];
+model.messages = model.messages ?? [];
+model.fields = model.fields ?? [];
+model.oneofs = model.oneofs ?? [];
+model.enums = model.enums ?? [];
+model.enumValues = model.enumValues ?? [];
+model.services = model.services ?? [];
+model.methods = model.methods ?? [];
+model.extensions = model.extensions ?? [];
+model.symbolIndex = model.symbolIndex ?? [];
 
 installShell();
 navigate();
@@ -100,8 +112,8 @@ function renderHome(): string {
     local.map((pkg) => ({
       fullName: pkg.fullName,
       urlPath: pkg.urlPath,
-      services: pkg.serviceIds.length,
-      messages: pkg.messageIds.length,
+      services: pkg.serviceIds?.length ?? 0,
+      messages: pkg.messageIds?.length ?? 0,
     })),
   );
   const stats = [
@@ -248,7 +260,7 @@ function renderFile(file: DocFile): string {
   return `
     <h1 class="text-2xl font-semibold font-mono">${esc(file.fullName)}</h1>
     <p class="mt-2 text-sm text-[color:var(--fg-muted)]">${esc(file.syntax)}${file.edition ? ` · edition ${esc(file.edition)}` : ""}</p>
-    ${file.repositoryLink ? `<p class="mt-3"><a href="${esc(file.repositoryLink.url)}">View on GitHub</a></p>` : ""}
+    ${file.repositoryLink ? `<p class="mt-3"><a href="${esc(file.repositoryLink.url)}">${repositoryLinkLabel(file.repositoryLink.url)}</a></p>` : ""}
     <div class="table-wrap mt-6"><table class="font-mono text-sm">${body}</table></div>
   `;
 }
@@ -284,7 +296,7 @@ function renderExplore(): string {
 function renderGraph(): string {
   const rows = model.packages
     .filter((pkg) => pkg.generatePage)
-    .map((pkg) => `<li><a href="${href(pkg.urlPath)}">${esc(pkg.fullName)}</a> <span class="text-[color:var(--fg-muted)]">${pkg.serviceIds.length} services · ${pkg.messageIds.length} messages</span></li>`)
+    .map((pkg) => `<li><a href="${href(pkg.urlPath)}">${esc(pkg.fullName)}</a> <span class="text-[color:var(--fg-muted)]">${pkg.serviceIds?.length ?? 0} services · ${pkg.messageIds?.length ?? 0} messages</span></li>`)
     .join("");
   return `<h1 class="text-3xl font-semibold mb-4">Packages</h1><ul class="space-y-1">${rows}</ul>`;
 }
@@ -331,8 +343,8 @@ function messageFields(title: string, ref: TypeRef): string {
 }
 
 function header(symbol: DocSymbol): string {
-  const source = symbol.sourceLink ? `<a href="${href(symbol.sourceLink.url)}">View source</a>` : "";
-  const repo = symbol.repositoryLink ? `<a href="${esc(symbol.repositoryLink.url)}">View on GitHub</a>` : "";
+  const source = symbol.sourceLink ? `<a href="${esc(hrefFor(symbol.sourceLink.url))}">View source</a>` : "";
+  const repo = symbol.repositoryLink ? `<a href="${esc(symbol.repositoryLink.url)}">${repositoryLinkLabel(symbol.repositoryLink.url)}</a>` : "";
   return `${crumb(symbol.fullName)}<p class="text-xs uppercase tracking-wider text-[color:var(--accent)] mt-2">${esc(symbol.kind)}</p><h1 class="text-3xl font-semibold mt-1">${esc(symbol.shortName)}</h1><p class="font-mono text-sm text-[color:var(--fg-muted)] mt-1">${esc(symbol.fullName)}</p><p class="mt-3 flex gap-4 text-sm">${source}${repo}</p>`;
 }
 
@@ -602,6 +614,11 @@ function readBase(): string {
   const raw = document.documentElement.dataset.base || "/";
   if (!raw || raw === "/") return "/";
   return raw.endsWith("/") ? raw : `${raw}/`;
+}
+
+function hrefFor(url: string): string {
+  if (isExternalHref(url)) return url;
+  return href(url);
 }
 
 function href(urlPath: string): string {

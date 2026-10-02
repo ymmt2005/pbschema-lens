@@ -56,6 +56,16 @@ func TestDropsUnsafeSchemes(t *testing.T) {
 	}
 }
 
+func TestUnwrapsDisallowedWrappers(t *testing.T) {
+	html := RenderSafe(`<div>See <b>keep</b></div>`)
+	if strings.Contains(html, "<div") {
+		t.Fatalf("wrapper kept: %s", html)
+	}
+	if !strings.Contains(html, "<b>keep</b>") {
+		t.Fatalf("inner markup dropped: %s", html)
+	}
+}
+
 func TestDiscardsTags(t *testing.T) {
 	html := RenderSafe(`<iframe src="https://evil.example"></iframe><svg><script>alert(1)</script></svg><style>body{}</style><img src=x>`)
 	for _, banned := range []string{"<iframe", "<svg", "<style", "<img", "<script", "alert"} {

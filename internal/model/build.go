@@ -618,7 +618,52 @@ func (b *builder) finish() *SchemaModel {
 	promotePages(model, excluded)
 	model.SymbolIndex = indexFor(model, excluded)
 	model.BuildInfo.SymbolCount = len(model.Symbols)
+	ensureLists(model)
 	return model
+}
+
+// ensureLists makes empty collections JSON arrays. A nil slice marshals as null
+// and the browser calls array methods on these fields.
+func ensureLists(model *SchemaModel) {
+	if model.Packages == nil {
+		model.Packages = []*DocPackage{}
+	}
+	if model.Files == nil {
+		model.Files = []*DocFile{}
+	}
+	if model.Messages == nil {
+		model.Messages = []*DocMessage{}
+	}
+	if model.Fields == nil {
+		model.Fields = []*DocField{}
+	}
+	if model.Oneofs == nil {
+		model.Oneofs = []*DocOneof{}
+	}
+	if model.Enums == nil {
+		model.Enums = []*DocEnum{}
+	}
+	if model.EnumValues == nil {
+		model.EnumValues = []*DocEnumValue{}
+	}
+	if model.Services == nil {
+		model.Services = []*DocService{}
+	}
+	if model.Methods == nil {
+		model.Methods = []*DocMethod{}
+	}
+	if model.Extensions == nil {
+		model.Extensions = []*DocExtension{}
+	}
+	if model.SymbolIndex == nil {
+		model.SymbolIndex = []SymbolIndexEntry{}
+	}
+	if model.ByFullName == nil {
+		model.ByFullName = map[string]string{}
+	}
+	if model.WKTNotes == nil {
+		model.WKTNotes = map[string]string{}
+	}
 }
 
 func newBase(kind, full, short, pkg, file, domain string, page, nav, deprecated bool) baseSymbol {

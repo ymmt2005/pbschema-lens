@@ -121,11 +121,18 @@ func sourceRefs(fileName string, line int, config *SourceConfig, hasLocal bool) 
 	if line < 1 {
 		line = 1
 	}
-	if url := repositoryBlobURL(config, fileName, line); url != "" {
-		repo = &SourceLink{Label: fileName + ":" + strconv.Itoa(line), URL: url}
-	}
+	label := fileName + ":" + strconv.Itoa(line)
+	blob := repositoryBlobURL(config, fileName, line)
 	if hasLocal {
-		source = &SourceLink{Label: fileName + ":" + strconv.Itoa(line), URL: fileSourcePath(fileName, line)}
+		source = &SourceLink{Label: label, URL: fileSourcePath(fileName, line)}
+		if blob != "" {
+			repo = &SourceLink{Label: label, URL: blob}
+		}
+		return source, repo
 	}
-	return source, repo
+	// No in-site proto text: View source is the repository URL.
+	if blob != "" {
+		source = &SourceLink{Label: label, URL: blob}
+	}
+	return source, nil
 }

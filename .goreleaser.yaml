@@ -2,10 +2,6 @@ version: 2
 
 project_name: pbschema-lens
 
-before:
-  hooks:
-    - go mod tidy
-
 builds:
   - id: pbschema-lens
     main: ./cmd/pbschema-lens
@@ -23,7 +19,7 @@ builds:
       - -s -w -X main.version={{ .Version }}
     hooks:
       pre:
-        - sh -c 'src="${GITHUB_WORKSPACE:-}/internal/site/dist"; if [ -n "${GITHUB_WORKSPACE:-}" ] && [ "$(pwd)" != "$GITHUB_WORKSPACE" ] && [ -d "$src" ]; then rm -rf internal/site/dist && mkdir -p internal/site && cp -a "$src" internal/site/dist; elif [ ! -f internal/site/dist/index.html ]; then npm ci && npm run build:ui; fi'
+        - sh -c 'if [ ! -f internal/site/dist/index.html ]; then src="${GITHUB_WORKSPACE:-}/internal/site/dist"; if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -f "$src/index.html" ]; then mkdir -p internal/site && cp -a "$src" internal/site/dist; else npm ci && npm run build:ui; fi; fi'
 
 archives:
   - formats: [tar.gz]

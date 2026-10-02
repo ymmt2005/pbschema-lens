@@ -1,5 +1,5 @@
 title: "Acme Protobuf API"
-input: "."
+input: "-"
 output: "dist"
 base: "/"
 
