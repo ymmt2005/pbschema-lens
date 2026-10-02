@@ -1,12 +1,7 @@
 import "../../site/src/styles/global.css";
 import { fieldTableEntries, type FieldTableEntry } from "../../src/core/field-table.ts";
-import {
-  activePackageName,
-  buildPackageNavTree,
-  homePackageAreas,
-  type PackageNavNode,
-} from "../../src/core/package-nav.ts";
-import { buildSourceTree, type SourceTreeNode } from "../../src/core/source-tree.ts";
+import { activePackageName, buildPackageNavTree, homePackageAreas } from "../../src/core/package-nav.ts";
+import { homeAreasHtml, packageTreeHtml, sourceFilePageHtml, sourceIndexHtml } from "../../site/src/lib/trees.ts";
 import { rankSymbol } from "../../src/core/search.ts";
 import type {
   DocEnum,
@@ -81,7 +76,7 @@ async function navigate() {
   document.title = pageTitle(path);
   const canonical = document.querySelector('link[rel="canonical"]');
   if (siteUrl && canonical) canonical.setAttribute("href", new URL(window.location.pathname, siteUrl).href);
-  highlightNav();
+  refreshPackageTree();
 }
 
 async function renderRoute(path: string): Promise<string> {
@@ -141,15 +136,10 @@ function renderHome(): string {
     ["Services", index.localServices],
     ["Custom options", index.customOptions],
   ];
-  const areaHtml = areas.length
-    ? `<ul class="space-y-2">${areas
-        .map((area) => {
-          const name = area.urlPath ? `<a class="home-area-name" href="${href(area.urlPath)}">${esc(area.label)}</a>` : `<span class="home-area-name">${esc(area.label)}</span>`;
-          const children = area.nodes.map((node) => nodeHtml(node)).join("");
-          return `<li><details class="home-area" open><summary><span class="home-area-label">${name}<span class="text-[color:var(--fg-muted)] text-sm">${esc(areaCounts(area.counts))}</span></span></summary><div class="home-area-body">${children}</div></details></li>`;
-        })
-        .join("")}</ul>`
-    : `<p class="text-[color:var(--fg-muted)]">No project packages matched the documentation include rules.</p>`;
+  const wkt = index.packages.filter((item) => item.domain === "well-known" && item.generatePage);
+  const wktHtml = wkt.length
+    ? `<section><h2 class="text-xl font-semibold mb-3">Protobuf standard library</h2><ul class="flex flex-wrap gap-2">${wkt.map((pkg) => `<li><a class="rounded-full border border-[color:var(--line)] px-3 py-1 text-sm no-underline text-[color:var(--fg)]" href="${href(pkg.urlPath)}">${esc(pkg.fullName)}</a></li>`).join("")}</ul></section>`
+    : "";
   return `
     <p class="text-xs uppercase tracking-[0.18em] text-[color:var(--accent)] font-semibold">Static schema explorer</p>
     <h1 class="text-4xl font-semibold mt-2 mb-4">${esc(index.title)}</h1>
@@ -157,19 +147,10 @@ function renderHome(): string {
     <dl class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 my-8">
       ${stats.map(([label, value]) => `<div class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4"><dt class="text-xs text-[color:var(--fg-muted)]">${label}</dt><dd class="text-2xl font-semibold">${value}</dd></div>`).join("")}
     </dl>
-    <section class="mb-10"><h2 class="text-xl font-semibold mb-3">Packages</h2>${areaHtml}</section>
+    <section class="mb-10"><h2 class="text-xl font-semibold mb-3">Packages</h2>${homeAreasHtml(areas, href)}</section>
+    ${wktHtml}
     ${index.diff ? `<p><a href="${href("/diff/")}">Schema diff</a> against ${esc(index.diff.againstLabel)}.</p>` : ""}
   `;
-}
-
-function nodeHtml(node: PackageNavNode): string {
-  const label = node.item ? `<a href="${href(node.item.urlPath)}">${esc(node.segment)}</a>` : esc(node.segment);
-  const children = node.children.length ? `<ul class="space-y-1 ml-3">${node.children.map(nodeHtml).join("")}</ul>` : "";
-  return `<div class="py-0.5">${label}${children}</div>`;
-}
-
-function areaCounts(counts: { packages: number; services: number; messages: number }): string {
-  return `${counts.packages} packages · ${counts.services} services · ${counts.messages} messages`;
 }
 
 function renderPackage(pkg: DocPackage): string {
@@ -271,32 +252,18 @@ function renderExtension(ext: DocExtension): string {
   `;
 }
 
+function sourceFiles() {
+  return index.files
+    .filter((file) => file.generatePage && file.hasSource)
+    .map((file) => ({ fullName: file.fullName, urlPath: file.urlPath }));
+}
+
 function renderFile(file: DocFile): string {
-  const lines = (file.sourceText ?? "").split("\n");
-  const body = lines
-    .map((line, index) => `<tr id="L${index + 1}"><td class="pr-4 text-right text-[color:var(--fg-muted)] select-none">${index + 1}</td><td><code>${esc(line) || " "}</code></td></tr>`)
-    .join("");
-  return `
-    <h1 class="text-2xl font-semibold font-mono">${esc(file.fullName)}</h1>
-    <p class="mt-2 text-sm text-[color:var(--fg-muted)]">${esc(file.syntax)}${file.edition ? ` · edition ${esc(file.edition)}` : ""}</p>
-    ${file.repositoryLink ? `<p class="mt-3"><a href="${esc(file.repositoryLink.url)}">${repositoryLinkLabel(file.repositoryLink.url)}</a></p>` : ""}
-    <div class="table-wrap mt-6"><table class="font-mono text-sm">${body}</table></div>
-  `;
+  return sourceFilePageHtml(file, sourceFiles(), href);
 }
 
 function renderSourceIndex(): string {
-  const files = index.files.filter((file) => file.generatePage && file.hasSource);
-  const tree = buildSourceTree(files.map((file) => ({ fullName: file.fullName, urlPath: file.urlPath })));
-  return `<h1 class="text-3xl font-semibold mb-4">Source</h1>${sourceNodes(tree)}`;
-}
-
-function sourceNodes(nodes: SourceTreeNode[]): string {
-  return `<ul class="space-y-1">${nodes
-    .map((node) => {
-      const label = node.file ? `<a href="${href(node.file.urlPath)}">${esc(node.segment)}</a>` : esc(node.segment);
-      return `<li>${label}${node.children.length ? sourceNodes(node.children) : ""}</li>`;
-    })
-    .join("")}</ul>`;
+  return sourceIndexHtml(sourceFiles(), href);
 }
 
 function renderSearchPage(): string {
@@ -539,15 +506,13 @@ function pageTitle(path: string): string {
 }
 
 function installShell() {
-  const local = index.packages.filter((item) => item.inNav && item.domain === "local");
   const wkt = index.packages.filter((item) => item.domain === "well-known" && item.generatePage);
-  const tree = buildPackageNavTree(local.map((pkg) => ({ fullName: pkg.fullName, urlPath: pkg.urlPath })));
   app!.innerHTML = `
     <div class="lg:grid lg:grid-cols-[18rem_1fr] min-h-screen">
       <aside id="sidebar" class="hidden lg:flex flex-col border-r border-[color:var(--line)] bg-[color:var(--bg-raised)] px-4 py-5 gap-6">
         <a href="${href("/")}" class="no-underline text-[color:var(--fg)]"><div class="text-[11px] tracking-[0.12em] text-[color:var(--accent)] font-semibold">pbschema-lens</div><div class="text-lg font-semibold leading-tight mt-1">${esc(index.title)}</div></a>
         <nav id="side-nav" class="text-sm space-y-4 overflow-y-auto">
-          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div>${navTree(tree)}</div>
+          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div><div data-package-nav></div></div>
           ${wkt.length ? `<div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Protobuf standard library</div><ul class="space-y-1">${wkt.map((pkg) => `<li><a class="block rounded-md px-2 py-1 no-underline text-[color:var(--fg)]" href="${href(pkg.urlPath)}">${esc(pkg.fullName)}</a></li>`).join("")}</ul></div>` : ""}
           <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Explore</div>
             <ul class="space-y-1">
@@ -624,6 +589,7 @@ function installShell() {
   input?.addEventListener("input", () => {
     void renderHits(input.value);
   });
+  refreshPackageTree();
 }
 
 function applyTheme() {
@@ -670,22 +636,15 @@ async function renderHits(query: string) {
     .join("") || `<p class="p-3 text-[color:var(--fg-muted)]">No matches.</p>`;
 }
 
-function highlightNav() {
-  const local = index.packages.filter((item) => item.inNav && item.domain === "local").map((pkg) => ({ fullName: pkg.fullName }));
+function refreshPackageTree() {
+  const local = index.packages.filter((item) => item.inNav && item.domain === "local");
+  const tree = buildPackageNavTree(local.map((pkg) => ({ fullName: pkg.fullName, urlPath: pkg.urlPath })));
   const active = activePackageName(routePath(), local);
-  document.querySelectorAll("#side-nav a").forEach((link) => {
-    const on = active != null && link.getAttribute("href") === href(`/reference/packages/${encodeURIComponent(active)}/`);
-    link.classList.toggle("bg-[color:var(--bg-muted)]", on);
+  const empty = local.length === 0 ? `<p class="text-[color:var(--fg-muted)] px-2">No local packages in this build.</p>` : "";
+  const html = `${packageTreeHtml(tree, active, href)}${empty}`;
+  document.querySelectorAll("[data-package-nav]").forEach((node) => {
+    node.innerHTML = html;
   });
-}
-
-function navTree(nodes: PackageNavNode[]): string {
-  return `<ul class="space-y-1">${nodes
-    .map((node) => {
-      const label = node.item ? `<a class="block rounded-md px-2 py-1 no-underline text-[color:var(--fg)]" href="${href(node.item.urlPath)}">${esc(node.segment)}</a>` : `<div class="px-2 py-1 text-[color:var(--fg-muted)]">${esc(node.segment)}</div>`;
-      return `<li>${label}${node.children.length ? navTree(node.children) : ""}</li>`;
-    })
-    .join("")}</ul>`;
 }
 
 function routePath(): string {

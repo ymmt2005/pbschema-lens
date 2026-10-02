@@ -445,6 +445,10 @@ a.home-area-leaf:hover .home-area-name {
   color: var(--fg-muted);
 }
 
+.source-line:target {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 @media (width >= 64rem) {
   .source-explorer.is-split {
     display: grid;
