@@ -543,8 +543,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: bufbuild/buf-setup-action@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
+        with:
+          setup_only: true
+          github_token: ${{ github.token }}
       - name: Install pbschema-lens
         run: |
           curl -fsSL -o pbschema-lens.tar.gz \
@@ -553,7 +556,7 @@ jobs:
           sudo mv pbschema-lens /usr/local/bin/pbschema-lens
       - name: Configure Pages
         id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - name: Build protobuf documentation
         env:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
@@ -566,7 +569,7 @@ jobs:
           esac
           buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --commit "$GITHUB_SHA"
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist
 
@@ -579,5 +582,5 @@ jobs:
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 `

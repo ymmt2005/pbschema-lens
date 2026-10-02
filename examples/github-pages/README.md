@@ -27,4 +27,4 @@ A **privately published** Pages site (GitHub Enterprise Cloud, site visibility P
 
 The generated workflow calls `actions/configure-pages` and passes `base_path` to `pbschema-lens build --base`, which covers public project sites, private unique hosts, and custom domains without hardcoding the repository name.
 
-Pin third-party GitHub Actions to commit SHAs in security-sensitive repositories.
+The generated workflow pins each GitHub Action to the commit of a release.

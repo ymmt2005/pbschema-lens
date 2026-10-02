@@ -144,7 +144,7 @@ These are gitignored and rewritten on every build:
 | Privately published site | unique `https://<random>.pages.github.io/` | `/` |
 | User/org site or custom domain | origin root | `/` |
 
-`pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the `pagesWorkflow` string in `cmd/pbschema-lens/main.go`. If you change that workflow, edit that string, not a checked-in copy. Keep `examples/github-pages/README.md` in sync. The generated workflow installs Buf, downloads `pbschema-lens_linux_amd64.tar.gz` from `releases/latest/download`, and runs `buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --commit "$GITHUB_SHA"`. It does not pass `--source`.
+`pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the `pagesWorkflow` string in `cmd/pbschema-lens/main.go`. If you change that workflow, edit that string, not a checked-in copy. Keep `examples/github-pages/README.md` in sync. The generated workflow pins each action to a release commit, installs Buf with `buf-action` (`setup_only: true`), downloads `pbschema-lens_linux_amd64.tar.gz` from `releases/latest/download`, and runs `buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --commit "$GITHUB_SHA"`. It does not pass `--source`.
 
 This repository’s own CI is `.github/workflows/ci.yml` on Node 24 and Go 1.26: display-helper tests, typecheck, `npm run build:ui`, `go test`, doctor, build the Acme example, then deploy Pages from `main` only.
 
