@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ymmt2005/pbschema-lens/poc/internal/compile"
 	"github.com/ymmt2005/pbschema-lens/poc/internal/model"
@@ -52,20 +53,9 @@ input is a Buf module directory (buf on PATH) or a FileDescriptorSet
 }
 
 func runBuild(args []string) error {
-	flags := flag.NewFlagSet("build", flag.ContinueOnError)
-	out := flags.String("out", "dist", "Output directory")
-	base := flags.String("base", "/", "Site base path, for example /repo/")
-	title := flags.String("title", "Protobuf API", "Site title")
-	flags.SetOutput(os.Stderr)
-	if err := flags.Parse(args); err != nil {
+	input, out, base, title, err := parseBuildArgs(args)
+	if err != nil {
 		return err
-	}
-	if flags.NArg() > 1 {
-		return fmt.Errorf("build accepts one input")
-	}
-	input := "."
-	if flags.NArg() == 1 {
-		input = flags.Arg(0)
 	}
 	absInput, err := filepath.Abs(input)
 	if err != nil {
@@ -75,19 +65,74 @@ func runBuild(args []string) error {
 	if err != nil {
 		return err
 	}
-	doc, err := model.Build(raw, *title)
+	doc, err := model.Build(raw, title)
 	if err != nil {
 		return err
 	}
-	absOut, err := filepath.Abs(*out)
+	absOut, err := filepath.Abs(out)
 	if err != nil {
 		return err
 	}
-	if err := site.Write(absOut, doc, *base); err != nil {
+	if err := site.Write(absOut, doc, base); err != nil {
 		return err
 	}
 	fmt.Printf("Wrote %d messages, %d enums, %d services to %s\n", len(doc.Messages), len(doc.Enums), len(doc.Services), absOut)
 	return nil
+}
+
+// parseBuildArgs accepts flags before or after the input path.
+func parseBuildArgs(args []string) (input, out, base, title string, err error) {
+	out, base, title = "dist", "/", "Protobuf API"
+	var positionals []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		key := arg
+		val := ""
+		hasValue := false
+		if strings.HasPrefix(arg, "--") {
+			if eq := strings.IndexByte(arg, '='); eq >= 0 {
+				key, val, hasValue = arg[:eq], arg[eq+1:], true
+			}
+		}
+		switch key {
+		case "--out", "-o", "--base", "--title":
+			if !hasValue {
+				i++
+				if i >= len(args) {
+					return "", "", "", "", fmt.Errorf("%s needs a value", key)
+				}
+				val = args[i]
+			}
+			switch key {
+			case "--out", "-o":
+				out = val
+			case "--base":
+				base = val
+			case "--title":
+				title = val
+			}
+		case "--":
+			positionals = append(positionals, args[i+1:]...)
+			return finishBuildArgs(positionals, out, base, title)
+		default:
+			if strings.HasPrefix(arg, "-") {
+				return "", "", "", "", fmt.Errorf("unknown flag %s", arg)
+			}
+			positionals = append(positionals, arg)
+		}
+	}
+	return finishBuildArgs(positionals, out, base, title)
+}
+
+func finishBuildArgs(positionals []string, out, base, title string) (string, string, string, string, error) {
+	if len(positionals) > 1 {
+		return "", "", "", "", fmt.Errorf("build accepts one input")
+	}
+	input := "."
+	if len(positionals) == 1 {
+		input = positionals[0]
+	}
+	return input, out, base, title, nil
 }
 
 func runServe(args []string) error {
