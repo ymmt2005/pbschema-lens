@@ -36,7 +36,7 @@ A static file server works the same way. Opening `dist/index.html` as a local fi
 
 ## Install from a GitHub Release
 
-This is a build-time CLI, not a library. Download a static binary for Linux, Windows, or macOS (amd64 or arm64).
+Download a static binary for Linux, Windows, or macOS (amd64 or arm64).
 
 ```bash
 curl -fsSL -o pbschema-lens.tar.gz \
