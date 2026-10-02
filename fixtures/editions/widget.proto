@@ -1,0 +1,28 @@
+edition = "2023";
+
+package fixtures.editions;
+
+// Widget exercises Editions 2023 defaults and declared feature overrides.
+message Widget {
+  option features.json_format = LEGACY_BEST_EFFORT;
+
+  // Singular scalars are explicitly present in edition 2023.
+  string name = 1;
+
+  int32 count = 2 [features.field_presence = IMPLICIT];
+
+  string raw = 3 [features.utf8_validation = NONE];
+
+  repeated int32 tags = 4 [features.repeated_field_encoding = EXPANDED];
+
+  repeated int32 packed_tags = 5;
+
+  Widget child = 6 [features.message_encoding = DELIMITED];
+
+  enum Status {
+    option features.enum_type = CLOSED;
+
+    STATUS_UNKNOWN = 0;
+    STATUS_OK = 1;
+  }
+}

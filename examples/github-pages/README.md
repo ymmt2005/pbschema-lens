@@ -2,9 +2,17 @@
 
 Copy `.github/workflows/protobuf-docs.yml` from `pbschema-lens init --github-pages`, or use this workflow in a schema repository:
 
-1. Download the attached `npm pack` tarball from `/releases/download/…` (or `releases/latest/download/pbschema-lens.tgz`), not GitHub’s “Source code” `/archive/…` snapshot. Install it with `npm install --no-save ./pbschema-lens.tgz`. The generated workflow does that.
+1. Download the GoReleaser archive for the runner, not GitHub’s “Source code” `/archive/…` snapshot. The generated workflow downloads `pbschema-lens_linux_amd64.tar.gz` from `releases/latest/download` and installs the binary on `PATH`. Pin `/releases/download/vX.Y.Z/pbschema-lens_linux_amd64.tar.gz` when you care about reproducibility. Windows archives are `.zip` and the binary is `pbschema-lens.exe`. Other names follow `pbschema-lens_<os>_<arch>`.
 2. Enable Pages with **Source: GitHub Actions**.
 3. Set `base` to match how GitHub hosts the site, or let the generated workflow pass `--base` from `actions/configure-pages`.
+
+The build step compiles the schema with Buf and pipes the descriptor set:
+
+```bash
+buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --commit "$GITHUB_SHA"
+```
+
+The generated workflow does not pass `--source`. Add `--source <dir>` yourself when the in-site source browser should include `.proto` text. pbschema-lens does not guess a source directory, and it does not invoke Buf.
 
 ## `base` path
 

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-base="__DATA_BASE__" data-site-url="__SITE_URL__" data-full-text="__FULL_TEXT__">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>__TITLE__</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      try {
+        var stored = localStorage.getItem("pbschema-lens-theme");
+        var systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        if (stored === "dark" || (stored !== "light" && systemDark)) document.documentElement.classList.add("dark");
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

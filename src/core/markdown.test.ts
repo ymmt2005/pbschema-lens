@@ -3,8 +3,7 @@ import { commentsToMarkdown, escapeHtml, renderSafeMarkdown } from "./markdown.j
 import { rankSymbol, searchSymbols } from "./search.js";
 import { slug, symbolId } from "./ids.js";
 import { urlPathFor, fileSourcePath, repositoryBlobUrl } from "./urls.js";
-import { diffModels } from "./diff.js";
-import type { SchemaModel, DocSymbol } from "./types.js";
+import type { SchemaModel } from "./types.js";
 
 describe("markdown sanitization", () => {
   it("strips script tags and event handlers", () => {
@@ -115,63 +114,5 @@ describe("search ranking", () => {
     expect(fuzzy.map((hit) => hit.entry.name)).toEqual(["GetUser"]);
     expect(fuzzy[0]?.reason).toBe("symbol-name fuzzy match");
     expect(rankSymbol(model.symbolIndex[1]!, "GtUr")).toBe(fuzzy[0]?.score);
-  });
-});
-
-describe("diff", () => {
-  function stub(id: string, kind: DocSymbol["kind"], extra: Partial<SchemaModel> = {}): SchemaModel {
-    const symbol = {
-      id,
-      kind,
-      fullName: id.split(":")[1] ?? id,
-      shortName: "X",
-      packageName: "p",
-      fileName: "x.proto",
-      domain: "local",
-      generatePage: true,
-      inNav: true,
-      deprecated: false,
-      options: [],
-      references: [],
-      referencedBy: [],
-      urlPath: "/",
-      features: [],
-    } as DocSymbol;
-    return {
-      title: "t",
-      packages: [],
-      files: [],
-      messages: [],
-      fields: [],
-      oneofs: [],
-      enums: [],
-      enumValues: [],
-      services: [],
-      methods: [],
-      extensions: [],
-      symbols: { [id]: symbol },
-      byFullName: {},
-      symbolIndex: [],
-      buildInfo: {
-        title: "t",
-        generatedAt: "",
-        generator: "pbschema-lens",
-        input: ".",
-        symbolCount: 1,
-        fileCount: 1,
-        timings: {},
-        warnings: [],
-      },
-      wktNotes: {},
-      ...extra,
-    };
-  }
-
-  it("detects added and removed symbols", () => {
-    const prev = stub("message:A", "message");
-    const next = stub("message:B", "message");
-    const diff = diffModels(next, prev, "old");
-    expect(diff.added[0]?.id).toBe("message:B");
-    expect(diff.removed[0]?.id).toBe("message:A");
   });
 });

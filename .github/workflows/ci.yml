@@ -18,18 +18,26 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - uses: bufbuild/buf-setup-action@v1
       - name: Install
         run: npm ci
-      - name: Test
+      - name: Test display helpers
         run: npm test
       - name: Typecheck
-        run: npx tsc -p tsconfig.json --noEmit
+        run: npm run typecheck
+      - name: Build UI
+        run: npm run build:ui
+      - name: Test Go
+        run: go test ./...
+      - name: Build CLI
+        run: go build -o pbschema-lens ./cmd/pbschema-lens
       - name: Doctor
-        run: npx tsx src/cli.ts doctor examples/acme
+        run: buf build examples/acme -o - --as-file-descriptor-set | ./pbschema-lens doctor --config examples/acme/pbschema-lens.yaml
       - name: Build example site
-        run: npx tsx src/cli.ts build examples/acme --out dist --base "/${{ github.event.repository.name }}/"
-      - name: Pack and smoke-test
-        run: npm run pack:smoke
+        run: buf build examples/acme -o - --as-file-descriptor-set | ./pbschema-lens build --config examples/acme/pbschema-lens.yaml --out dist --base "/${{ github.event.repository.name }}/" --source examples/acme/proto
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v5

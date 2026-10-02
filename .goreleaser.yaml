@@ -1,0 +1,35 @@
+version: 2
+
+project_name: pbschema-lens
+
+builds:
+  - id: pbschema-lens
+    main: ./cmd/pbschema-lens
+    binary: pbschema-lens
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    hooks:
+      pre:
+        - sh -c 'if [ ! -f internal/site/dist/index.html ]; then src="${GITHUB_WORKSPACE:-}/internal/site/dist"; if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -f "$src/index.html" ]; then mkdir -p internal/site && cp -a "$src" internal/site/dist; else npm ci && npm run build:ui; fi; fi'
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: git
