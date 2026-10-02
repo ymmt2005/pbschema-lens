@@ -5,13 +5,12 @@ import (
 	"bytes"
 	"io"
 	"net/url"
+	"regexp"
 	"strings"
 
-	"regexp"
-
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
-	gmhtml "github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/v2/extension"
+	"github.com/yuin/goldmark/v2/parser"
+	gmhtml "github.com/yuin/goldmark/v2/renderer/html"
 	"golang.org/x/net/html"
 )
 
@@ -29,12 +28,15 @@ var allowedTags = map[string]struct{}{
 	"table": {}, "thead": {}, "tbody": {}, "tr": {}, "th": {}, "td": {}, "hr": {}, "span": {},
 }
 
-var md = goldmark.New(
-	goldmark.WithExtensions(extension.GFM),
-	goldmark.WithRendererOptions(
+// goldmark v2 splits the parser and the HTML renderer. WithUnsafe leaves tag
+// filtering to the sanitizer below.
+var (
+	mdParser   = parser.New(parser.WithExtensions(extension.GFMParser))
+	mdRenderer = gmhtml.New(
 		gmhtml.WithUnsafe(),
 		gmhtml.WithHardWraps(),
-	),
+		gmhtml.WithExtensions(extension.GFMHTMLRenderer),
+	)
 )
 
 var starLine = regexp.MustCompile(`(?m)^\s*\*\s?`)
@@ -61,8 +63,10 @@ func RenderSafe(markdown string) string {
 	if strings.TrimSpace(markdown) == "" {
 		return ""
 	}
+	source := []byte(markdown)
 	var buf bytes.Buffer
-	if err := md.Convert([]byte(markdown), &buf); err != nil {
+	doc := mdParser.Parse(source)
+	if err := mdRenderer.Render(&buf, source, doc); err != nil {
 		return EscapeHTML(markdown)
 	}
 	return sanitize(buf.String())
