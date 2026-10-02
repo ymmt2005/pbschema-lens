@@ -40,7 +40,7 @@ Download a static binary for Linux, Windows, or macOS (amd64 or arm64).
 
 ```bash
 curl -fsSL -o pbschema-lens.tar.gz \
-  https://github.com/ymmt2005/pbschema-lens/releases/download/v0.6.1/pbschema-lens_linux_amd64.tar.gz
+  https://github.com/ymmt2005/pbschema-lens/releases/download/v0.6.2/pbschema-lens_linux_amd64.tar.gz
 tar -xzf pbschema-lens.tar.gz
 sudo mv pbschema-lens /usr/local/bin/pbschema-lens
 ```
