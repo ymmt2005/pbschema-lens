@@ -332,8 +332,19 @@ func TestAcmeIncludeExclude(t *testing.T) {
 	if flag == nil || !hasSemantic(flag.Options, "cybozu.validate") {
 		t.Fatalf("cybozu %+v", flag)
 	}
-	if user := findMessage(model, "acme.user.v1.User"); user == nil || !user.GeneratePage {
+	user := findMessage(model, "acme.user.v1.User")
+	if user == nil || !user.GeneratePage {
 		t.Fatal("user page")
+	}
+	if feat := featureByNameMessage(user, "json_format"); feat == nil || feat.InheritedFrom != "acme/user/v1/user" {
+		t.Fatalf("json format inherited from %+v", feat)
+	}
+	if created := findField(model, "acme.user.v1.User.created_at"); created == nil || created.Cardinality != "optional" {
+		t.Fatalf("message field cardinality %+v", created)
+	}
+	state := findEnum(model, "acme.user.v1.UserState")
+	if feat := featureByNameEnum(state, "enum_type"); feat == nil || feat.InheritedFrom != "acme/user/v1/user" {
+		t.Fatalf("enum type inherited from %+v", feat)
 	}
 	ts := findMessage(model, "google.protobuf.Timestamp")
 	if ts == nil || ts.Domain != "well-known" || !ts.GeneratePage || !ts.InNav {

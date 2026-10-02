@@ -43,15 +43,7 @@ func enumFeatures(ed protoreflect.EnumDescriptor) []EffectiveFeature {
 	if ed.IsClosed() {
 		kind = "CLOSED"
 	}
-	from := ""
-	if file := ed.ParentFile(); file != nil {
-		from = file.Path()
-	}
-	feature := describeFeature(ed, "enum_type", kind, pickEnumType)
-	if feature.Source != "declared" && feature.InheritedFrom == "" {
-		feature.InheritedFrom = from
-	}
-	return []EffectiveFeature{feature}
+	return []EffectiveFeature{describeFeature(ed, "enum_type", kind, pickEnumType)}
 }
 
 func extensionFeatures(ext protoreflect.FieldDescriptor) []EffectiveFeature {
@@ -72,10 +64,7 @@ func describeFeature(self protoreflect.Descriptor, name, effective string, pick 
 		}
 		return EffectiveFeature{Name: name, Effective: effective, Source: "inherited", InheritedFrom: ancestorLabel(ancestor)}
 	}
-	from := ""
-	if file := self.ParentFile(); file != nil {
-		from = file.Path()
-	}
+	from := fileDisplayName(self.ParentFile())
 	source := "edition-default"
 	if from != "" {
 		source = "inherited"
@@ -110,9 +99,17 @@ func ancestors(self protoreflect.Descriptor) []protoreflect.Descriptor {
 
 func ancestorLabel(d protoreflect.Descriptor) string {
 	if file, ok := d.(protoreflect.FileDescriptor); ok {
-		return file.Path()
+		return fileDisplayName(file)
 	}
 	return string(d.FullName())
+}
+
+// fileDisplayName is the protobuf-es file name: the path without a .proto suffix.
+func fileDisplayName(file protoreflect.FileDescriptor) string {
+	if file == nil {
+		return ""
+	}
+	return strings.TrimSuffix(file.Path(), ".proto")
 }
 
 func featureSetOf(d protoreflect.Descriptor) *descriptorpb.FeatureSet {

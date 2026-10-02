@@ -236,9 +236,7 @@ func routes(schema *model.SchemaModel) []string {
 	if source {
 		add("/source/")
 	}
-	if schema.Diff != nil {
-		add("/diff/")
-	}
+	add("/diff/")
 	out := make([]string, 0, len(seen))
 	for route := range seen {
 		out = append(out, route)

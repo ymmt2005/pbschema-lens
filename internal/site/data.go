@@ -145,9 +145,6 @@ func buildIndex(schema *model.SchemaModel) siteIndex {
 		index.WKTNotes = map[string]string{}
 	}
 	for _, pkg := range schema.Packages {
-		if !pkg.InNav && !pkg.GeneratePage {
-			continue
-		}
 		index.Packages = append(index.Packages, packageCard{
 			ID: pkg.ID, FullName: pkg.FullName, URLPath: pkg.URLPath, Domain: pkg.Domain,
 			GeneratePage: pkg.GeneratePage, InNav: pkg.InNav,

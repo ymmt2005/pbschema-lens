@@ -785,7 +785,7 @@ func cardinalityOf(fd protoreflect.FieldDescriptor) string {
 		return "repeated"
 	case fd.Cardinality() == protoreflect.Required:
 		return "required"
-	case fd.HasOptionalKeyword() || fd.Syntax() == protoreflect.Proto2:
+	case fd.HasPresence():
 		return "optional"
 	default:
 		return "implicit"
