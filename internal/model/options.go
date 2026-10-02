@@ -69,7 +69,11 @@ func (f OptionField) MarshalJSON() ([]byte, error) {
 }
 
 func (e OptionMapEntry) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]any{"key": e.Key, "value": e.Value})
+	m := map[string]any{"key": e.Key, "value": e.Value}
+	if e.KeyKind != "" {
+		m["keyKind"] = e.KeyKind
+	}
+	return json.Marshal(m)
 }
 
 var optionExtendees = map[string]string{
@@ -282,8 +286,9 @@ func fieldToOption(fd protoreflect.FieldDescriptor, v protoreflect.Value) Option
 		var entries []OptionMapEntry
 		mp.Range(func(key protoreflect.MapKey, value protoreflect.Value) bool {
 			entries = append(entries, OptionMapEntry{
-				Key:   key.String(),
-				Value: scalarOrMessage(fd.MapValue(), value),
+				Key:     key.String(),
+				KeyKind: scalarName(fd.MapKey().Kind()),
+				Value:   scalarOrMessage(fd.MapValue(), value),
 			})
 			return true
 		})
@@ -355,7 +360,7 @@ func writeOptionField(b *strings.Builder, name string, value OptionValue, depth 
 	case "map":
 		for _, entry := range value.Entries {
 			fmt.Fprintf(b, "%s%s: {\n", pad, name)
-			fmt.Fprintf(b, "%s  key: %s\n", pad, quotedMapKey(entry.Key))
+			fmt.Fprintf(b, "%s  key: %s\n", pad, quotedMapKey(entry.Key, entry.KeyKind))
 			writeOptionField(b, "value", entry.Value, depth+1)
 			fmt.Fprintf(b, "%s}\n", pad)
 		}
@@ -410,14 +415,26 @@ func optionScalarText(value OptionValue) string {
 	}
 }
 
-func quotedMapKey(key string) string {
-	if _, err := strconv.ParseInt(key, 10, 64); err == nil {
+func quotedMapKey(key, kind string) string {
+	switch kind {
+	case "string", "bytes":
+		return strconv.Quote(key)
+	case "bool":
+		if key == "true" || key == "false" {
+			return key
+		}
+		return strconv.Quote(key)
+	case "":
+		if _, err := strconv.ParseInt(key, 10, 64); err == nil {
+			return key
+		}
+		if _, err := strconv.ParseUint(key, 10, 64); err == nil {
+			return key
+		}
+		return strconv.Quote(key)
+	default:
 		return key
 	}
-	if _, err := strconv.ParseUint(key, 10, 64); err == nil {
-		return key
-	}
-	return strconv.Quote(key)
 }
 
 func formatAssignment(name string, value OptionValue, extension bool) string {

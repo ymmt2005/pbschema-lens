@@ -9,10 +9,12 @@ import {
   homeWarningsHtml,
   messagePageHtml,
   methodPageHtml,
+  notFoundHtml,
   packagePageHtml,
   servicePageHtml,
   type PageContext,
 } from "../../site/src/lib/pages.ts";
+import { documentTitle } from "../../site/src/lib/document-title.ts";
 import { homeAreasHtml, packageTreeHtml, sourceFilePageHtml, sourceIndexHtml } from "../../site/src/lib/trees.ts";
 import { rankSymbol } from "../../src/core/search.ts";
 import type { DocEnum, DocExtension, DocFile, DocMessage, DocMethod, DocPackage, DocService, DocSymbol, SymbolIndexEntry, SymbolReference } from "../../src/core/types.ts";
@@ -115,7 +117,7 @@ async function renderRoute(path: string): Promise<string> {
 }
 
 function notFound(): string {
-  return `<h1 class="text-3xl font-semibold">Page not found</h1><p class="mt-3 text-[color:var(--fg-muted)]">No documented symbol lives at this path.</p>`;
+  return notFoundHtml(href("/"));
 }
 
 function pageContext(): PageContext {
@@ -250,9 +252,11 @@ function bindPage(path: string) {
 }
 
 function pageTitle(path: string): string {
-  if (path === "/") return index.title;
-  const symbol = index.symbolIndex.find((item) => item.urlPath === path);
-  return symbol ? `${symbol.name} · ${index.title}` : index.title;
+  const pages = [
+    ...index.symbolIndex.map((item) => ({ urlPath: item.urlPath, fullName: item.fullName })),
+    ...index.files.map((file) => ({ urlPath: file.urlPath, fullName: file.fullName })),
+  ];
+  return documentTitle(path, index.title, pages);
 }
 
 function installShell() {
@@ -294,7 +298,7 @@ function installShell() {
     <dialog id="search-dialog" class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-0 text-[color:var(--fg)] shadow-[var(--shadow)]" aria-label="Search">
       <div class="flex shrink-0 items-start gap-3 border-b border-[color:var(--line)] p-3">
         <form id="search-form" class="min-w-0 flex-1" role="search" autocomplete="off">
-          <input id="search-input" class="w-full bg-transparent outline-none text-base" type="search" name="protobuf-symbol-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Search symbols and comments" placeholder="Search symbols, comments, options…" />
+          <input id="search-input" class="w-full bg-transparent outline-none text-base" type="search" name="protobuf-symbol-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Search symbols and comments" placeholder="Search symbols and comments…" />
           <div id="search-filters" class="flex flex-wrap gap-1 mt-2 text-xs"></div>
         </form>
         <button id="search-close" class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-muted)] px-2 py-1 text-xs text-[color:var(--fg)]" type="button" aria-label="Close search">Close <kbd class="rounded border border-[color:var(--line)] bg-[color:var(--bg-raised)] px-1 text-[11px] text-[color:var(--fg-muted)]">Esc</kbd></button>
@@ -305,32 +309,62 @@ function installShell() {
   `;
   document.getElementById("menu-btn")?.addEventListener("click", () => {
     const panel = document.getElementById("mobile-panel");
-    const nav = document.querySelector("[data-package-nav]");
+    const nav = document.getElementById("side-nav");
     if (panel) {
-      panel.innerHTML = `<button id="menu-close" class="mb-4 text-sm" type="button">Close</button><a href="${href("/")}" class="block font-semibold mb-4 no-underline text-[color:var(--fg)]">${esc(index.title)}</a><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div><div data-package-nav>${nav?.innerHTML ?? ""}</div>`;
+      panel.innerHTML = `<button id="menu-close" class="mb-4 text-sm" type="button">Close</button><a href="${href("/")}" class="block font-semibold mb-4 no-underline text-[color:var(--fg)]">${esc(index.title)}</a>${nav?.innerHTML ?? ""}`;
       document.getElementById("menu-close")?.addEventListener("click", () => document.getElementById("mobile-nav")?.classList.add("hidden"));
     }
     document.getElementById("mobile-nav")?.classList.remove("hidden");
   });
   document.getElementById("mobile-nav")?.addEventListener("click", (event) => {
-    if ((event.target as HTMLElement).id === "mobile-nav") document.getElementById("mobile-nav")?.classList.add("hidden");
+    const target = event.target as HTMLElement;
+    if (target.id === "mobile-nav" || target.closest("a")) document.getElementById("mobile-nav")?.classList.add("hidden");
   });
   const themeButton = document.getElementById("theme-menu-button");
   const themeMenu = document.getElementById("theme-menu");
-  themeButton?.addEventListener("click", () => {
+  const desktopTheme = window.matchMedia("(prefers-color-scheme: dark)");
+  const themeItems = () => [...(themeMenu?.querySelectorAll<HTMLButtonElement>("[data-theme-choice]") ?? [])];
+  function setThemeMenuOpen(open: boolean) {
     if (!themeMenu || !themeButton) return;
-    themeMenu.hidden = !themeMenu.hidden;
-    themeButton.setAttribute("aria-expanded", themeMenu.hidden ? "false" : "true");
+    themeMenu.hidden = !open;
+    themeButton.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) themeItems().find((item) => item.getAttribute("aria-checked") === "true")?.focus();
+  }
+  desktopTheme.addEventListener("change", () => {
+    if (themeChoice(localStorage.getItem(THEME_STORAGE_KEY)) !== "system") return;
+    applyTheme();
   });
+  themeButton?.addEventListener("click", () => setThemeMenuOpen(themeMenu?.hidden !== false));
   themeMenu?.addEventListener("click", (event) => {
-    const choice = (event.target as HTMLElement).closest("[data-theme-choice]")?.getAttribute("data-theme-choice");
-    if (!choice) return;
-    const stored = themeStorageValue(choice);
-    if (stored) localStorage.setItem(THEME_STORAGE_KEY, stored);
+    const item = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-theme-choice]");
+    if (!item?.dataset.themeChoice) return;
+    const value = themeStorageValue(item.dataset.themeChoice);
+    if (value) localStorage.setItem(THEME_STORAGE_KEY, value);
     else localStorage.removeItem(THEME_STORAGE_KEY);
     applyTheme();
-    if (themeMenu) themeMenu.hidden = true;
-    themeButton?.setAttribute("aria-expanded", "false");
+    setThemeMenuOpen(false);
+    themeButton?.focus();
+  });
+  themeMenu?.addEventListener("keydown", (event) => {
+    const items = themeItems();
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const next = event.key === "ArrowDown" ? current + 1 : current - 1;
+      items[(next + items.length) % items.length]?.focus();
+    }
+  });
+  document.addEventListener("click", (event) => {
+    if (!themeMenu || themeMenu.hidden) return;
+    const target = event.target as Node;
+    if (themeMenu.contains(target) || themeButton?.contains(target)) return;
+    setThemeMenuOpen(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && themeMenu && !themeMenu.hidden) {
+      setThemeMenuOpen(false);
+      themeButton?.focus();
+    }
   });
   applyTheme();
   const dialog = document.querySelector<HTMLDialogElement>("#search-dialog");
@@ -352,6 +386,7 @@ function installShell() {
   }
   filters?.querySelector("button")?.classList.add("bg-[color:var(--bg-muted)]");
   function openSearch() {
+    setThemeMenuOpen(false);
     dialog?.showModal();
     input?.focus();
     void renderHits(input?.value ?? "");

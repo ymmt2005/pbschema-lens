@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DocField, DocMessage, DocMethod, DocOneof, DocOption, DocService, SchemaDiff } from "../../../src/core/types.ts";
-import { diffPageHtml, explorePageHtml, fieldTableHtml, graphPageHtml, messagePageHtml, methodPageHtml, servicePageHtml, type PageContext } from "./pages.ts";
+import { diffPageHtml, explorePageHtml, fieldTableHtml, graphPageHtml, messagePageHtml, methodPageHtml, notFoundHtml, optionListHtml, servicePageHtml, type PageContext } from "./pages.ts";
 
 const href = (path: string) => path;
 
@@ -127,7 +127,7 @@ describe("message pages", () => {
     expect(html).toContain("Effective features");
     expect(html).toContain("default for this edition");
     expect(html).toContain("Field type");
-    expect(html).toContain("10 to 19old");
+    expect(html).toContain("10 to 19, old");
     expect(html.indexOf(">Fields<")).toBeLessThan(html.indexOf("Effective features"));
     expect(html).toContain('href="/source/user.proto/"');
   });
@@ -236,5 +236,52 @@ describe("field tables", () => {
     expect(html).toContain("schema-fields");
     expect(html).toContain("col-validation");
     expect(html).toContain(">—<");
+  });
+});
+
+describe("option definitions", () => {
+  const option = {
+    name: "pii",
+    fullName: "acme.security.pii",
+    extension: true,
+    builtIn: false,
+    target: "field",
+    definitionId: "pii",
+    value: { kind: "scalar" as const, scalar: "bool" as const, value: true },
+    textProto: "(acme.security.pii) = true",
+  };
+
+  it("links a definition only when that symbol has a generated page", () => {
+    const linked = optionListHtml([option], {
+      ...ctx,
+      byId: new Map([
+        ...ctx.byId,
+        ["pii", { id: "pii", name: "pii", fullName: "acme.security.pii", urlPath: "/reference/extensions/acme.security.pii/", kind: "extension", shard: "pii" }],
+      ]),
+    });
+    expect(linked).toContain('href="/reference/extensions/acme.security.pii/"');
+
+    const unpublished = optionListHtml([option], {
+      ...ctx,
+      byId: new Map([
+        ["pii", { id: "pii", name: "pii", fullName: "acme.security.pii", urlPath: "/reference/extensions/acme.security.pii/", kind: "extension" }],
+      ]),
+    });
+    expect(unpublished).toContain(">acme.security.pii</span>");
+    expect(unpublished).not.toContain("/reference/extensions/");
+
+    const missing = optionListHtml([{ ...option, fullName: "vendor.hidden", definitionId: "missing" }], ctx);
+    expect(missing).toContain(">vendor.hidden</span>");
+    expect(missing).not.toContain("<a ");
+  });
+});
+
+describe("missing pages", () => {
+  it("names the missing symbol and links back to the catalog", () => {
+    const html = notFoundHtml("/");
+    expect(html).toContain("Page not found");
+    expect(html).toContain("That protobuf symbol is not in this documentation build.");
+    expect(html).toContain('href="/"');
+    expect(html).toContain("Back to the catalog");
   });
 });

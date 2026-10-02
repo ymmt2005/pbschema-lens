@@ -46,6 +46,10 @@ export interface PageContext {
 
 const VALIDATION_RENDERERS = new Set(["validation", "cybozu.validate"]);
 
+export function notFoundHtml(homeHref: string): string {
+  return `<h1 class="text-3xl font-semibold mb-3">Page not found</h1><p class="text-[color:var(--fg-muted)] mb-4">That protobuf symbol is not in this documentation build.</p><p><a href="${esc(homeHref)}">Back to the catalog</a></p>`;
+}
+
 function esc(value: string | number | undefined): string {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -197,7 +201,7 @@ function fieldDetails(field: DocField): string {
   return `<details class="mt-2 text-xs"><summary class="cursor-pointer text-[color:var(--fg-muted)]">Details</summary><ul class="mt-2 space-y-1 text-[color:var(--fg-muted)]"><li>JSON name: <code>${esc(field.jsonName)}</code></li><li>Presence: ${esc(field.presence)}</li>${packed}${fallback}${notes}</ul>${raw}</details>`;
 }
 
-export function optionListHtml(options: DocOption[] | undefined, href: Href): string {
+export function optionListHtml(options: DocOption[] | undefined, ctx: PageContext): string {
   const visible = (options ?? []).filter((option) => !(option.name === "deprecated" && option.value.kind === "scalar"));
   if (!visible.length) return "";
   const rows = visible
@@ -209,13 +213,21 @@ export function optionListHtml(options: DocOption[] | undefined, href: Href): st
       const badges = option.semantic?.badges?.length
         ? `<div class="flex flex-wrap gap-1 mt-2">${option.semantic.badges.map((badge) => `<span class="text-xs rounded-full bg-[color:var(--bg-muted)] px-2 py-0.5">${esc(badge)}</span>`).join("")}</div>`
         : "";
-      const defined = option.definitionId
-        ? `<p class="text-sm mt-2">Defined by <a href="${esc(href(`/reference/extensions/${encodeURIComponent(option.fullName)}/`))}">${esc(option.fullName)}</a></p>`
-        : "";
+      const defined = definitionLine(option, ctx);
       return `<details class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-4"${open}><summary class="cursor-pointer font-medium">${summary}</summary>${badges}${defined}<pre class="option mt-3">${esc(option.textProto)}</pre></details>`;
     })
     .join("");
   return `<section class="mt-8"><h2 class="text-lg font-semibold mb-3">Options</h2><div class="space-y-3">${rows}</div></section>`;
+}
+
+function definitionLine(option: DocOption, ctx: PageContext): string {
+  if (!option.definitionId) return "";
+  const defined = ctx.byId.get(option.definitionId);
+  const name = defined?.fullName || option.fullName;
+  if (defined?.shard && defined.urlPath) {
+    return `<p class="text-sm mt-2">Defined by <a href="${esc(ctx.href(defined.urlPath))}">${esc(name)}</a></p>`;
+  }
+  return `<p class="text-sm mt-2">Defined by <span class="font-mono">${esc(name)}</span></p>`;
 }
 
 export function featureListHtml(features: EffectiveFeature[] | undefined): string {
@@ -291,7 +303,7 @@ export function packagePageHtml(pkg: DocPackage, ctx: PageContext): string {
     <section class="mt-8"><h2 class="text-lg font-semibold mb-2">Messages</h2>${messageList}${messageEmpty}</section>
     ${symbolList("Enums", pkg.enumIds, ctx, (entry) => entry.name, "No enums in this package.")}
     ${symbolList("Extensions", pkg.extensionIds, ctx, (entry) => entry.fullName, "No extensions in this package.")}
-    ${optionListHtml(pkg.options, ctx.href)}
+    ${optionListHtml(pkg.options, ctx)}
     ${usedByHtml(pkg, ctx)}
   `;
 }
@@ -306,9 +318,8 @@ function reservedHtml(names: string[] | undefined, ranges: ReservedRange[] | und
   const nameList = names ?? [];
   const rangeList = ranges ?? [];
   if (!nameList.length && !rangeList.length) return "";
-  const rangeText = rangeList.map((range) => `${range.start} to ${range.end - 1}`).join(", ");
-  const nameText = nameList.join(", ");
-  return `<section class="mt-8"><h2 class="text-lg font-semibold mb-2">Reserved</h2><p class="text-sm font-mono">${esc(rangeText)}${esc(nameText)}</p></section>`;
+  const parts = [...rangeList.map((range) => `${range.start} to ${range.end - 1}`), ...nameList];
+  return `<section class="mt-8"><h2 class="text-lg font-semibold mb-2">Reserved</h2><p class="text-sm font-mono">${esc(parts.join(", "))}</p></section>`;
 }
 
 export function messagePageHtml(message: DocMessage, related: Record<string, DocSymbol>, note: string | undefined, ctx: PageContext): string {
@@ -321,7 +332,7 @@ export function messagePageHtml(message: DocMessage, related: Record<string, Doc
   const example = message.exampleJson
     ? `<section class="mt-8"><h2 class="text-lg font-semibold mb-2">Example JSON</h2><pre class="option">${esc(JSON.stringify(message.exampleJson, null, 2))}</pre></section>`
     : "";
-  return `${symbolHeaderHtml(message, ctx)}${noteHtml(note)}${nested}<h2 class="text-lg font-semibold mb-3">Fields</h2>${fieldTableHtml(fields, oneofs, ctx.href)}${nestedList("Nested messages", message.nestedMessageIds, related, ctx.href)}${nestedList("Nested enums", message.nestedEnumIds, related, ctx.href)}${reservedHtml(message.reservedNames, message.reservedRanges)}${example}${optionListHtml(message.options, ctx.href)}${featureListHtml(message.features)}${usedByHtml(message, ctx)}`;
+  return `${symbolHeaderHtml(message, ctx)}${noteHtml(note)}${nested}<h2 class="text-lg font-semibold mb-3">Fields</h2>${fieldTableHtml(fields, oneofs, ctx.href)}${nestedList("Nested messages", message.nestedMessageIds, related, ctx.href)}${nestedList("Nested enums", message.nestedEnumIds, related, ctx.href)}${reservedHtml(message.reservedNames, message.reservedRanges)}${example}${optionListHtml(message.options, ctx)}${featureListHtml(message.features)}${usedByHtml(message, ctx)}`;
 }
 
 export function enumPageHtml(doc: DocEnum, related: Record<string, DocSymbol>, note: string | undefined, ctx: PageContext): string {
@@ -332,7 +343,7 @@ export function enumPageHtml(doc: DocEnum, related: Record<string, DocSymbol>, n
       return `<tr id="${esc(value.anchor ?? "")}"><td class="font-mono">${esc(value.shortName)}${deprecated}</td><td class="num">${value.number}</td><td>${description}</td></tr>`;
     })
     .join("");
-  return `${symbolHeaderHtml(doc, ctx)}${noteHtml(note)}<p class="text-sm text-[color:var(--fg-muted)] mb-4">${doc.open ? "Open enum" : "Closed enum"}${doc.allowAlias ? " · aliases allowed" : ""}</p><div class="table-wrap"><table class="fields"><thead><tr><th>Value</th><th>Number</th><th>Description</th></tr></thead><tbody>${rows}</tbody></table></div>${optionListHtml(doc.options, ctx.href)}${featureListHtml(doc.features)}${usedByHtml(doc, ctx)}`;
+  return `${symbolHeaderHtml(doc, ctx)}${noteHtml(note)}<p class="text-sm text-[color:var(--fg-muted)] mb-4">${doc.open ? "Open enum" : "Closed enum"}${doc.allowAlias ? " · aliases allowed" : ""}</p><div class="table-wrap"><table class="fields"><thead><tr><th>Value</th><th>Number</th><th>Description</th></tr></thead><tbody>${rows}</tbody></table></div>${optionListHtml(doc.options, ctx)}${featureListHtml(doc.features)}${usedByHtml(doc, ctx)}`;
 }
 
 export function servicePageHtml(service: DocService, related: Record<string, DocSymbol>, ctx: PageContext): string {
@@ -346,7 +357,7 @@ export function servicePageHtml(service: DocService, related: Record<string, Doc
       return `<tr><td><a class="font-mono no-underline text-[color:var(--fg)]" href="${esc(ctx.href(method.urlPath))}">${esc(method.shortName)}</a>${deprecated}</td><td class="font-mono text-xs">${linkedType(method.input, ctx.href)}</td><td class="font-mono text-xs">${linkedType(method.output, ctx.href)}</td><td class="text-xs"><span class="inline-flex flex-wrap gap-1">${streaming}</span></td></tr>`;
     })
     .join("");
-  return `${symbolHeaderHtml(service, ctx)}<div class="table-wrap mb-8"><table class="fields"><thead><tr><th>RPC</th><th>Request</th><th>Response</th><th>Streaming</th></tr></thead><tbody>${rows}</tbody></table></div>${optionListHtml(service.options, ctx.href)}${usedByHtml(service, ctx)}`;
+  return `${symbolHeaderHtml(service, ctx)}<div class="table-wrap mb-8"><table class="fields"><thead><tr><th>RPC</th><th>Request</th><th>Response</th><th>Streaming</th></tr></thead><tbody>${rows}</tbody></table></div>${optionListHtml(service.options, ctx)}${usedByHtml(service, ctx)}`;
 }
 
 export function methodPageHtml(method: DocMethod, related: Record<string, DocSymbol>, ctx: PageContext): string {
@@ -357,7 +368,7 @@ export function methodPageHtml(method: DocMethod, related: Record<string, DocSym
   const stream = (on: boolean) => (on ? `<span class="stream-keyword">stream</span> ` : "");
   const signature = `<pre class="proto">rpc ${esc(method.shortName)}(${stream(method.clientStreaming)}${esc(method.input.name)}) returns (${stream(method.serverStreaming)}${esc(method.output.name)});</pre>`;
   const idempotency = method.idempotency ? `<p class="text-sm text-[color:var(--fg-muted)] mt-3">${esc(method.idempotency)}</p>` : "";
-  return `${symbolHeaderHtml(method, ctx)}${serviceLine}${signature}${idempotency}${optionListHtml(method.options, ctx.href)}${messageSection("Request", method.clientStreaming, method.input, related, ctx, "request-")}${messageSection("Response", method.serverStreaming, method.output, related, ctx, "response-")}`;
+  return `${symbolHeaderHtml(method, ctx)}${serviceLine}${signature}${idempotency}${optionListHtml(method.options, ctx)}${messageSection("Request", method.clientStreaming, method.input, related, ctx, "request-")}${messageSection("Response", method.serverStreaming, method.output, related, ctx, "response-")}`;
 }
 
 function messageSection(title: string, streaming: boolean, ref: TypeRef, related: Record<string, DocSymbol>, ctx: PageContext, prefix: string): string {
@@ -376,7 +387,7 @@ export function extensionPageHtml(extension: DocExtension, ctx: PageContext): st
     const cls = ddClass ? ` class="${ddClass}"` : "";
     return `<div class="rounded-xl border border-[color:var(--line)] p-3 bg-[color:var(--bg-raised)]"><dt class="text-[color:var(--fg-muted)]">${label}</dt><dd${cls}>${body}</dd></div>`;
   };
-  return `${symbolHeaderHtml(extension, ctx)}<dl class="grid sm:grid-cols-2 gap-3 text-sm mb-6">${card("Kind", esc(kind))}${card("Field number", String(extension.number), "font-mono")}${card("Extends", linkedType(extension.extendee, ctx.href))}${card("Type", linkedType(extension.type, ctx.href))}</dl><pre class="proto">${esc(extension.declaration)}</pre>${optionListHtml(extension.options, ctx.href)}${usedByHtml(extension, ctx)}`;
+  return `${symbolHeaderHtml(extension, ctx)}<dl class="grid sm:grid-cols-2 gap-3 text-sm mb-6">${card("Kind", esc(kind))}${card("Field number", String(extension.number), "font-mono")}${card("Extends", linkedType(extension.extendee, ctx.href))}${card("Type", linkedType(extension.type, ctx.href))}</dl><pre class="proto">${esc(extension.declaration)}</pre>${optionListHtml(extension.options, ctx)}${usedByHtml(extension, ctx)}`;
 }
 
 export function explorePageHtml(entries: PageLink[]): string {
