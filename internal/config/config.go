@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/goccy/go-yaml"
 	"github.com/ymmt2005/pbschema-lens/internal/classify"
-	"gopkg.in/yaml.v3"
 )
 
 // Config is pbschema-lens.yaml.
