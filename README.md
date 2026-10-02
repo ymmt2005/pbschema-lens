@@ -42,7 +42,7 @@ This is a build-time CLI, not a library. Download a static binary for Linux, Win
 
 ```bash
 curl -fsSL -o pbschema-lens.tar.gz \
-  https://github.com/ymmt2005/pbschema-lens/releases/download/v0.6.0/pbschema-lens_linux_amd64.tar.gz
+  https://github.com/ymmt2005/pbschema-lens/releases/download/v0.6.1/pbschema-lens_linux_amd64.tar.gz
 tar -xzf pbschema-lens.tar.gz
 sudo mv pbschema-lens /usr/local/bin/pbschema-lens
 ```
