@@ -1,8 +1,8 @@
 package site
 
 import (
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -338,19 +338,11 @@ func packageID(pkgs map[string]*model.DocPackage, packageName string) string {
 	return pkg.ID
 }
 
-// fileToken percent-encodes every byte except RFC 3986 unreserved characters.
-// Symbol ids contain ":", which is not a legal Windows filename character.
+// fileToken is base64url without padding. Symbol ids contain ":" and source
+// paths contain "/". Percent-encoding those would be decoded by static servers
+// before the file lookup, and ":" is not a legal Windows filename character.
 func fileToken(value string) string {
-	var b strings.Builder
-	for i := 0; i < len(value); i++ {
-		c := value[i]
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~' {
-			b.WriteByte(c)
-			continue
-		}
-		fmt.Fprintf(&b, "%%%02X", c)
-	}
-	return b.String()
+	return base64.RawURLEncoding.EncodeToString([]byte(value))
 }
 
 func writeJSON(path string, value any) error {

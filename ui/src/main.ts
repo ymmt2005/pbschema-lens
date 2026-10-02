@@ -38,6 +38,7 @@ const loader: Loader = createLoader(base);
 
 const index = await loadIndex();
 const byId = new Map(index.symbolIndex.map((entry) => [entry.id, entry]));
+let navToken = 0;
 
 installShell();
 void navigate();
@@ -66,8 +67,6 @@ async function loadIndex(): Promise<SiteIndex> {
     throw new Error("index");
   }
 }
-
-let navToken = 0;
 
 async function navigate() {
   const token = ++navToken;
@@ -115,8 +114,9 @@ async function renderRoute(path: string): Promise<string> {
       default:
         return notFound();
     }
-  } catch {
-    return notFound();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The symbol payload could not be loaded.";
+    return `<h1 class="text-3xl font-semibold">Could not load this page</h1><p class="mt-3 text-[color:var(--fg-muted)]">${esc(message)}</p>`;
   }
 }
 

@@ -88,14 +88,45 @@ type flags struct {
 	rest    []string
 }
 
-func parseSet(fs *flag.FlagSet, args []string, name string) error {
+func parseSet(fs *flag.FlagSet, args []string, name string, boolFlags ...string) error {
 	fs.Usage = func() {}
-	err := fs.Parse(args)
+	err := fs.Parse(allowFlagsAfterArgs(args, boolFlags))
 	if err == flag.ErrHelp {
 		fmt.Print(helpText(name))
 		return errHelp
 	}
 	return err
+}
+
+// allowFlagsAfterArgs lets a descriptor path come before flags.
+// The standard flag package stops at the first non-flag.
+func allowFlagsAfterArgs(args []string, boolFlags []string) []string {
+	bools := map[string]bool{"h": true, "help": true}
+	for _, name := range boolFlags {
+		bools[name] = true
+	}
+	var flags, rest []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			rest = append(rest, args[i+1:]...)
+			break
+		}
+		if arg == "-" || !strings.HasPrefix(arg, "-") {
+			rest = append(rest, arg)
+			continue
+		}
+		flags = append(flags, arg)
+		body := strings.TrimLeft(arg, "-")
+		if body == "" || strings.Contains(body, "=") || bools[body] {
+			continue
+		}
+		if i+1 < len(args) {
+			i++
+			flags = append(flags, args[i])
+		}
+	}
+	return append(flags, rest...)
 }
 
 func bindSiteFlags(fs *flag.FlagSet, f *flags) {
@@ -161,7 +192,7 @@ func parseInit(args []string) (flags, error) {
 	fs.SetOutput(io.Discard)
 	var f flags
 	fs.BoolVar(&f.pages, "github-pages", false, "write a GitHub Pages workflow")
-	if err := parseSet(fs, args, "init"); err != nil {
+	if err := parseSet(fs, args, "init", "github-pages"); err != nil {
 		return f, err
 	}
 	if fs.NArg() > 0 {

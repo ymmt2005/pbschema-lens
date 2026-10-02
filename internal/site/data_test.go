@@ -113,14 +113,14 @@ func TestWriteModelSplitsPayloads(t *testing.T) {
 	if len(index.Files) != 1 || !index.HasSource || index.Files[0].FullName != "demo.proto" {
 		t.Fatalf("files %+v", index.Files)
 	}
-	symbolRaw, err := os.ReadFile(filepath.Join(dir, "assets", "model", "symbols", "message%3Ademo.M.json"))
+	symbolRaw, err := os.ReadFile(filepath.Join(dir, "assets", "model", "symbols", fileToken(msg.ID)+".json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(symbolRaw), `"jsonName":"a"`) || !strings.Contains(string(symbolRaw), "field_presence") {
 		t.Fatalf("symbol payload %s", symbolRaw)
 	}
-	sourceRaw, err := os.ReadFile(filepath.Join(dir, "assets", "model", "source", "demo.proto.json"))
+	sourceRaw, err := os.ReadFile(filepath.Join(dir, "assets", "model", "source", fileToken(file.FullName)+".json"))
 	if err != nil {
 		t.Fatal(err)
 	}

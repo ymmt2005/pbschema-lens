@@ -138,13 +138,10 @@ export function asset(base: string, name: string): string {
   return `${base}${name}`;
 }
 
-/** Match site.fileToken: percent-encode every byte except RFC 3986 unreserved characters. */
+/** Match site.fileToken: base64url without padding. */
 export function pathEscape(value: string): string {
-  let out = "";
-  for (const byte of new TextEncoder().encode(value)) {
-    const char = String.fromCharCode(byte);
-    if (/[A-Za-z0-9\-_.~]/.test(char)) out += char;
-    else out += `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
-  }
-  return out;
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }

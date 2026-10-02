@@ -49,6 +49,16 @@ func TestShortConfigFlag(t *testing.T) {
 	}
 }
 
+func TestFlagsAfterPositional(t *testing.T) {
+	f, err := parseBuild("build", []string{"schema.binpb", "--out", "dist", "--title", "Acme API", "--source", "proto"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.out != "dist" || f.title != "Acme API" || f.source != "proto" || len(f.rest) != 1 || f.rest[0] != "schema.binpb" {
+		t.Fatalf("%+v", f)
+	}
+}
+
 func TestDevRejectsAgainst(t *testing.T) {
 	err := run([]string{"dev", "--against", "old.binpb", "schema.binpb"})
 	if err == nil || !strings.Contains(err.Error(), "against") {
