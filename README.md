@@ -38,7 +38,7 @@ A static file server works the same way. Opening `dist/index.html` as a local fi
 
 ## Install from a GitHub Release
 
-This is a build-time CLI, not a library. Download a static binary for Linux, Windows, or macOS (amd64 or arm64). The released CLI does not require Node. Building this repository from source still needs Node to compile `internal/site/dist` before `go build`, and Go 1.26 or newer. A version bump on `main` publishes those archives with [GoReleaser](https://goreleaser.com/).
+This is a build-time CLI, not a library. Download a static binary for Linux, Windows, or macOS (amd64 or arm64).
 
 ```bash
 curl -fsSL -o pbschema-lens.tar.gz \
@@ -164,6 +164,8 @@ The security target is current practice for a static site built from untrusted s
 - Descriptor, config, and source paths may contain `..`. Output is refused when it is the filesystem root, the working directory, or an ancestor of the working directory. A generated path that is absolute or contains a `..` segment is not written.
 
 ## Develop
+
+The released binary does not require Node. Building this repository from source needs Node to compile `internal/site/dist` before `go build`, and Go 1.26 or newer.
 
 ```bash
 npm test
