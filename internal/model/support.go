@@ -10,7 +10,6 @@ import (
 	"github.com/ymmt2005/pbschema-lens/internal/classify"
 	"github.com/ymmt2005/pbschema-lens/internal/markdown"
 	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 var starLine = regexp.MustCompile(`(?m)^\s*\*\s?`)
@@ -39,76 +38,6 @@ func nameList(list protoreflect.Names) []string {
 		out = append(out, string(list.Get(i)))
 	}
 	return out
-}
-
-func enumOpen(ed protoreflect.EnumDescriptor) bool {
-	if ed.Syntax() == protoreflect.Proto2 {
-		return false
-	}
-	opts, _ := ed.Options().(*descriptorpb.EnumOptions)
-	if opts != nil && opts.Features != nil && opts.Features.EnumType != nil {
-		return *opts.Features.EnumType != descriptorpb.FeatureSet_CLOSED
-	}
-	return true
-}
-
-func messageFeatures(md protoreflect.MessageDescriptor) []EffectiveFeature {
-	declared := ""
-	if opts, ok := md.Options().(*descriptorpb.MessageOptions); ok && opts != nil && opts.Features != nil && opts.Features.JsonFormat != nil {
-		declared = opts.Features.JsonFormat.String()
-	}
-	effective := "ALLOW"
-	if file := md.ParentFile(); file != nil && file.Syntax() == protoreflect.Proto2 {
-		effective = "LEGACY_BEST_EFFORT"
-	}
-	if declared != "" {
-		effective = declared
-		return []EffectiveFeature{{Name: "json_format", Declared: declared, Effective: effective, Source: "declared"}}
-	}
-	from := ""
-	if file := md.ParentFile(); file != nil {
-		from = string(file.Path())
-	}
-	return []EffectiveFeature{{Name: "json_format", Effective: effective, Source: "inherited", InheritedFrom: from}}
-}
-
-func fieldFeatures(fd protoreflect.FieldDescriptor, parent string) []EffectiveFeature {
-	features := []EffectiveFeature{feature("field_presence", presenceOf(fd), "", parent)}
-	features = append(features, feature("utf8_validation", utf8Of(fd), "", parent))
-	if fd.IsList() && !fd.IsMap() {
-		encoding := "EXPANDED"
-		if fd.IsPacked() {
-			encoding = "PACKED"
-		}
-		features = append(features, feature("repeated_field_encoding", encoding, "", parent))
-	}
-	return features
-}
-
-func enumFeatures(ed protoreflect.EnumDescriptor) []EffectiveFeature {
-	kind := "CLOSED"
-	if enumOpen(ed) {
-		kind = "OPEN"
-	}
-	return []EffectiveFeature{feature("enum_type", kind, "", string(ed.ParentFile().Path()))}
-}
-
-func extensionFeatures(ext protoreflect.FieldDescriptor) []EffectiveFeature {
-	return []EffectiveFeature{feature("field_presence", presenceOf(ext), "", string(ext.ParentFile().Path()))}
-}
-
-func utf8Of(fd protoreflect.FieldDescriptor) string {
-	if fd.Syntax() == protoreflect.Proto2 {
-		return "NONE"
-	}
-	return "VERIFY"
-}
-
-func feature(name, effective, declared, inherited string) EffectiveFeature {
-	if declared != "" {
-		return EffectiveFeature{Name: name, Declared: declared, Effective: effective, Source: "declared"}
-	}
-	return EffectiveFeature{Name: name, Effective: effective, Source: "inherited", InheritedFrom: inherited}
 }
 
 func sortByName(files []*DocFile) {
@@ -355,7 +284,10 @@ func publish(symbol any, excluded map[string]bool) bool {
 	if msg, ok := symbol.(*DocMessage); ok && msg.MapEntry {
 		return false
 	}
-	if base.Domain == string(classify.DomainExternalDoc) || base.Domain == string(classify.DomainWellKnown) {
+	// Only local symbols are promoted. Included files are already local.
+	// Well-known pages stay as classified, and excluded or external files
+	// must not gain a page because a local symbol mentions them.
+	if base.Domain != string(classify.DomainLocal) {
 		return false
 	}
 	switch base.Kind {

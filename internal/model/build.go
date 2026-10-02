@@ -796,11 +796,7 @@ func presenceOf(fd protoreflect.FieldDescriptor) string {
 	switch {
 	case fd.Cardinality() == protoreflect.Required:
 		return "LEGACY_REQUIRED"
-	case fd.IsList() || fd.IsMap():
-		return "IMPLICIT"
-	case fd.HasOptionalKeyword() || fd.Syntax() == protoreflect.Proto2:
-		return "EXPLICIT"
-	case fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind:
+	case fd.HasPresence():
 		return "EXPLICIT"
 	default:
 		return "IMPLICIT"

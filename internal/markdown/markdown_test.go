@@ -56,6 +56,22 @@ func TestDropsUnsafeSchemes(t *testing.T) {
 	}
 }
 
+func TestAllowsRelativeAndFragmentLinks(t *testing.T) {
+	html := RenderSafe(`[a](./docs/page.html) [b](../up.md) [c](/abs) [d](#section) [e](docs/page.html)`)
+	for _, want := range []string{`href="./docs/page.html"`, `href="../up.md"`, `href="/abs"`, `href="#section"`, `href="docs/page.html"`} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("missing %s in %s", want, html)
+		}
+	}
+}
+
+func TestRejectsProtocolRelative(t *testing.T) {
+	html := RenderSafe(`[x](//evil.example/phish)`)
+	if strings.Contains(html, `href=`) {
+		t.Fatalf("protocol-relative link kept: %s", html)
+	}
+}
+
 func TestUnwrapsDisallowedWrappers(t *testing.T) {
 	html := RenderSafe(`<div>See <b>keep</b></div>`)
 	if strings.Contains(html, "<div") {

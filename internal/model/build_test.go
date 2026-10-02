@@ -11,6 +11,7 @@ import (
 	"github.com/ymmt2005/pbschema-lens/internal/classify"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -48,6 +49,110 @@ func TestEmptyCollectionsMarshalAsArrays(t *testing.T) {
 			t.Fatalf("%s = %v", key, value)
 		}
 	}
+}
+
+func TestEditionsFeatures(t *testing.T) {
+	model := buildDir(t, filepath.Join(root(t), "fixtures/editions"), BuildOptions{Title: "editions", InputLabel: "editions"})
+	name := findField(model, "fixtures.editions.Widget.name")
+	if feat := featureByName(name, "field_presence"); feat == nil || feat.Effective != "EXPLICIT" || feat.Source == "declared" {
+		t.Fatalf("edition 2023 scalar presence: %+v", feat)
+	}
+	if feat := featureByName(name, "utf8_validation"); feat == nil || feat.Effective != "VERIFY" || feat.Declared != "" {
+		t.Fatalf("default utf8: %+v", feat)
+	}
+	count := findField(model, "fixtures.editions.Widget.count")
+	if feat := featureByName(count, "field_presence"); feat == nil || feat.Effective != "IMPLICIT" || feat.Source != "declared" || feat.Declared != "IMPLICIT" {
+		t.Fatalf("declared implicit presence: %+v", feat)
+	}
+	raw := findField(model, "fixtures.editions.Widget.raw")
+	if feat := featureByName(raw, "utf8_validation"); feat == nil || feat.Effective != "NONE" || feat.Source != "declared" {
+		t.Fatalf("declared utf8 none: %+v", feat)
+	}
+	tags := findField(model, "fixtures.editions.Widget.tags")
+	if feat := featureByName(tags, "repeated_field_encoding"); feat == nil || feat.Effective != "EXPANDED" || feat.Source != "declared" {
+		t.Fatalf("expanded repeated: %+v", feat)
+	}
+	packed := findField(model, "fixtures.editions.Widget.packed_tags")
+	if feat := featureByName(packed, "repeated_field_encoding"); feat == nil || feat.Effective != "PACKED" || feat.Source == "declared" {
+		t.Fatalf("packed repeated default: %+v", feat)
+	}
+	child := findField(model, "fixtures.editions.Widget.child")
+	if feat := featureByName(child, "message_encoding"); feat == nil || feat.Effective != "DELIMITED" || feat.Source != "declared" {
+		t.Fatalf("delimited message: %+v", feat)
+	}
+	widget := findMessage(model, "fixtures.editions.Widget")
+	if feat := featureByNameMessage(widget, "json_format"); feat == nil || feat.Effective != "LEGACY_BEST_EFFORT" || feat.Source != "declared" {
+		t.Fatalf("json format: %+v", feat)
+	}
+	status := findEnum(model, "fixtures.editions.Widget.Status")
+	if status == nil || status.Open {
+		t.Fatalf("closed enum: %+v", status)
+	}
+	if feat := featureByNameEnum(status, "enum_type"); feat == nil || feat.Effective != "CLOSED" || feat.Source != "declared" {
+		t.Fatalf("enum type: %+v", feat)
+	}
+}
+
+func TestPublishDoesNotPromoteExternalSymbols(t *testing.T) {
+	external := &DocMessage{baseSymbol: baseSymbol{
+		ID: "message:other.Hidden", Kind: "message", Domain: "external-undocumented",
+	}}
+	if publish(external, map[string]bool{}) || external.GeneratePage {
+		t.Fatal("external symbol was promoted")
+	}
+	local := &DocMessage{baseSymbol: baseSymbol{
+		ID: "message:acme.Shown", Kind: "message", Domain: "local",
+	}}
+	if !publish(local, map[string]bool{}) || !local.GeneratePage {
+		t.Fatal("local symbol was not promoted")
+	}
+}
+
+func TestInt64OptionScalarsAreDecimalStrings(t *testing.T) {
+	got := scalarGo(protoreflect.Int64Kind, protoreflect.ValueOfInt64(9223372036854775807))
+	if got != "9223372036854775807" {
+		t.Fatalf("int64 %v", got)
+	}
+	got = scalarGo(protoreflect.Uint64Kind, protoreflect.ValueOfUint64(^uint64(0)))
+	if got != "18446744073709551615" {
+		t.Fatalf("uint64 %v", got)
+	}
+}
+
+func featureByName(field *DocField, name string) *EffectiveFeature {
+	if field == nil {
+		return nil
+	}
+	for i := range field.Features {
+		if field.Features[i].Name == name {
+			return &field.Features[i]
+		}
+	}
+	return nil
+}
+
+func featureByNameMessage(message *DocMessage, name string) *EffectiveFeature {
+	if message == nil {
+		return nil
+	}
+	for i := range message.Features {
+		if message.Features[i].Name == name {
+			return &message.Features[i]
+		}
+	}
+	return nil
+}
+
+func featureByNameEnum(enum *DocEnum, name string) *EffectiveFeature {
+	if enum == nil {
+		return nil
+	}
+	for i := range enum.Features {
+		if enum.Features[i].Name == name {
+			return &enum.Features[i]
+		}
+	}
+	return nil
 }
 
 func TestProto2RequiredAliasExtension(t *testing.T) {

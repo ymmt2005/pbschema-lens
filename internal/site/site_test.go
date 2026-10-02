@@ -37,7 +37,10 @@ func TestValidateBaseRejectsMarkup(t *testing.T) {
 
 func TestHandlerServesBasePrefix(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "model.json"), []byte(`{"title":"demo"}`), 0o644); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "assets", "model"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "assets", "model", "index.json"), []byte(`{"title":"demo"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("home"), 0o644); err != nil {
@@ -45,7 +48,7 @@ func TestHandlerServesBasePrefix(t *testing.T) {
 	}
 	server := httptest.NewServer(Handler(dir, "/pbschema-lens/"))
 	t.Cleanup(server.Close)
-	for _, path := range []string{"/pbschema-lens/", "/pbschema-lens/model.json"} {
+	for _, path := range []string{"/pbschema-lens/", "/pbschema-lens/assets/model/index.json"} {
 		res, err := http.Get(server.URL + path)
 		if err != nil {
 			t.Fatal(err)
@@ -55,12 +58,12 @@ func TestHandlerServesBasePrefix(t *testing.T) {
 			t.Fatalf("%s: %s", path, res.Status)
 		}
 	}
-	root, err := http.Get(server.URL + "/model.json")
+	root, err := http.Get(server.URL + "/assets/model/index.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	root.Body.Close()
 	if root.StatusCode == http.StatusOK {
-		t.Fatal("model.json was served at / instead of the base prefix")
+		t.Fatal("index.json was served at / instead of the base prefix")
 	}
 }

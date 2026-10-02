@@ -25,6 +25,27 @@ func TestPluginsAreRejected(t *testing.T) {
 	}
 }
 
+func TestLoadNearPrefersConfigBesideInput(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pbschema-lens.yaml"), []byte("title: Wrong\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "pbschema-lens.yaml"), []byte("title: Beside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, path, err := LoadNear(root, "", filepath.Join(sub, "schema.binpb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Title != "Beside" || filepath.Dir(path) != sub {
+		t.Fatalf("cfg %+v path %s", cfg.Title, path)
+	}
+}
+
 func TestOmittedFullTextStaysOn(t *testing.T) {
 	cfg, _, err := Load(t.TempDir(), "")
 	if err != nil {

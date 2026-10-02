@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/ymmt2005/pbschema-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/ymmt2005/pbschema-lens/actions/workflows/ci.yml)
 
-An open-source **static schema explorer for Protocol Buffers**.
+pbschema-lens does not compile Protocol Buffers. It consumes a FileDescriptorSet.
 
-Pipe a Buf `FileDescriptorSet` into the `pbschema-lens` binary and it produces a static site you can host on GitHub Pages (or anywhere else). There is no documentation server, no database, and no hosted schema registry.
+It is an open-source **static schema explorer**. Pipe a Buf `FileDescriptorSet` into the `pbschema-lens` binary and it produces a static site you can host on GitHub Pages (or anywhere else). There is no documentation server, no database, and no hosted schema registry. The binary does not invoke Buf.
 
 The generated site is a graph over the schema: services, RPCs, messages, fields, enums, extensions, custom options, well-known types, reverse "used by" references, and two-layer search.
 
@@ -25,18 +25,20 @@ buf build -o - --as-file-descriptor-set \
   | pbschema-lens build --out dist --source proto
 ```
 
-`--source` is the directory of `.proto` files used for the in-site source browser. Omit it when you only have a descriptor set.
+`--source` is the directory of `.proto` files used for the in-site source browser. Omit it when you only have a descriptor set. The tool does not look for a `proto` directory on its own.
 
-Open `dist/index.html`, or preview with a file to watch:
+Pages are client-rendered shells that fetch JSON, so open the site over HTTP. `dev` watches the descriptor file and serves the site. It does not invoke Buf.
 
 ```bash
 buf build -o schema.binpb --as-file-descriptor-set
-pbschema-lens dev schema.binpb --out dist --source proto --port 43147
+pbschema-lens dev schema.binpb --out dist --port 43147
 ```
+
+A static file server works the same way. Opening `dist/index.html` as a local file does not, because the browser blocks those fetches.
 
 ## Install from a GitHub Release
 
-This is a build-time CLI, not a library. Download a static binary for Linux, Windows, or macOS (amd64 or arm64). The next version bump on `main` publishes those archives with [GoReleaser](https://goreleaser.com/). Until that release exists, build from source with `npm run build:ui && go build -o pbschema-lens ./cmd/pbschema-lens`.
+This is a build-time CLI, not a library. Download a static binary for Linux, Windows, or macOS (amd64 or arm64). The released CLI does not require Node. Building this repository from source still needs Node to compile `internal/site/dist` before `go build`. The next version bump on `main` publishes those archives with [GoReleaser](https://goreleaser.com/). Until that release exists, build from source with `npm run build:ui && go build -o pbschema-lens ./cmd/pbschema-lens`.
 
 ```bash
 curl -fsSL -o pbschema-lens.tar.gz \
@@ -65,7 +67,9 @@ The same page also shows **Source code (tar.gz)** and **Source code (zip)**. Tho
 
 ## Configuration
 
-The config file is `pbschema-lens.yaml` or `pbschema-lens.yml`, next to the input or in the working directory. `--config` selects a file explicitly.
+The config file is `pbschema-lens.yaml` or `pbschema-lens.yml`. With a descriptor path and no `--config`, pbschema-lens looks beside that file, then in the working directory. `--config` and `-c` select a file explicitly.
+
+A relative `input` is resolved from the directory that contains the config file. A descriptor argument, `--source`, `--against`, and `--out` are resolved from the working directory.
 
 ```yaml
 title: "Acme Protobuf API"
@@ -101,15 +105,12 @@ artifacts:
 externalLinks:
   - package: "acme.identity.**"
     urlTemplate: "https://docs.example.com/identity/reference/{symbol}"
-
-plugins:
-  - "./my-plugin.mjs"
 ```
 
 | Key | Default | Effect |
 |---|---|---|
 | `title` | `Protobuf API` | Site title. `build`, `dev`, and `diff` accept `--title`. |
-| `input` | `-` | FileDescriptorSet path, or `-` for stdin. The command's `[descriptor]` argument overrides this. |
+| `input` | `-` | FileDescriptorSet path, or `-` for stdin. A relative path is resolved from the config file's directory. The command's `[descriptor]` argument overrides this and is resolved from the working directory. |
 | `output` | `dist` | Output directory. Those commands accept `--out`. |
 | `base` | `/` | Path prefix for the site. A public GitHub project site uses `/<repo>/`. A private Pages site, a user or org site, or a custom domain uses `/`. Those commands accept `--base`. |
 | `siteUrl` | omitted | Origin of the published site, such as `https://docs.example.com`. The build emits a canonical link for each page. With `base: /docs/`, the home page canonical URL is `https://docs.example.com/docs/`. |
@@ -124,9 +125,12 @@ plugins:
 | `artifacts.descriptorSet` | `false` | `true` writes `assets/protobuf/schema.binpb`. |
 | `artifacts.references` | `true` | `false` skips `assets/protobuf/references.json`. `symbols.json` and `build-info.json` are written on every build. |
 | `externalLinks` | omitted | Rules that send a package to another site. `package` is a name or a `.**` pattern. A match is documented externally: no local page, and links use `urlTemplate`. `{symbol}` is the full name, `{kind}` is the symbol kind, and `{package}` is the package. |
-| `plugins` | omitted | Not supported. A config that lists plugins fails the build. The binary does not load Node modules. |
+`build`, `dev`, and `diff` accept `--out` (`-o`), `--base`, `--title`, `--config` (`-c`), and `--source`. `build` and `diff` accept `--against`; `diff` requires it. `dev` accepts `--port` and does not accept `--against`. `doctor` accepts `--config`. A flag that a command does not declare is an error. Each command accepts at most one descriptor path. `pbschema-lens <command> --help` prints that command's usage.
 
-`build`, `dev`, and `diff` accept `--out`, `--base`, `--title`, and `--config`. `build` and `diff` accept `--against`; `diff` requires it. `dev` accepts `--port`. A flag applies on the commands that declare it.
+## Breaking changes from the Node CLI
+
+- Plugins are not loaded. Remove `plugins` from the config. A non-empty list fails the build.
+- `buf breaking` is not run. `diff` compares two FileDescriptorSets and does not invoke Buf.
 
 ## What the site includes
 
@@ -144,9 +148,11 @@ plugins:
 
 ## Architecture
 
-Compilation is Buf's job. pbschema-lens reads a `FileDescriptorSet`, builds the symbol model in Go, and copies an embedded browser UI that renders `model.json`. The Go process does not run Node, JavaScript, or WebAssembly. Starlight is not used.
+Compilation is Buf's job. pbschema-lens reads a `FileDescriptorSet`, builds the symbol model in Go, and copies an embedded browser UI. The Go process does not run Node, JavaScript, or WebAssembly, and it does not invoke Buf. Starlight is not used.
 
-Comments are treated as untrusted data. Go renders them as Markdown with a sanitized HTML allowlist before they are written into `model.json`. They are never compiled as MDX or JavaScript.
+The site does not ship one `model.json`. `assets/model/index.json` is the nav and search catalog. Each symbol page fetches `assets/model/symbols/<id>.json`. Source text, the package graph, and comment text are separate files, loaded when those views run.
+
+Comments are treated as untrusted data. Go renders them as Markdown with a sanitized HTML allowlist before they are written into those JSON files. They are never compiled as MDX or JavaScript. Safe links are `http`, `https`, `mailto`, relative paths, and `#fragment`. `javascript:`, `data:`, and protocol-relative `//host` links are dropped.
 
 ## Security notes
 

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ymmt2005/pbschema-lens/internal/config"
 	"github.com/ymmt2005/pbschema-lens/internal/fds"
 	"github.com/ymmt2005/pbschema-lens/internal/model"
 	"github.com/ymmt2005/pbschema-lens/internal/pipeline"
@@ -32,15 +33,15 @@ func run(args []string) error {
 	}
 	switch args[0] {
 	case "build":
-		return cmdBuild(args[1:])
+		return ignoreHelp(cmdBuild(args[1:]))
 	case "dev":
-		return cmdDev(args[1:])
+		return ignoreHelp(cmdDev(args[1:]))
 	case "doctor":
-		return cmdDoctor(args[1:])
+		return ignoreHelp(cmdDoctor(args[1:]))
 	case "diff":
-		return cmdDiff(args[1:])
+		return ignoreHelp(cmdDiff(args[1:]))
 	case "init":
-		return cmdInit(args[1:])
+		return ignoreHelp(cmdInit(args[1:]))
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return nil
@@ -49,20 +50,31 @@ func run(args []string) error {
 	}
 }
 
+func ignoreHelp(err error) error {
+	if errors.Is(err, errHelp) {
+		return nil
+	}
+	return err
+}
+
 const usage = `pbschema-lens generates a static Protocol Buffers schema site from a FileDescriptorSet.
 
+pbschema-lens does not compile Protocol Buffers. Pipe a FileDescriptorSet from Buf:
+
+  buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist
+
 Usage:
-  pbschema-lens build [descriptor] [--out dir] [--base /] [--title text] [--source dir] [--config file] [--against descriptor]
-  pbschema-lens dev [descriptor] [--port 43147] [--source dir]
+  pbschema-lens build [descriptor] [flags]
+  pbschema-lens dev [descriptor] [flags]
   pbschema-lens doctor [descriptor]
   pbschema-lens diff [descriptor] --against descriptor
   pbschema-lens init [--github-pages]
 
+Run pbschema-lens <command> --help for that command's flags.
 descriptor is a FileDescriptorSet file (.binpb, .pb, .desc) or - for stdin.
-Compile the schema with Buf, then pipe it in:
-
-  buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --source proto
 `
+
+var errHelp = errors.New("help")
 
 type flags struct {
 	out     string
@@ -76,87 +88,148 @@ type flags struct {
 	rest    []string
 }
 
-func parseFlags(args []string) (flags, error) {
+func parseSet(fs *flag.FlagSet, args []string, name string) error {
+	fs.Usage = func() {}
+	err := fs.Parse(args)
+	if err == flag.ErrHelp {
+		fmt.Print(helpText(name))
+		return errHelp
+	}
+	return err
+}
+
+func bindSiteFlags(fs *flag.FlagSet, f *flags) {
+	fs.StringVar(&f.out, "out", "", "output directory")
+	fs.StringVar(&f.out, "o", "", "output directory")
+	fs.StringVar(&f.base, "base", "", "URL path prefix")
+	fs.StringVar(&f.title, "title", "", "site title")
+	fs.StringVar(&f.config, "config", "", "config file")
+	fs.StringVar(&f.config, "c", "", "config file")
+	fs.StringVar(&f.source, "source", "", "directory of .proto files")
+}
+
+func parseBuild(name string, args []string) (flags, error) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
 	var f flags
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		take := func() (string, error) {
-			if i+1 >= len(args) {
-				return "", fmt.Errorf("%s needs a value", arg)
-			}
-			i++
-			return args[i], nil
-		}
-		switch {
-		case arg == "--out" || arg == "-o":
-			v, err := take()
-			if err != nil {
-				return f, err
-			}
-			f.out = v
-		case strings.HasPrefix(arg, "--out="):
-			f.out = strings.TrimPrefix(arg, "--out=")
-		case arg == "--base":
-			v, err := take()
-			if err != nil {
-				return f, err
-			}
-			f.base = v
-		case strings.HasPrefix(arg, "--base="):
-			f.base = strings.TrimPrefix(arg, "--base=")
-		case arg == "--title":
-			v, err := take()
-			if err != nil {
-				return f, err
-			}
-			f.title = v
-		case strings.HasPrefix(arg, "--title="):
-			f.title = strings.TrimPrefix(arg, "--title=")
-		case arg == "--config":
-			v, err := take()
-			if err != nil {
-				return f, err
-			}
-			f.config = v
-		case strings.HasPrefix(arg, "--config="):
-			f.config = strings.TrimPrefix(arg, "--config=")
-		case arg == "--source":
-			v, err := take()
-			if err != nil {
-				return f, err
-			}
-			f.source = v
-		case strings.HasPrefix(arg, "--source="):
-			f.source = strings.TrimPrefix(arg, "--source=")
-		case arg == "--against":
-			v, err := take()
-			if err != nil {
-				return f, err
-			}
-			f.against = v
-		case strings.HasPrefix(arg, "--against="):
-			f.against = strings.TrimPrefix(arg, "--against=")
-		case arg == "--port":
-			v, err := take()
-			if err != nil {
-				return f, err
-			}
-			f.port = v
-		case strings.HasPrefix(arg, "--port="):
-			f.port = strings.TrimPrefix(arg, "--port=")
-		case arg == "--github-pages":
-			f.pages = true
-		case strings.HasPrefix(arg, "-"):
-			return f, fmt.Errorf("unknown flag %s", arg)
-		default:
-			f.rest = append(f.rest, arg)
-		}
+	bindSiteFlags(fs, &f)
+	fs.StringVar(&f.against, "against", "", "FileDescriptorSet to compare")
+	if err := parseSet(fs, args, name); err != nil {
+		return f, err
+	}
+	if fs.NArg() > 1 {
+		return f, fmt.Errorf("%s accepts at most one descriptor path", name)
+	}
+	f.rest = fs.Args()
+	return f, nil
+}
+
+func parseDev(args []string) (flags, error) {
+	fs := flag.NewFlagSet("dev", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	var f flags
+	bindSiteFlags(fs, &f)
+	fs.StringVar(&f.port, "port", "", "listen port")
+	if err := parseSet(fs, args, "dev"); err != nil {
+		return f, err
+	}
+	if fs.NArg() > 1 {
+		return f, fmt.Errorf("dev accepts at most one descriptor path")
+	}
+	f.rest = fs.Args()
+	return f, nil
+}
+
+func parseDoctor(args []string) (flags, error) {
+	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	var f flags
+	fs.StringVar(&f.config, "config", "", "config file")
+	fs.StringVar(&f.config, "c", "", "config file")
+	if err := parseSet(fs, args, "doctor"); err != nil {
+		return f, err
+	}
+	if fs.NArg() > 1 {
+		return f, fmt.Errorf("doctor accepts at most one descriptor path")
+	}
+	f.rest = fs.Args()
+	return f, nil
+}
+
+func parseInit(args []string) (flags, error) {
+	fs := flag.NewFlagSet("init", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	var f flags
+	fs.BoolVar(&f.pages, "github-pages", false, "write a GitHub Pages workflow")
+	if err := parseSet(fs, args, "init"); err != nil {
+		return f, err
+	}
+	if fs.NArg() > 0 {
+		return f, fmt.Errorf("init does not take positional arguments")
 	}
 	return f, nil
 }
 
+func helpText(name string) string {
+	switch name {
+	case "build":
+		return `Usage: pbschema-lens build [descriptor] [flags]
+
+Flags:
+  -o, --out directory     output directory
+      --base path         URL path prefix
+      --title text        site title
+  -c, --config file       config file
+      --source directory  .proto files for the source browser
+      --against file      FileDescriptorSet to compare
+
+descriptor is a FileDescriptorSet file or - for stdin.
+`
+	case "dev":
+		return `Usage: pbschema-lens dev [descriptor] [flags]
+
+Watches the descriptor file and serves the site over HTTP. dev does not invoke Buf.
+
+Flags:
+  -o, --out directory     output directory
+      --base path         URL path prefix
+      --title text        site title
+  -c, --config file       config file
+      --source directory  .proto files for the source browser
+      --port number       listen port (default 43147)
+`
+	case "doctor":
+		return `Usage: pbschema-lens doctor [descriptor]
+
+Flags:
+  -c, --config file       config file
+`
+	case "diff":
+		return `Usage: pbschema-lens diff [descriptor] --against file [flags]
+
+Compares two FileDescriptorSets. This command does not run buf breaking.
+
+Flags:
+  -o, --out directory     output directory
+      --base path         URL path prefix
+      --title text        site title
+  -c, --config file       config file
+      --source directory  .proto files for the source browser
+      --against file      FileDescriptorSet to compare (required)
+`
+	case "init":
+		return `Usage: pbschema-lens init [--github-pages]
+
+Writes pbschema-lens.yaml. --github-pages also writes .github/workflows/protobuf-docs.yml.
+The workflow does not pass --source.
+`
+	default:
+		return usage
+	}
+}
+
 func cmdBuild(args []string) error {
-	f, err := parseFlags(args)
+	f, err := parseBuild("build", args)
 	if err != nil {
 		return err
 	}
@@ -173,22 +246,35 @@ func cmdBuild(args []string) error {
 }
 
 func cmdDiff(args []string) error {
-	f, err := parseFlags(args)
+	f, err := parseBuild("diff", args)
 	if err != nil {
 		return err
 	}
 	if f.against == "" {
 		return fmt.Errorf("diff requires --against, a FileDescriptorSet to compare")
 	}
-	return cmdBuild(args)
+	req, err := request(f)
+	if err != nil {
+		return err
+	}
+	result, err := pipeline.Build(req)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Wrote %s (%d symbols)\n", result.OutDir, result.Model.BuildInfo.SymbolCount)
+	return nil
 }
 
 func cmdDev(args []string) error {
-	f, err := parseFlags(args)
+	f, err := parseDev(args)
 	if err != nil {
 		return err
 	}
 	req, err := request(f)
+	if err != nil {
+		return err
+	}
+	req, _, err = pipeline.Prepare(req)
 	if err != nil {
 		return err
 	}
@@ -199,6 +285,7 @@ func cmdDev(args []string) error {
 	if err != nil {
 		return err
 	}
+	req.Input = result.Input
 	port := f.port
 	if port == "" {
 		port = "43147"
@@ -234,7 +321,7 @@ func watch(req pipeline.Request) {
 }
 
 func cmdDoctor(args []string) error {
-	f, err := parseFlags(args)
+	f, err := parseDoctor(args)
 	if err != nil {
 		return err
 	}
@@ -242,7 +329,7 @@ func cmdDoctor(args []string) error {
 	if err != nil {
 		return err
 	}
-	cfg, _, err := config.Load(req.CWD, req.ConfigFile)
+	req, cfg, err := pipeline.Prepare(req)
 	if err != nil {
 		fmt.Printf("error  config  %s\n", err)
 		return err
@@ -326,7 +413,7 @@ func optionsOf(symbol any) []*model.DocOption {
 }
 
 func cmdInit(args []string) error {
-	f, err := parseFlags(args)
+	f, err := parseInit(args)
 	if err != nil {
 		return err
 	}
@@ -389,17 +476,9 @@ func request(f flags) (pipeline.Request, error) {
 	if err != nil {
 		return pipeline.Request{}, err
 	}
-	input := "-"
+	input := ""
 	if len(f.rest) > 0 {
 		input = f.rest[0]
-	} else {
-		cfg, _, err := config.Load(cwd, f.config)
-		if err != nil {
-			return pipeline.Request{}, err
-		}
-		if cfg.Input != "" {
-			input = cfg.Input
-		}
 	}
 	return pipeline.Request{
 		CWD: cwd, ConfigFile: f.config, Input: input, Against: f.against,
@@ -449,7 +528,7 @@ jobs:
             */) ;;
             *) base="${base}/" ;;
           esac
-          buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --source proto
+          buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base"
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -466,6 +545,3 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 `
-
-// Silence unused import if io is needed by callers.
-var _ = io.EOF

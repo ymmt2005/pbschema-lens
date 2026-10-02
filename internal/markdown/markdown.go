@@ -194,9 +194,23 @@ func writeClass(w io.Writer, node *html.Node) {
 }
 
 func safeURL(raw string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || parsed.Scheme == "" {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.ContainsAny(raw, "\"<> \t\r\n\\") {
 		return false
+	}
+	if strings.HasPrefix(raw, "//") {
+		return false
+	}
+	lower := strings.ToLower(raw)
+	if strings.HasPrefix(lower, "javascript:") || strings.HasPrefix(lower, "data:") {
+		return false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme == "" {
+		return true
 	}
 	switch strings.ToLower(parsed.Scheme) {
 	case "http", "https", "mailto":

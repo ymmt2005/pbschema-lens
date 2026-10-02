@@ -30,14 +30,14 @@ func Write(outDir string, schema *model.SchemaModel, opts Options) error {
 	if err := safePath(outDir); err != nil {
 		return err
 	}
+	base := normalizeBase(opts.Base)
+	if err := validateBase(base); err != nil {
+		return err
+	}
 	if err := os.RemoveAll(outDir); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return err
-	}
-	base := normalizeBase(opts.Base)
-	if err := validateBase(base); err != nil {
 		return err
 	}
 	if err := fs.WalkDir(Dist, "dist", func(name string, entry fs.DirEntry, err error) error {
@@ -67,11 +67,7 @@ func Write(outDir string, schema *model.SchemaModel, opts Options) error {
 	}); err != nil {
 		return err
 	}
-	encoded, err := json.Marshal(schema)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(outDir, "model.json"), encoded, 0o644); err != nil {
+	if err := writeModel(outDir, schema); err != nil {
 		return err
 	}
 	shell, err := os.ReadFile(filepath.Join(outDir, "index.html"))
@@ -295,11 +291,33 @@ func isText(name string) bool {
 }
 
 func safePath(path string) error {
-	if path == "" || path == "/" || path == "." {
+	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("refusing to write site output to %q", path)
 	}
 	if strings.Contains(path, "..") {
 		return fmt.Errorf("path %q must not contain ..", path)
+	}
+	cleaned := filepath.Clean(path)
+	if cleaned == "." || cleaned == string(filepath.Separator) {
+		return fmt.Errorf("refusing to write site output to %q", path)
+	}
+	abs, err := filepath.Abs(cleaned)
+	if err != nil {
+		return err
+	}
+	if abs == string(filepath.Separator) {
+		return fmt.Errorf("refusing to write site output to %q", path)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	cwdAbs, err := filepath.Abs(cwd)
+	if err != nil {
+		return err
+	}
+	if abs == cwdAbs {
+		return fmt.Errorf("refusing to write site output to %q", path)
 	}
 	return nil
 }

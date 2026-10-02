@@ -363,11 +363,11 @@ func scalarGo(kind protoreflect.Kind, v protoreflect.Value) any {
 	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
 		return int32(v.Int())
 	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
-		return v.Int()
+		return strconv.FormatInt(v.Int(), 10)
 	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
 		return uint32(v.Uint())
 	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
-		return v.Uint()
+		return strconv.FormatUint(v.Uint(), 10)
 	case protoreflect.FloatKind:
 		return float32(v.Float())
 	case protoreflect.DoubleKind:

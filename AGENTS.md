@@ -19,7 +19,7 @@ Do not introduce Starlight, MDX, a runtime docs server, or a path that runs Node
 | `internal/markdown/` | Comment sanitizer |
 | `internal/model/` | `SchemaModel` producer, options, semantic renderers, diff |
 | `internal/pipeline/` | Orchestration for `build`, `dev`, and `diff` |
-| `internal/site/` | Embed the compiled UI, stamp tokens, write `model.json` |
+| `internal/site/` | Embed the compiled UI, stamp tokens, write per-symbol JSON |
 | `ui/` | Vite browser UI. Compiled into `internal/site/dist` |
 | `src/core/` | Display helpers and the TypeScript `SchemaModel` types |
 | `site/src/` | Shared CSS and theme imported by `ui/` |
@@ -31,14 +31,14 @@ During development, run `npm run build:ui` before `go build` or `go run ./cmd/pb
 
 ## Internal architecture
 
-Data flows one way. The browser renders `model.json`. It does not call Buf or rebuild the descriptor set.
+Data flows one way. The browser renders JSON shards under `assets/model/`. It does not call Buf or rebuild the descriptor set.
 
 ```mermaid
 flowchart TD
   buf["buf build -o - --as-file-descriptor-set"]
   fds["FileDescriptorSet bytes"]
   model["SchemaModel"]
-  json["model.json"]
+  json["assets/model/*.json"]
   ui["embedded UI"]
   out["static HTML + assets/protobuf/*.json"]
 
@@ -74,9 +74,9 @@ A config that lists `plugins` fails the build. The binary does not load plugin m
 
 ### Site
 
-`internal/site` copies the embedded Vite build into the output directory, stamps `/__PBSCHEMA_BASE__/`, `__DATA_BASE__`, `__SITE_URL__`, `__FULL_TEXT__`, and `__TITLE__`, writes `model.json`, and copies `index.html` onto every `generatePage` route plus `/search`, `/explore`, and `/graph`. It adds `/source` when any source text is present and `/diff` when `model.diff` is set. Every build writes `assets/protobuf/symbols.json` and `build-info.json`. `references.json` and `schema.binpb` follow `artifacts.references` and `artifacts.descriptorSet`.
+`internal/site` copies the embedded Vite build into the output directory, stamps `/__PBSCHEMA_BASE__/`, `__DATA_BASE__`, `__SITE_URL__`, `__FULL_TEXT__`, and `__TITLE__`, and copies `index.html` onto every `generatePage` route plus `/search`, `/explore`, and `/graph`. It adds `/source` when any source text is present and `/diff` when `model.diff` is set. Model data is split: `assets/model/index.json` (nav, search, package and file cards), `assets/model/symbols/<id>.json` (one page plus the children it renders), `assets/model/source/<path>.json` (proto text), `assets/model/graph.json`, and `assets/model/comments.json`. There is no monolithic `model.json`. Every build writes `assets/protobuf/symbols.json` and `build-info.json`. `references.json` and `schema.binpb` follow `artifacts.references` and `artifacts.descriptorSet`.
 
-The browser loads `model.json` and renders the page. Display helpers (package nav, field table, source tree, search ranking) stay in TypeScript under `src/core/` and run in the browser. Comment search scans comment text in the browser when `search.fullText` is omitted or true. There is no Pagefind index.
+The browser loads `index.json` first, then the payload for the current page. Display helpers (package nav, field table, source tree, search ranking) stay in TypeScript under `src/core/` and run in the browser. Comment search fetches `comments.json` when `search.fullText` is omitted or true. There is no Pagefind index. `dev` watches the descriptor file and does not invoke Buf.
 
 ### Where to change what
 
@@ -97,7 +97,7 @@ The browser loads `model.json` and renders the page. Display helpers (package na
 | Pages workflow template | `pagesWorkflow` in `cmd/pbschema-lens/main.go` |
 | GitHub Release binaries | `.goreleaser.yaml` and `.github/workflows/release.yml` (`scripts/release-detect.sh`) |
 
-If you change `SchemaModel`, update the Go producer and the TypeScript type. The JSON written to `model.json` is the API between them.
+If you change `SchemaModel`, update the Go producer and the TypeScript type. The JSON under `assets/model/` is the API between them.
 
 ## Quality
 
@@ -144,7 +144,7 @@ These are gitignored and rewritten on every build:
 | Privately published site | unique `https://<random>.pages.github.io/` | `/` |
 | User/org site or custom domain | origin root | `/` |
 
-`pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the `pagesWorkflow` string in `cmd/pbschema-lens/main.go`. If you change that workflow, edit that string, not a checked-in copy. Keep `examples/github-pages/README.md` in sync. The generated workflow installs Buf, downloads `pbschema-lens_linux_amd64.tar.gz` from `releases/latest/download`, and runs `buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --source proto`.
+`pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the `pagesWorkflow` string in `cmd/pbschema-lens/main.go`. If you change that workflow, edit that string, not a checked-in copy. Keep `examples/github-pages/README.md` in sync. The generated workflow installs Buf, downloads `pbschema-lens_linux_amd64.tar.gz` from `releases/latest/download`, and runs `buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base"`. It does not pass `--source`.
 
 This repository’s own CI is `.github/workflows/ci.yml` on Node 24 and Go 1.23: display-helper tests, typecheck, `npm run build:ui`, `go test`, doctor, build the Acme example, then deploy Pages from `main` only.
 

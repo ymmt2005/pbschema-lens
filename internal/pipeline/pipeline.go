@@ -33,14 +33,21 @@ type Result struct {
 	Model  *model.SchemaModel
 	Config config.Config
 	OutDir string
+	Input  string
 	Bytes  []byte
 }
 
-// Build reads a FileDescriptorSet and writes the static site.
-func Build(req Request) (*Result, error) {
-	cfg, _, err := config.Load(req.CWD, req.ConfigFile)
+// Prepare loads config and resolves the descriptor path.
+// A relative config input is resolved from the config file's directory.
+// A positional descriptor, --source, and --against stay relative to the working directory.
+func Prepare(req Request) (Request, config.Config, error) {
+	beside := ""
+	if req.Input != "" && req.Input != "-" {
+		beside = resolvePath(req.CWD, req.Input)
+	}
+	cfg, cfgPath, err := config.LoadNear(req.CWD, req.ConfigFile, beside)
 	if err != nil {
-		return nil, err
+		return req, cfg, err
 	}
 	if req.Title != "" {
 		cfg.Title = req.Title
@@ -53,12 +60,24 @@ func Build(req Request) (*Result, error) {
 	}
 	input := req.Input
 	if input == "" {
-		input = cfg.Input
+		input = resolvePath(configDir(cfgPath, req.CWD), cfg.Input)
+	} else {
+		input = resolvePath(req.CWD, input)
 	}
-	input = resolvePath(req.CWD, input)
 	if err := safe(input); err != nil {
+		return req, cfg, err
+	}
+	req.Input = input
+	return req, cfg, nil
+}
+
+// Build reads a FileDescriptorSet and writes the static site.
+func Build(req Request) (*Result, error) {
+	req, cfg, err := Prepare(req)
+	if err != nil {
 		return nil, err
 	}
+	input := req.Input
 	if err := safe(cfg.Output); err != nil {
 		return nil, err
 	}
@@ -94,7 +113,14 @@ func Build(req Request) (*Result, error) {
 		if err := safe(against); err != nil {
 			return nil, err
 		}
-		previousRaw, err := fds.Read(against, nil)
+		if against == "-" && input == "-" {
+			return nil, fmt.Errorf("--against cannot read stdin when the input descriptor is also stdin")
+		}
+		var againstStdin io.Reader
+		if against == "-" {
+			againstStdin = req.Stdin
+		}
+		previousRaw, err := fds.Read(against, againstStdin)
 		if err != nil {
 			return nil, err
 		}
@@ -120,7 +146,14 @@ func Build(req Request) (*Result, error) {
 	}); err != nil {
 		return nil, err
 	}
-	return &Result{Model: schema, Config: cfg, OutDir: out, Bytes: raw}, nil
+	return &Result{Model: schema, Config: cfg, OutDir: out, Input: input, Bytes: raw}, nil
+}
+
+func configDir(cfgPath, cwd string) string {
+	if cfgPath == "" {
+		return cwd
+	}
+	return filepath.Dir(cfgPath)
 }
 
 func sourceConfig(cfg config.Config, cwd string) *model.SourceConfig {

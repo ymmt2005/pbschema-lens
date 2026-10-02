@@ -20,6 +20,9 @@ func Read(path string, stdin io.Reader) ([]byte, error) {
 	var raw []byte
 	var err error
 	if path == "" || path == "-" {
+		if stdin == nil {
+			return nil, fmt.Errorf("no stdin to read a FileDescriptorSet from")
+		}
 		raw, err = io.ReadAll(stdin)
 	} else {
 		raw, err = os.ReadFile(path)

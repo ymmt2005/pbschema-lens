@@ -60,6 +60,25 @@ type ExternalLink struct {
 	URLTemplate string `yaml:"urlTemplate"`
 }
 
+// LoadNear reads config from an explicit path, from beside a descriptor file, or from cwd.
+// beside is the descriptor path. A config next to that file wins over one in cwd.
+func LoadNear(cwd, explicit, beside string) (Config, string, error) {
+	if explicit != "" {
+		return Load(cwd, explicit)
+	}
+	if beside != "" && beside != "-" {
+		dir := filepath.Dir(beside)
+		for _, name := range []string{"pbschema-lens.yaml", "pbschema-lens.yml"} {
+			candidate := filepath.Join(dir, name)
+			info, err := os.Stat(candidate)
+			if err == nil && !info.IsDir() {
+				return Load(dir, candidate)
+			}
+		}
+	}
+	return Load(cwd, "")
+}
+
 // Load reads config from an explicit path or from the working directory.
 func Load(cwd, explicit string) (Config, string, error) {
 	path := explicit
