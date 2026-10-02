@@ -24,6 +24,26 @@ func TestParseBuildArgsAcceptsFlagsBeforeInput(t *testing.T) {
 	}
 }
 
+func TestParseBuildArgsDefaultsToStdin(t *testing.T) {
+	input, out, _, _, err := parseBuildArgs([]string{"--out", "dist"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input != "-" || out != "dist" {
+		t.Fatalf("got %q %q", input, out)
+	}
+}
+
+func TestParseBuildArgsAcceptsStdinMarker(t *testing.T) {
+	input, _, _, _, err := parseBuildArgs([]string{"-", "--out", "dist"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input != "-" {
+		t.Fatalf("got %q", input)
+	}
+}
+
 func TestParseBuildArgsRejectsTwoInputs(t *testing.T) {
 	if _, _, _, _, err := parseBuildArgs([]string{"a", "b"}); err == nil {
 		t.Fatal("expected two inputs to fail")

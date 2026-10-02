@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.7"
+          go-version: "1.22"
       - name: Test Go site proof of concept
         working-directory: poc
         run: go test ./...

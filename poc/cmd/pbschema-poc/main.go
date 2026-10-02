@@ -47,8 +47,10 @@ Usage:
   pbschema-poc build [--out dir] [--base /] [--title text] [input]
   pbschema-poc serve [--dir dir] [--port 43147]
 
-input is a Buf module directory or a FileDescriptorSet
-(.binpb, .pb, .desc, .fds). A module is compiled in-process.
+input is a FileDescriptorSet (.binpb, .pb, .desc, .fds), or - for stdin.
+With no input, build reads stdin:
+
+  buf build -o - --as-file-descriptor-set | pbschema-poc build --out dist
 `)
 }
 
@@ -57,11 +59,17 @@ func runBuild(args []string) error {
 	if err != nil {
 		return err
 	}
-	absInput, err := filepath.Abs(input)
-	if err != nil {
-		return err
+	var raw []byte
+	if input == "-" {
+		raw, err = compile.ReadAll(os.Stdin)
+	} else {
+		var absInput string
+		absInput, err = filepath.Abs(input)
+		if err != nil {
+			return err
+		}
+		raw, err = compile.Load(absInput)
 	}
-	raw, err := compile.Load(absInput)
 	if err != nil {
 		return err
 	}
@@ -86,6 +94,10 @@ func parseBuildArgs(args []string) (input, out, base, title string, err error) {
 	var positionals []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
+		if arg == "-" {
+			positionals = append(positionals, arg)
+			continue
+		}
 		key := arg
 		val := ""
 		hasValue := false
@@ -128,7 +140,7 @@ func finishBuildArgs(positionals []string, out, base, title string) (string, str
 	if len(positionals) > 1 {
 		return "", "", "", "", fmt.Errorf("build accepts one input")
 	}
-	input := "."
+	input := "-"
 	if len(positionals) == 1 {
 		input = positionals[0]
 	}

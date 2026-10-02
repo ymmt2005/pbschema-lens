@@ -1,6 +1,7 @@
 package compile
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,75 +10,69 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-func TestLoadCompilesModuleWithoutBufBinary(t *testing.T) {
-	t.Setenv("PATH", "/usr/bin:/bin")
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "buf.yaml"), []byte("version: v2\nmodules:\n  - path: proto\n"), 0o644); err != nil {
-		t.Fatal(err)
+func TestReadAllAcceptsPipedDescriptorSet(t *testing.T) {
+	set := &descriptorpb.FileDescriptorSet{
+		File: []*descriptorpb.FileDescriptorProto{{
+			Name:    proto.String("acme/widget/v1/widget.proto"),
+			Package: proto.String("acme.widget.v1"),
+			Syntax:  proto.String("proto3"),
+			MessageType: []*descriptorpb.DescriptorProto{{
+				Name: proto.String("Widget"),
+			}},
+		}},
 	}
-	protoDir := filepath.Join(dir, "proto", "acme", "widget", "v1")
-	if err := os.MkdirAll(protoDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	const source = `syntax = "proto3";
-package acme.widget.v1;
-import "google/protobuf/timestamp.proto";
-message Widget {
-  string id = 1;
-  google.protobuf.Timestamp created = 2;
-}
-`
-	if err := os.WriteFile(filepath.Join(protoDir, "widget.proto"), []byte(source), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	raw, err := Load(dir)
+	raw, err := proto.Marshal(set)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var set descriptorpb.FileDescriptorSet
-	if err := proto.Unmarshal(raw, &set); err != nil {
+	got, err := ReadAll(bytes.NewReader(raw))
+	if err != nil {
 		t.Fatal(err)
 	}
-	var widget, timestamp bool
-	for _, file := range set.File {
-		switch file.GetName() {
-		case "acme/widget/v1/widget.proto":
-			widget = true
-			if len(file.MessageType) != 1 || file.MessageType[0].GetName() != "Widget" {
-				t.Fatalf("widget descriptor %#v", file.MessageType)
-			}
-		case "google/protobuf/timestamp.proto":
-			timestamp = true
-		}
+	if !bytes.Equal(got, raw) {
+		t.Fatal("piped bytes were not preserved")
 	}
-	if !widget || !timestamp {
-		t.Fatalf("missing compiled files widget=%v timestamp=%v", widget, timestamp)
+	var decoded descriptorpb.FileDescriptorSet
+	if err := proto.Unmarshal(got, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.File[0].GetName() != "acme/widget/v1/widget.proto" {
+		t.Fatalf("file %s", decoded.File[0].GetName())
 	}
 }
 
-func TestLoadRejectsDirectoryWithoutBufYAML(t *testing.T) {
+func TestReadAllRejectsEmptyInput(t *testing.T) {
+	if _, err := ReadAll(bytes.NewReader(nil)); err == nil {
+		t.Fatal("expected empty input to fail")
+	}
+}
+
+func TestLoadReadsDescriptorFile(t *testing.T) {
+	set := &descriptorpb.FileDescriptorSet{
+		File: []*descriptorpb.FileDescriptorProto{{
+			Name: proto.String("acme/widget/v1/widget.proto"),
+		}},
+	}
+	raw, err := proto.Marshal(set)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "schema.binpb")
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, raw) {
+		t.Fatal("file bytes were not preserved")
+	}
+}
+
+func TestLoadRejectsDirectory(t *testing.T) {
 	if _, err := Load(t.TempDir()); err == nil {
-		t.Fatal("expected a directory without buf.yaml to fail")
-	}
-}
-
-func TestLoadRejectsBufYAMLV1(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "buf.yaml"), []byte("version: v1\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Load(dir); err == nil {
-		t.Fatal("expected buf.yaml v1 to fail")
-	}
-}
-
-func TestParseModuleName(t *testing.T) {
-	owner, module, err := parseModuleName("buf.build/bufbuild/protovalidate")
-	if err != nil || owner != "bufbuild" || module != "protovalidate" {
-		t.Fatalf("got %s %s %v", owner, module, err)
-	}
-	if _, _, err := parseModuleName("not-a-module"); err == nil {
-		t.Fatal("expected an unsupported module name to fail")
+		t.Fatal("expected a directory to fail")
 	}
 }
 
