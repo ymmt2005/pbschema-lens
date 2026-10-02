@@ -1,7 +1,8 @@
 package site
 
 import (
-	"encoding/base64"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -12,21 +13,22 @@ import (
 )
 
 // The browser loads these files instead of one model.json.
-// index.json is the nav and search catalog. A symbol page fetches one
-// symbols/<id>.json payload. Source text, the package graph, and comment
+// index.json is the nav and search catalog. Symbol and source filenames are
+// SHA-256 keys stored on the index, so a long protobuf name cannot exceed a
+// filesystem component limit. Diff, references, the package graph, and comment
 // search text stay in their own files.
 
 type siteIndex struct {
-	Title         string                   `json:"title"`
-	BuildInfo     model.BuildInfo          `json:"buildInfo"`
-	Packages      []packageCard            `json:"packages"`
-	Files         []fileCard               `json:"files"`
-	SymbolIndex   []model.SymbolIndexEntry `json:"symbolIndex"`
-	WKTNotes      map[string]string        `json:"wktNotes"`
-	Diff          *model.SchemaDiff        `json:"diff,omitempty"`
-	HasSource     bool                     `json:"hasSource"`
-	LocalServices int                      `json:"localServices"`
-	CustomOptions int                      `json:"customOptions"`
+	Title         string            `json:"title"`
+	BuildInfo     model.BuildInfo   `json:"buildInfo"`
+	Packages      []packageCard     `json:"packages"`
+	Files         []fileCard        `json:"files"`
+	SymbolIndex   []indexedSymbol   `json:"symbolIndex"`
+	WKTNotes      map[string]string `json:"wktNotes"`
+	HasDiff       bool              `json:"hasDiff"`
+	HasSource     bool              `json:"hasSource"`
+	LocalServices int               `json:"localServices"`
+	CustomOptions int               `json:"customOptions"`
 }
 
 type packageCard struct {
@@ -50,6 +52,12 @@ type fileCard struct {
 	Edition      string `json:"edition,omitempty"`
 	GeneratePage bool   `json:"generatePage"`
 	HasSource    bool   `json:"hasSource"`
+	SourceShard  string `json:"sourceShard,omitempty"`
+}
+
+type indexedSymbol struct {
+	model.SymbolIndexEntry
+	Shard string `json:"shard,omitempty"`
 }
 
 type symbolFile struct {
@@ -75,26 +83,30 @@ type graphEdge struct {
 	Public bool   `json:"public"`
 }
 
-func writeModel(outDir string, schema *model.SchemaModel) error {
-	root := filepath.Join(outDir, "assets", "model")
-	if err := os.MkdirAll(filepath.Join(root, "symbols"), 0o755); err != nil {
+func writeModel(out *os.Root, schema *model.SchemaModel, fullText bool) error {
+	root := filepath.Join("assets", "model")
+	if err := writeJSON(out, filepath.Join(root, "index.json"), buildIndex(schema)); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Join(root, "source"), 0o755); err != nil {
+	if err := writeJSON(out, filepath.Join(root, "graph.json"), buildGraph(schema)); err != nil {
 		return err
 	}
-	if err := writeJSON(filepath.Join(root, "index.json"), buildIndex(schema)); err != nil {
+	if err := writeJSON(out, filepath.Join(root, "references.json"), collectReferences(schema)); err != nil {
 		return err
 	}
-	if err := writeJSON(filepath.Join(root, "graph.json"), buildGraph(schema)); err != nil {
-		return err
+	if fullText {
+		if err := writeJSON(out, filepath.Join(root, "comments.json"), commentIndex(schema)); err != nil {
+			return err
+		}
 	}
-	if err := writeJSON(filepath.Join(root, "comments.json"), commentIndex(schema)); err != nil {
-		return err
+	if schema.Diff != nil {
+		if err := writeJSON(out, filepath.Join(root, "diff.json"), schema.Diff); err != nil {
+			return err
+		}
 	}
 	for _, id := range pageSymbolIDs(schema) {
-		name := fileToken(id) + ".json"
-		if err := writeJSON(filepath.Join(root, "symbols", name), symbolPayload(schema, id)); err != nil {
+		name := shardKey(id) + ".json"
+		if err := writeJSON(out, filepath.Join(root, "symbols", name), symbolPayload(schema, id)); err != nil {
 			return err
 		}
 	}
@@ -102,12 +114,19 @@ func writeModel(outDir string, schema *model.SchemaModel) error {
 		if file.SourceText == "" || !file.GeneratePage {
 			continue
 		}
-		name := fileToken(file.FullName) + ".json"
-		if err := writeJSON(filepath.Join(root, "source", name), file); err != nil {
+		name := shardKey(file.FullName) + ".json"
+		if err := writeJSON(out, filepath.Join(root, "source", name), file); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// shardKey is a fixed-size filename for a symbol id or proto path.
+// The site index stores this key so the browser does not encode names itself.
+func shardKey(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }
 
 func buildIndex(schema *model.SchemaModel) siteIndex {
@@ -116,12 +135,12 @@ func buildIndex(schema *model.SchemaModel) siteIndex {
 		BuildInfo:   schema.BuildInfo,
 		Packages:    []packageCard{},
 		Files:       []fileCard{},
-		SymbolIndex: schema.SymbolIndex,
+		SymbolIndex: indexSymbols(schema),
 		WKTNotes:    schema.WKTNotes,
-		Diff:        schema.Diff,
+		HasDiff:     schema.Diff != nil,
 	}
 	if index.SymbolIndex == nil {
-		index.SymbolIndex = []model.SymbolIndexEntry{}
+		index.SymbolIndex = []indexedSymbol{}
 	}
 	if index.WKTNotes == nil {
 		index.WKTNotes = map[string]string{}
@@ -145,11 +164,15 @@ func buildIndex(schema *model.SchemaModel) siteIndex {
 		if hasSource {
 			index.HasSource = true
 		}
-		index.Files = append(index.Files, fileCard{
+		card := fileCard{
 			ID: file.ID, FullName: file.FullName, URLPath: file.URLPath,
 			Syntax: file.Syntax, Edition: file.Edition,
 			GeneratePage: true, HasSource: hasSource,
-		})
+		}
+		if hasSource {
+			card.SourceShard = shardKey(file.FullName)
+		}
+		index.Files = append(index.Files, card)
 	}
 	for _, svc := range schema.Services {
 		if svc.Domain == "local" {
@@ -162,6 +185,22 @@ func buildIndex(schema *model.SchemaModel) siteIndex {
 		}
 	}
 	return index
+}
+
+func indexSymbols(schema *model.SchemaModel) []indexedSymbol {
+	pages := map[string]bool{}
+	for _, id := range pageSymbolIDs(schema) {
+		pages[id] = true
+	}
+	out := make([]indexedSymbol, 0, len(schema.SymbolIndex))
+	for _, entry := range schema.SymbolIndex {
+		item := indexedSymbol{SymbolIndexEntry: entry}
+		if pages[entry.ID] {
+			item.Shard = shardKey(entry.ID)
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func pageSymbolIDs(schema *model.SchemaModel) []string {
@@ -274,7 +313,9 @@ func plainComment(comment *model.DocComment) string {
 	if comment == nil {
 		return ""
 	}
-	return strings.TrimSpace(comment.Leading + "\n" + comment.Trailing)
+	parts := append([]string{}, comment.Detached...)
+	parts = append(parts, comment.Leading, comment.Trailing)
+	return strings.TrimSpace(strings.Join(parts, "\n"))
 }
 
 func buildGraph(schema *model.SchemaModel) packageGraph {
@@ -338,17 +379,10 @@ func packageID(pkgs map[string]*model.DocPackage, packageName string) string {
 	return pkg.ID
 }
 
-// fileToken is base64url without padding. Symbol ids contain ":" and source
-// paths contain "/". Percent-encoding those would be decoded by static servers
-// before the file lookup, and ":" is not a legal Windows filename character.
-func fileToken(value string) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(value))
-}
-
-func writeJSON(path string, value any) error {
+func writeJSON(out *os.Root, name string, value any) error {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, raw, 0o644)
+	return writeFile(out, name, raw)
 }

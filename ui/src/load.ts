@@ -21,6 +21,7 @@ export interface FileCard {
   edition?: string;
   generatePage: boolean;
   hasSource: boolean;
+  sourceShard?: string;
 }
 
 export interface SiteIndex {
@@ -30,7 +31,7 @@ export interface SiteIndex {
   files: FileCard[];
   symbolIndex: SymbolIndexEntry[];
   wktNotes: Record<string, string>;
-  diff?: SchemaDiff;
+  hasDiff: boolean;
   hasSource: boolean;
   localServices: number;
   customOptions: number;
@@ -66,6 +67,7 @@ export interface Loader {
   graph(): Promise<PackageGraph>;
   comments(): Promise<Record<string, string>>;
   references(): Promise<SymbolReference[]>;
+  diff(): Promise<SchemaDiff>;
 }
 
 export function createLoader(base: string): Loader {
@@ -75,24 +77,30 @@ export function createLoader(base: string): Loader {
   let graphCache: PackageGraph | undefined;
   let commentsCache: Record<string, string> | undefined;
   let referencesCache: SymbolReference[] | undefined;
+  let diffCache: SchemaDiff | undefined;
+
+  async function loadIndex(): Promise<SiteIndex> {
+    if (indexCache) return indexCache;
+    const response = await fetch(asset(base, "assets/model/index.json"));
+    if (!response.ok) throw new Error("missing index");
+    const index = (await response.json()) as SiteIndex;
+    index.packages = index.packages ?? [];
+    index.files = index.files ?? [];
+    index.symbolIndex = index.symbolIndex ?? [];
+    index.wktNotes = index.wktNotes ?? {};
+    indexCache = index;
+    return index;
+  }
 
   return {
-    async index() {
-      if (indexCache) return indexCache;
-      const response = await fetch(asset(base, "assets/model/index.json"));
-      if (!response.ok) throw new Error("missing index");
-      const index = (await response.json()) as SiteIndex;
-      index.packages = index.packages ?? [];
-      index.files = index.files ?? [];
-      index.symbolIndex = index.symbolIndex ?? [];
-      index.wktNotes = index.wktNotes ?? {};
-      indexCache = index;
-      return index;
-    },
+    index: loadIndex,
     async symbol(id: string) {
       const cached = symbols.get(id);
       if (cached) return cached;
-      const response = await fetch(asset(base, `assets/model/symbols/${pathEscape(id)}.json`));
+      const index = await loadIndex();
+      const shard = index.symbolIndex.find((entry) => entry.id === id)?.shard;
+      if (!shard) throw new Error(`missing symbol ${id}`);
+      const response = await fetch(asset(base, `assets/model/symbols/${shard}.json`));
       if (!response.ok) throw new Error(`missing symbol ${id}`);
       const page = (await response.json()) as SymbolPage;
       page.related = page.related ?? {};
@@ -102,7 +110,10 @@ export function createLoader(base: string): Loader {
     async source(path: string) {
       const cached = sources.get(path);
       if (cached) return cached;
-      const response = await fetch(asset(base, `assets/model/source/${pathEscape(path)}.json`));
+      const index = await loadIndex();
+      const shard = index.files.find((file) => file.fullName === path)?.sourceShard;
+      if (!shard) throw new Error(`missing source ${path}`);
+      const response = await fetch(asset(base, `assets/model/source/${shard}.json`));
       if (!response.ok) throw new Error(`missing source ${path}`);
       const file = (await response.json()) as DocFile;
       sources.set(path, file);
@@ -126,9 +137,20 @@ export function createLoader(base: string): Loader {
     },
     async references() {
       if (referencesCache) return referencesCache;
-      const response = await fetch(asset(base, "assets/protobuf/references.json"));
-      referencesCache = response.ok ? ((await response.json()) as SymbolReference[]) : [];
-      return referencesCache ?? [];
+      const response = await fetch(asset(base, "assets/model/references.json"));
+      if (!response.ok) throw new Error("missing references");
+      referencesCache = ((await response.json()) as SymbolReference[]) ?? [];
+      return referencesCache;
+    },
+    async diff() {
+      if (diffCache) return diffCache;
+      const response = await fetch(asset(base, "assets/model/diff.json"));
+      if (!response.ok) throw new Error("missing diff");
+      diffCache = (await response.json()) as SchemaDiff;
+      diffCache.added = diffCache.added ?? [];
+      diffCache.removed = diffCache.removed ?? [];
+      diffCache.modified = diffCache.modified ?? [];
+      return diffCache;
     },
   };
 }
@@ -138,10 +160,3 @@ export function asset(base: string, name: string): string {
   return `${base}${name}`;
 }
 
-/** Match site.fileToken: base64url without padding. */
-export function pathEscape(value: string): string {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}

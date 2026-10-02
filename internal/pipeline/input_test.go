@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ymmt2005/pbschema-lens/internal/config"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -99,6 +100,65 @@ func TestConfigBesideDescriptorWins(t *testing.T) {
 	}
 	if result.Config.Title != "Beside" {
 		t.Fatalf("title %s", result.Config.Title)
+	}
+}
+
+func TestPrepareDoesNotSwitchConfigOnTheSecondCall(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pbschema-lens.yaml"), []byte("title: Root\ninput: sub/schema.binpb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "pbschema-lens.yaml"), []byte("title: Beside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	first, cfg, err := Prepare(Request{CWD: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Title != "Root" {
+		t.Fatalf("first title %s", cfg.Title)
+	}
+	_, again, err := Prepare(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Title != "Root" {
+		t.Fatalf("second prepare switched to %s", again.Title)
+	}
+}
+
+func TestBuildAcceptsParentDescriptorPath(t *testing.T) {
+	root := t.TempDir()
+	writeDescriptor(t, filepath.Join(root, "schema.binpb"))
+	sub := filepath.Join(root, "work")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Build(Request{CWD: sub, Input: filepath.Join("..", "schema.binpb"), Out: "dist"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Model.Messages[0].FullName != "demo.Empty" {
+		t.Fatalf("messages %+v", result.Model.Messages)
+	}
+}
+
+func TestCommitFlagBeatsConfigAndGitIsNotConsulted(t *testing.T) {
+	flag := sourceConfig(config.Config{Source: &config.Source{Repository: "github:acme/apis", Commit: "from-yaml"}}, "from-flag")
+	if flag == nil || flag.Commit != "from-flag" {
+		t.Fatalf("flag %+v", flag)
+	}
+	yaml := sourceConfig(config.Config{Source: &config.Source{Repository: "github:acme/apis", Commit: "from-yaml"}}, "")
+	if yaml == nil || yaml.Commit != "from-yaml" {
+		t.Fatalf("yaml %+v", yaml)
+	}
+	none := sourceConfig(config.Config{Source: &config.Source{Repository: "github:acme/apis"}}, "")
+	if none == nil || none.Commit != "" {
+		t.Fatalf("git was consulted: %+v", none)
 	}
 }
 

@@ -323,6 +323,11 @@ func TestAcmeIncludeExclude(t *testing.T) {
 	if !hasSemantic(getUser.Options, "google.api.http") {
 		t.Fatalf("http option missing %#v", getUser.Options)
 	}
+	for _, ext := range model.Extensions {
+		if ext.OptionTarget != "" && ext.Domain != "local" && ext.GeneratePage {
+			t.Fatalf("option definition outside include was published: %s", ext.FullName)
+		}
+	}
 	flag := findField(model, "acme.experiment.v1.Flag.id")
 	if flag == nil || !hasSemantic(flag.Options, "cybozu.validate") {
 		t.Fatalf("cybozu %+v", flag)

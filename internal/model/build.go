@@ -381,7 +381,7 @@ func (b *builder) walkExtension(ext protoreflect.ExtensionDescriptor, class clas
 	loc := locationFor(ext.ParentFile(), ext)
 	path, _ := urlPathFor("extension", full, "")
 	target := optionTargetOf(ext.ContainingMessage().FullName())
-	page := (class.GeneratePage || target != "") && !classify.Excluded(fileName, pkgName, b.options.Classification.Exclude)
+	page := class.GeneratePage
 	doc := &DocExtension{baseSymbol: newBase("extension", full, string(ext.Name()), pkgName, fileName, string(class.Domain), page, class.InNav, deprecatedField(ext))}
 	doc.Comments = commentFrom(loc)
 	doc.Source = sourceFrom(fileName, loc)

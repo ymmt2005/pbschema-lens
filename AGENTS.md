@@ -74,9 +74,9 @@ A config that lists `plugins` fails the build. The binary does not load plugin m
 
 ### Site
 
-`internal/site` copies the embedded Vite build into the output directory, stamps `/__PBSCHEMA_BASE__/`, `__DATA_BASE__`, `__SITE_URL__`, `__FULL_TEXT__`, and `__TITLE__`, and copies `index.html` onto every `generatePage` route plus `/search`, `/explore`, and `/graph`. It adds `/source` when any source text is present and `/diff` when `model.diff` is set. Model data is split: `assets/model/index.json` (nav, search, package and file cards), `assets/model/symbols/<id>.json` (one page plus the children it renders), `assets/model/source/<path>.json` (proto text), `assets/model/graph.json`, and `assets/model/comments.json`. There is no monolithic `model.json`. Every build writes `assets/protobuf/symbols.json` and `build-info.json`. `references.json` and `schema.binpb` follow `artifacts.references` and `artifacts.descriptorSet`.
+`internal/site` copies the embedded Vite build into the output directory, stamps `/__PBSCHEMA_BASE__/`, `__DATA_BASE__`, `__SITE_URL__`, `__FULL_TEXT__`, and `__TITLE__`, and copies `index.html` onto every `generatePage` route plus `/search`, `/explore`, and `/graph`. It adds `/source` when any source text is present and `/diff` when `model.diff` is set. Site writes go through an `os.Root` opened on the output directory, after refusing a filesystem root, the working directory, or an ancestor of the working directory. Model data is split: `assets/model/index.json` (nav, search, package and file cards, shard keys), `assets/model/symbols/<sha256>.json` (one page plus the children it renders), `assets/model/source/<sha256>.json` (proto text), `assets/model/graph.json`, `assets/model/references.json`, and `assets/model/diff.json` when a diff exists. `assets/model/comments.json` is written when full-text search is on. There is no monolithic `model.json`. Every build writes `assets/protobuf/symbols.json` and `build-info.json`. The exported `assets/protobuf/references.json` and `schema.binpb` follow `artifacts.references` and `artifacts.descriptorSet`.
 
-The browser loads `index.json` first, then the payload for the current page. Display helpers (package nav, field table, source tree, search ranking) stay in TypeScript under `src/core/` and run in the browser. Comment search fetches `comments.json` when `search.fullText` is omitted or true. There is no Pagefind index. `dev` watches the descriptor file and does not invoke Buf.
+The browser loads `index.json` first, then the payload named by that index. Display helpers (package nav, field table, source tree, search ranking) stay in TypeScript under `src/core/` and run in the browser. Comment search fetches `comments.json` when `search.fullText` is omitted or true. The diff page fetches `diff.json`. There is no Pagefind index. `dev` watches the descriptor file and does not invoke Buf. Repository link commits come from `--commit` or `source.commit`; the process does not run git.
 
 ### Where to change what
 
@@ -132,7 +132,7 @@ These are gitignored and rewritten on every build:
 - **Custom options are data, not a hard-coded name list.** Prefer the generic option model; semantic renderers in `internal/model/semantic.go` are additive sugar (`google.api.http`, `buf.validate`, `cybozu.validate`, field behavior, deprecated). Field tables surface `buf.validate` and `cybozu.validate` in a Validation column; Details keeps JSON name, presence, and raw option text.
 - **View source** is the in-site proto browser when `.proto` text is available. `source.repository` only adds a separate “View on GitHub” link.
 - **Plugins are not loaded.** A non-empty `plugins` list fails the build. Do not load modules from schema comments, option values, or config.
-- Reject source, config, and output paths that contain `..` (`internal/config`, `internal/fds`, `internal/pipeline`, `internal/site`).
+- Descriptor, config, and source paths may contain `..`. Output writes are confined to an `os.Root` and refuse the filesystem root, the working directory, and ancestors of the working directory (`internal/site`).
 
 ## GitHub Pages `base`
 
@@ -144,7 +144,7 @@ These are gitignored and rewritten on every build:
 | Privately published site | unique `https://<random>.pages.github.io/` | `/` |
 | User/org site or custom domain | origin root | `/` |
 
-`pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the `pagesWorkflow` string in `cmd/pbschema-lens/main.go`. If you change that workflow, edit that string, not a checked-in copy. Keep `examples/github-pages/README.md` in sync. The generated workflow installs Buf, downloads `pbschema-lens_linux_amd64.tar.gz` from `releases/latest/download`, and runs `buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base"`. It does not pass `--source`.
+`pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the `pagesWorkflow` string in `cmd/pbschema-lens/main.go`. If you change that workflow, edit that string, not a checked-in copy. Keep `examples/github-pages/README.md` in sync. The generated workflow installs Buf, downloads `pbschema-lens_linux_amd64.tar.gz` from `releases/latest/download`, and runs `buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --commit "$GITHUB_SHA"`. It does not pass `--source`.
 
 This repository’s own CI is `.github/workflows/ci.yml` on Node 24 and Go 1.23: display-helper tests, typecheck, `npm run build:ui`, `go test`, doctor, build the Acme example, then deploy Pages from `main` only.
 

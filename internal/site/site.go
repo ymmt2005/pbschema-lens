@@ -26,32 +26,29 @@ type Options struct {
 }
 
 // Write copies the embedded UI, stamps the base path, and writes one shell per route.
+// Every generated file is written through an os.Root opened on the output directory.
 func Write(outDir string, schema *model.SchemaModel, opts Options) error {
-	if err := safePath(outDir); err != nil {
-		return err
-	}
 	base := normalizeBase(opts.Base)
 	if err := validateBase(base); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(outDir); err != nil {
+	out, err := openOutput(outDir)
+	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return err
-	}
+	defer out.Close()
 	if err := fs.WalkDir(Dist, "dist", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		rel := strings.TrimPrefix(name, "dist")
 		rel = strings.TrimPrefix(rel, "/")
-		target := filepath.Join(outDir, filepath.FromSlash(rel))
+		if rel == "" {
+			return nil
+		}
+		target := filepath.FromSlash(rel)
 		if entry.IsDir() {
-			if rel == "" {
-				return nil
-			}
-			return os.MkdirAll(target, 0o755)
+			return out.MkdirAll(target, 0o755)
 		}
 		raw, err := Dist.ReadFile(name)
 		if err != nil {
@@ -60,17 +57,14 @@ func Write(outDir string, schema *model.SchemaModel, opts Options) error {
 		if isText(name) {
 			raw = stamp(raw, base, opts)
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return err
-		}
-		return os.WriteFile(target, raw, 0o644)
+		return writeFile(out, target, raw)
 	}); err != nil {
 		return err
 	}
-	if err := writeModel(outDir, schema); err != nil {
+	if err := writeModel(out, schema, opts.FullText); err != nil {
 		return err
 	}
-	shell, err := os.ReadFile(filepath.Join(outDir, "index.html"))
+	shell, err := out.ReadFile("index.html")
 	if err != nil {
 		return err
 	}
@@ -78,58 +72,65 @@ func Write(outDir string, schema *model.SchemaModel, opts Options) error {
 		if route == "/" {
 			continue
 		}
-		dir := filepath.Join(outDir, filepath.FromSlash(strings.Trim(route, "/")))
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(filepath.Join(dir, "index.html"), shell, 0o644); err != nil {
+		dir := filepath.FromSlash(strings.Trim(route, "/"))
+		if err := writeFile(out, filepath.Join(dir, "index.html"), shell); err != nil {
 			return err
 		}
 	}
-	return writeArtifacts(outDir, schema, opts)
+	return writeArtifacts(out, schema, opts)
 }
 
-func writeArtifacts(outDir string, schema *model.SchemaModel, opts Options) error {
-	dir := filepath.Join(outDir, "assets", "protobuf")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
+func writeArtifacts(out *os.Root, schema *model.SchemaModel, opts Options) error {
+	dir := filepath.Join("assets", "protobuf")
 	index, err := json.MarshalIndent(schema.SymbolIndex, "", "  ")
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "symbols.json"), index, 0o644); err != nil {
+	if err := writeFile(out, filepath.Join(dir, "symbols.json"), index); err != nil {
 		return err
 	}
 	info, err := json.MarshalIndent(schema.BuildInfo, "", "  ")
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "build-info.json"), info, 0o644); err != nil {
+	if err := writeFile(out, filepath.Join(dir, "build-info.json"), info); err != nil {
 		return err
 	}
 	if opts.WriteRefs {
-		var refs []model.SymbolReference
-		for _, symbol := range schema.Symbols {
-			refs = append(refs, referencesOf(symbol)...)
-		}
-		if refs == nil {
-			refs = []model.SymbolReference{}
-		}
-		raw, err := json.Marshal(refs)
+		raw, err := json.Marshal(collectReferences(schema))
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(dir, "references.json"), raw, 0o644); err != nil {
+		if err := writeFile(out, filepath.Join(dir, "references.json"), raw); err != nil {
 			return err
 		}
 	}
 	if opts.WriteSchema && len(opts.Descriptor) > 0 {
-		if err := os.WriteFile(filepath.Join(dir, "schema.binpb"), opts.Descriptor, 0o644); err != nil {
+		if err := writeFile(out, filepath.Join(dir, "schema.binpb"), opts.Descriptor); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func writeFile(out *os.Root, name string, data []byte) error {
+	if dir := filepath.Dir(name); dir != "." {
+		if err := out.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	return out.WriteFile(name, data, 0o644)
+}
+
+func collectReferences(schema *model.SchemaModel) []model.SymbolReference {
+	var refs []model.SymbolReference
+	for _, symbol := range schema.Symbols {
+		refs = append(refs, referencesOf(symbol)...)
+	}
+	if refs == nil {
+		refs = []model.SymbolReference{}
+	}
+	return refs
 }
 
 func referencesOf(symbol any) []model.SymbolReference {
@@ -257,6 +258,9 @@ func validateBase(base string) error {
 	if strings.Contains(base, "..") {
 		return fmt.Errorf("base %q must not contain ..", base)
 	}
+	if strings.Contains(base, "//") {
+		return fmt.Errorf("base %q must be a same-origin path", base)
+	}
 	for _, r := range base {
 		switch {
 		case r == '/' || r == '-' || r == '_' || r == '.' || r == '~':
@@ -290,34 +294,57 @@ func isText(name string) bool {
 	}
 }
 
-func safePath(path string) error {
-	if strings.TrimSpace(path) == "" {
-		return fmt.Errorf("refusing to write site output to %q", path)
+// openOutput creates outDir as a child of its parent and returns a root confined to it.
+// The parent, the working directory, and any ancestor of the working directory are refused
+// so RemoveAll cannot erase the checkout or a filesystem root.
+func openOutput(outDir string) (*os.Root, error) {
+	if strings.TrimSpace(outDir) == "" {
+		return nil, fmt.Errorf("refusing to write site output to %q", outDir)
 	}
-	if strings.Contains(path, "..") {
-		return fmt.Errorf("path %q must not contain ..", path)
-	}
-	cleaned := filepath.Clean(path)
-	if cleaned == "." || cleaned == string(filepath.Separator) {
-		return fmt.Errorf("refusing to write site output to %q", path)
-	}
-	abs, err := filepath.Abs(cleaned)
+	abs, err := filepath.Abs(outDir)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if abs == string(filepath.Separator) {
-		return fmt.Errorf("refusing to write site output to %q", path)
+	abs = filepath.Clean(abs)
+	parent := filepath.Dir(abs)
+	name := filepath.Base(abs)
+	if parent == abs || name == "." || name == ".." {
+		return nil, fmt.Errorf("invalid output directory %q", outDir)
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	cwdAbs, err := filepath.Abs(cwd)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if abs == cwdAbs {
-		return fmt.Errorf("refusing to write site output to %q", path)
+	cwdAbs = filepath.Clean(cwdAbs)
+	if abs == cwdAbs || dirContains(abs, cwdAbs) {
+		return nil, fmt.Errorf("refusing to write site output to %q", outDir)
 	}
-	return nil
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return nil, err
+	}
+	parentRoot, err := os.OpenRoot(parent)
+	if err != nil {
+		return nil, err
+	}
+	defer parentRoot.Close()
+	if err := parentRoot.RemoveAll(name); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	if err := parentRoot.Mkdir(name, 0o755); err != nil {
+		return nil, err
+	}
+	return parentRoot.OpenRoot(name)
+}
+
+// dirContains reports whether child is strictly inside dir.
+func dirContains(dir, child string) bool {
+	rel, err := filepath.Rel(dir, child)
+	if err != nil {
+		return false
+	}
+	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

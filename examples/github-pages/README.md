@@ -9,7 +9,7 @@ Copy `.github/workflows/protobuf-docs.yml` from `pbschema-lens init --github-pag
 The build step compiles the schema with Buf and pipes the descriptor set:
 
 ```bash
-buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base"
+buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --commit "$GITHUB_SHA"
 ```
 
 The generated workflow does not pass `--source`. Add `--source <dir>` yourself when the in-site source browser should include `.proto` text. pbschema-lens does not guess a source directory, and it does not invoke Buf.

@@ -83,6 +83,7 @@ type flags struct {
 	config  string
 	source  string
 	against string
+	commit  string
 	port    string
 	pages   bool
 	rest    []string
@@ -137,6 +138,7 @@ func bindSiteFlags(fs *flag.FlagSet, f *flags) {
 	fs.StringVar(&f.config, "config", "", "config file")
 	fs.StringVar(&f.config, "c", "", "config file")
 	fs.StringVar(&f.source, "source", "", "directory of .proto files")
+	fs.StringVar(&f.commit, "commit", "", "commit for repository links")
 }
 
 func parseBuild(name string, args []string) (flags, error) {
@@ -212,6 +214,7 @@ Flags:
       --title text        site title
   -c, --config file       config file
       --source directory  .proto files for the source browser
+      --commit rev        commit for repository links
       --against file      FileDescriptorSet to compare
 
 descriptor is a FileDescriptorSet file or - for stdin.
@@ -227,6 +230,7 @@ Flags:
       --title text        site title
   -c, --config file       config file
       --source directory  .proto files for the source browser
+      --commit rev        commit for repository links
       --port number       listen port (default 43147)
 `
 	case "doctor":
@@ -246,6 +250,7 @@ Flags:
       --title text        site title
   -c, --config file       config file
       --source directory  .proto files for the source browser
+      --commit rev        commit for repository links
       --against file      FileDescriptorSet to compare (required)
 `
 	case "init":
@@ -513,7 +518,7 @@ func request(f flags) (pipeline.Request, error) {
 	}
 	return pipeline.Request{
 		CWD: cwd, ConfigFile: f.config, Input: input, Against: f.against,
-		Out: f.out, Base: f.base, Title: f.title, SourceDir: f.source, Stdin: os.Stdin,
+		Out: f.out, Base: f.base, Title: f.title, SourceDir: f.source, Commit: f.commit, Stdin: os.Stdin,
 	}, nil
 }
 
@@ -559,7 +564,7 @@ jobs:
             */) ;;
             *) base="${base}/" ;;
           esac
-          buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base"
+          buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --commit "$GITHUB_SHA"
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

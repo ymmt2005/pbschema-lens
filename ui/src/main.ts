@@ -149,7 +149,7 @@ function renderHome(): string {
     </dl>
     <section class="mb-10"><h2 class="text-xl font-semibold mb-3">Packages</h2>${homeAreasHtml(areas, href)}</section>
     ${wktHtml}
-    ${index.diff ? `<p><a href="${href("/diff/")}">Schema diff</a> against ${esc(index.diff.againstLabel)}.</p>` : ""}
+    ${index.hasDiff ? `<p><a href="${href("/diff/")}">Schema diff</a></p>` : ""}
   `;
 }
 
@@ -318,9 +318,9 @@ async function renderGraph(): Promise<string> {
   return `<h1 class="text-3xl font-semibold mb-6">Package graph</h1>${blocks || `<p class="text-[color:var(--fg-muted)]">No packages.</p>`}`;
 }
 
-function renderDiff(): string {
-  const diff = index.diff;
-  if (!diff) return `<h1 class="text-3xl font-semibold">No schema diff</h1><p class="mt-3">Build again with <code>--against</code> to compare two descriptor sets.</p>`;
+async function renderDiff(): Promise<string> {
+  if (!index.hasDiff) return `<h1 class="text-3xl font-semibold">No schema diff</h1><p class="mt-3">Build again with <code>--against</code> to compare two descriptor sets.</p>`;
+  const diff = await loader.diff();
   const list = (title: string, items: { fullName: string; kind: string; details: string[] }[]) =>
     `<h2 class="text-xl font-semibold mt-6 mb-2">${title} (${items.length})</h2><ul class="space-y-2">${items
       .map((item) => `<li><span class="font-mono">${esc(item.kind)}</span> ${esc(item.fullName)}<div class="text-sm text-[color:var(--fg-muted)]">${item.details.map(esc).join("<br>")}</div></li>`)
@@ -520,7 +520,7 @@ function installShell() {
               <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)]" href="${href("/graph/")}">Package graph</a></li>
               <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)]" href="${href("/search/")}">Search</a></li>
               ${index.hasSource ? `<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)]" href="${href("/source/")}">Source</a></li>` : ""}
-              ${index.diff ? `<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)]" href="${href("/diff/")}">Schema diff</a></li>` : ""}
+              ${index.hasDiff ? `<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)]" href="${href("/diff/")}">Schema diff</a></li>` : ""}
             </ul>
           </div>
         </nav>

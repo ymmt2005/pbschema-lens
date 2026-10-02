@@ -1,6 +1,9 @@
 package model
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestDiffAddedAndRemoved(t *testing.T) {
 	prev := &SchemaModel{Symbols: map[string]any{
@@ -15,5 +18,11 @@ func TestDiffAddedAndRemoved(t *testing.T) {
 	}
 	if len(diff.Removed) != 1 || diff.Removed[0].ID != "message:A" {
 		t.Fatalf("removed %+v", diff.Removed)
+	}
+}
+
+func TestItoaFormatsMinInt32(t *testing.T) {
+	if got := itoa(math.MinInt32); got != "-2147483648" {
+		t.Fatalf("min int32 formatted as %s", got)
 	}
 }

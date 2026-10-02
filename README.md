@@ -38,7 +38,7 @@ A static file server works the same way. Opening `dist/index.html` as a local fi
 
 ## Install from a GitHub Release
 
-This is a build-time CLI, not a library. Download a static binary for Linux, Windows, or macOS (amd64 or arm64). The released CLI does not require Node. Building this repository from source still needs Node to compile `internal/site/dist` before `go build`. The next version bump on `main` publishes those archives with [GoReleaser](https://goreleaser.com/). Until that release exists, build from source with `npm run build:ui && go build -o pbschema-lens ./cmd/pbschema-lens`.
+This is a build-time CLI, not a library. Download a static binary for Linux, Windows, or macOS (amd64 or arm64). The released CLI does not require Node. Building this repository from source still needs Node to compile `internal/site/dist` before `go build`, and Go 1.26 or newer. The next version bump on `main` publishes those archives with [GoReleaser](https://goreleaser.com/). Until that release exists, build from source with `npm run build:ui && go build -o pbschema-lens ./cmd/pbschema-lens`.
 
 ```bash
 curl -fsSL -o pbschema-lens.tar.gz \
@@ -115,22 +115,23 @@ externalLinks:
 | `base` | `/` | Path prefix for the site. A public GitHub project site uses `/<repo>/`. A private Pages site, a user or org site, or a custom domain uses `/`. Those commands accept `--base`. |
 | `siteUrl` | omitted | Origin of the published site, such as `https://docs.example.com`. The build emits a canonical link for each page. With `base: /docs/`, the home page canonical URL is `https://docs.example.com/docs/`. |
 | `source.repository` | omitted | Repository for the separate “View on GitHub” or “View on GitLab” link. `github:owner/repo` and `https://github.com/owner/repo` (optional `.git`) build a GitHub blob URL. `gitlab:group/project` and `https://gitlab.com/group/project` build a GitLab blob URL. When `.proto` text is available, View source stays in the site and this link is separate. When it is not, View source uses this URL. |
-| `source.commit` | git commit of the schema, or `HEAD` | Commit used in the repository link. A value here overrides the commit detected from the worktree. |
-| `source.urlTemplate` | omitted | Repository link template. When set, this string is used instead of `source.repository`. `{file}` is the proto path, `{line}` is the line number, and `{commit}` is `source.commit`, then the detected git commit, then `HEAD`. Example: `https://src.example/{commit}/{file}#L{line}`. |
+| `source.commit` | omitted | Commit used in repository links. `--commit` overrides this. When both are omitted, links use the literal `HEAD`. pbschema-lens does not run git. |
+| `source.urlTemplate` | omitted | Repository link template. When set, this string is used instead of `source.repository`. `{file}` is the proto path, `{line}` is the line number, and `{commit}` is `--commit`, then `source.commit`, then the literal `HEAD`. Example: `https://src.example/{commit}/{file}#L{line}`. |
 | `documentation.include` | omitted | Proto path globs or package names. A package pattern ending in `.**` includes nested packages. A non-empty list documents only matching files. Other files have no page and do not appear in symbol search. |
 | `documentation.exclude` | omitted | Proto path globs or package names. Matching files are left out of the site: no page, no source, no symbol-search hit, and no link to or from their symbols. A message that uses an option from an excluded file still shows that option chip, without a definition link. |
 | `wellKnownTypes.enabled` | `true` | `false` drops every well-known type page and nav entry, including Timestamp and Duration. Descriptor and feature protos stay hidden either way. A field of that type keeps the type name as text. |
-| `search.fullText` | `true` | `false` skips comment-text search in the browser. Symbol search (exact, prefix, and fuzzy) always runs. |
+| `search.fullText` | `true` | `false` skips comment-text search and does not write `assets/model/comments.json`. Symbol search (exact, prefix, and fuzzy) always runs. |
 | `sourceBrowser.enabled` | `true` | `false` does not load `.proto` text, so the site has no source pages. |
 | `artifacts.descriptorSet` | `false` | `true` writes `assets/protobuf/schema.binpb`. |
-| `artifacts.references` | `true` | `false` skips `assets/protobuf/references.json`. `symbols.json` and `build-info.json` are written on every build. |
+| `artifacts.references` | `true` | `false` skips the exported `assets/protobuf/references.json`. The explorer always reads `assets/model/references.json`. `symbols.json` and `build-info.json` are written on every build. |
 | `externalLinks` | omitted | Rules that send a package to another site. `package` is a name or a `.**` pattern. A match is documented externally: no local page, and links use `urlTemplate`. `{symbol}` is the full name, `{kind}` is the symbol kind, and `{package}` is the package. |
-`build`, `dev`, and `diff` accept `--out` (`-o`), `--base`, `--title`, `--config` (`-c`), and `--source`. `build` and `diff` accept `--against`; `diff` requires it. `dev` accepts `--port` and does not accept `--against`. `doctor` accepts `--config`. A flag that a command does not declare is an error. Each command accepts at most one descriptor path. `pbschema-lens <command> --help` prints that command's usage.
+`build`, `dev`, and `diff` accept `--out` (`-o`), `--base`, `--title`, `--config` (`-c`), `--source`, and `--commit`. `build` and `diff` accept `--against`; `diff` requires it. `dev` accepts `--port` and does not accept `--against`. `doctor` accepts `--config`. A flag that a command does not declare is an error. Each command accepts at most one descriptor path. `pbschema-lens <command> --help` prints that command's usage. `--commit` sets the repository-link commit and wins over `source.commit`. Pass `"$(git rev-parse HEAD)"` or `$GITHUB_SHA` when you want a real revision; the binary does not run git.
 
 ## Breaking changes from the Node CLI
 
 - Plugins are not loaded. Remove `plugins` from the config. A non-empty list fails the build.
 - `buf breaking` is not run. `diff` compares two FileDescriptorSets and does not invoke Buf.
+- The commit in repository links comes from `--commit` or `source.commit`. pbschema-lens does not run `git rev-parse`.
 
 ## What the site includes
 
@@ -150,7 +151,7 @@ externalLinks:
 
 Compilation is Buf's job. pbschema-lens reads a `FileDescriptorSet`, builds the symbol model in Go, and copies an embedded browser UI. The Go process does not run Node, JavaScript, or WebAssembly, and it does not invoke Buf. Starlight is not used.
 
-The site does not ship one `model.json`. `assets/model/index.json` is the nav and search catalog. Each symbol page fetches `assets/model/symbols/<id>.json`. Source text, the package graph, and comment text are separate files, loaded when those views run.
+The site does not ship one `model.json`. `assets/model/index.json` is the nav and search catalog. Each symbol page fetches `assets/model/symbols/<shard>.json`, and each source file fetches `assets/model/source/<shard>.json`. Those shard names are SHA-256 keys stored in the index. The package graph, comment text, schema diff, and reference list are separate files, loaded when those views run.
 
 Comments are treated as untrusted data. Go renders them as Markdown with a sanitized HTML allowlist before they are written into those JSON files. They are never compiled as MDX or JavaScript. Safe links are `http`, `https`, `mailto`, relative paths, and `#fragment`. `javascript:`, `data:`, and protocol-relative `//host` links are dropped.
 

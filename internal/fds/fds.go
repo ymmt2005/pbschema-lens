@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -14,9 +13,6 @@ import (
 
 // Read loads a FileDescriptorSet from a file path or from stdin when path is "-".
 func Read(path string, stdin io.Reader) ([]byte, error) {
-	if strings.Contains(path, "..") {
-		return nil, fmt.Errorf("path %q must not contain ..", path)
-	}
 	var raw []byte
 	var err error
 	if path == "" || path == "-" {

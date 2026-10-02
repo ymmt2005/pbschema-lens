@@ -33,6 +33,9 @@ func TestValidateBaseRejectsMarkup(t *testing.T) {
 	if err := validateBase("/docs/"); err != nil {
 		t.Fatal(err)
 	}
+	if err := validateBase("//host/"); err == nil {
+		t.Fatal("accepted a protocol-relative base")
+	}
 }
 
 func TestHandlerServesBasePrefix(t *testing.T) {

@@ -6,10 +6,21 @@ import (
 	"testing"
 )
 
-func TestRejectsParentSegments(t *testing.T) {
-	_, _, err := Load(".", "../secret.yaml")
-	if err == nil {
-		t.Fatal("expected path rejection")
+func TestLoadsConfigFromParentPath(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "secret.yaml"), []byte("title: Outside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err := Load(sub, filepath.Join("..", "secret.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Title != "Outside" {
+		t.Fatalf("title %s", cfg.Title)
 	}
 }
 

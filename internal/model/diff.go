@@ -1,6 +1,9 @@
 package model
 
-import "sort"
+import (
+	"sort"
+	"strconv"
+)
 
 // Diff compares two models built from descriptor sets.
 func Diff(current, previous *SchemaModel, againstLabel string) *SchemaDiff {
@@ -174,24 +177,5 @@ func sortChanges(changes []SymbolChange) {
 }
 
 func itoa(n int32) string {
-	return strconvItoa32(n)
-}
-
-func strconvItoa32(n int32) string {
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	if n == 0 {
-		return "0"
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	if neg {
-		return "-" + string(digits)
-	}
-	return string(digits)
+	return strconv.FormatInt(int64(n), 10)
 }

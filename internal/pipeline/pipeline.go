@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -25,7 +24,11 @@ type Request struct {
 	Base       string
 	Title      string
 	SourceDir  string
+	Commit     string
 	Stdin      io.Reader
+	// Prepared is set after the first successful Prepare so a later call
+	// reloads that config instead of discovering a different file.
+	Prepared bool
 }
 
 // Result is a built model and the directory it was written to.
@@ -42,12 +45,16 @@ type Result struct {
 // A positional descriptor, --source, and --against stay relative to the working directory.
 func Prepare(req Request) (Request, config.Config, error) {
 	beside := ""
-	if req.Input != "" && req.Input != "-" {
+	if !req.Prepared && req.ConfigFile == "" && req.Input != "" && req.Input != "-" {
 		beside = resolvePath(req.CWD, req.Input)
 	}
 	cfg, cfgPath, err := config.LoadNear(req.CWD, req.ConfigFile, beside)
 	if err != nil {
 		return req, cfg, err
+	}
+	req.Prepared = true
+	if cfgPath != "" {
+		req.ConfigFile = cfgPath
 	}
 	if req.Title != "" {
 		cfg.Title = req.Title
@@ -64,9 +71,6 @@ func Prepare(req Request) (Request, config.Config, error) {
 	} else {
 		input = resolvePath(req.CWD, input)
 	}
-	if err := safe(input); err != nil {
-		return req, cfg, err
-	}
 	req.Input = input
 	return req, cfg, nil
 }
@@ -78,9 +82,6 @@ func Build(req Request) (*Result, error) {
 		return nil, err
 	}
 	input := req.Input
-	if err := safe(cfg.Output); err != nil {
-		return nil, err
-	}
 	raw, err := fds.Read(input, req.Stdin)
 	if err != nil {
 		return nil, err
@@ -96,7 +97,7 @@ func Build(req Request) (*Result, error) {
 			return nil, err
 		}
 	}
-	source := sourceConfig(cfg, req.CWD)
+	source := sourceConfig(cfg, req.Commit)
 	schema, err := model.Build(files, model.BuildOptions{
 		Title:          cfg.Title,
 		InputLabel:     input,
@@ -110,9 +111,6 @@ func Build(req Request) (*Result, error) {
 	}
 	if req.Against != "" {
 		against := resolvePath(req.CWD, req.Against)
-		if err := safe(against); err != nil {
-			return nil, err
-		}
 		if against == "-" && input == "-" {
 			return nil, fmt.Errorf("--against cannot read stdin when the input descriptor is also stdin")
 		}
@@ -156,13 +154,19 @@ func configDir(cfgPath, cwd string) string {
 	return filepath.Dir(cfgPath)
 }
 
-func sourceConfig(cfg config.Config, cwd string) *model.SourceConfig {
-	if cfg.Source == nil {
+// sourceConfig resolves the repository commit. The flag wins, then source.commit.
+// An empty result stays empty here; link rendering substitutes the literal HEAD.
+// pbschema-lens does not run git.
+func sourceConfig(cfg config.Config, commitFlag string) *model.SourceConfig {
+	if cfg.Source == nil && commitFlag == "" {
 		return nil
 	}
-	commit := cfg.Source.Commit
-	if commit == "" {
-		commit = gitHEAD(cwd)
+	commit := commitFlag
+	if commit == "" && cfg.Source != nil {
+		commit = cfg.Source.Commit
+	}
+	if cfg.Source == nil {
+		return &model.SourceConfig{Commit: commit}
 	}
 	return &model.SourceConfig{Repository: cfg.Source.Repository, Commit: commit, URLTemplate: cfg.Source.URLTemplate}
 }
@@ -172,16 +176,6 @@ func sourceCommit(cfg *model.SourceConfig) string {
 		return ""
 	}
 	return cfg.Commit
-}
-
-func gitHEAD(cwd string) string {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
-	cmd.Dir = cwd
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
 }
 
 func fileNames(files interface {
@@ -196,18 +190,12 @@ func fileNames(files interface {
 }
 
 func loadSources(root string, names []string) (map[string]string, error) {
-	if err := safe(root); err != nil {
-		return nil, err
-	}
 	texts := map[string]string{}
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if entry.IsDir() {
-			if strings.Contains(entry.Name(), "..") {
-				return fmt.Errorf("path %q must not contain ..", path)
-			}
 			return nil
 		}
 		if !strings.HasSuffix(entry.Name(), ".proto") {
@@ -250,11 +238,4 @@ func resolvePath(cwd, path string) string {
 		return path
 	}
 	return filepath.Join(cwd, path)
-}
-
-func safe(path string) error {
-	if strings.Contains(path, "..") {
-		return fmt.Errorf("path %q must not contain ..", path)
-	}
-	return nil
 }

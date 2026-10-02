@@ -97,9 +97,6 @@ func Load(cwd, explicit string) (Config, string, error) {
 	if path == "" {
 		return cfg, "", nil
 	}
-	if err := rejectDotDot(path); err != nil {
-		return Config{}, "", err
-	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, "", err
@@ -171,11 +168,4 @@ func (c Config) Classification() classify.Config {
 		})
 	}
 	return out
-}
-
-func rejectDotDot(path string) error {
-	if strings.Contains(path, "..") {
-		return fmt.Errorf("path %q must not contain ..", path)
-	}
-	return nil
 }

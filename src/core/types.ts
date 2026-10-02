@@ -318,6 +318,8 @@ export interface SymbolIndexEntry {
   kind: SymbolKind;
   package: string;
   urlPath: string;
+  /** Fixed-size filename of the symbol payload, when this entry has its own page. */
+  shard?: string;
 }
 
 export interface SchemaModel {
