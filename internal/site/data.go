@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -83,7 +82,7 @@ type graphEdge struct {
 	Public bool   `json:"public"`
 }
 
-func writeModel(out *os.Root, schema *model.SchemaModel, fullText bool) error {
+func writeModel(out string, schema *model.SchemaModel, fullText bool) error {
 	root := filepath.Join("assets", "model")
 	if err := writeJSON(out, filepath.Join(root, "index.json"), buildIndex(schema)); err != nil {
 		return err
@@ -379,7 +378,7 @@ func packageID(pkgs map[string]*model.DocPackage, packageName string) string {
 	return pkg.ID
 }
 
-func writeJSON(out *os.Root, name string, value any) error {
+func writeJSON(out, name string, value any) error {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return err

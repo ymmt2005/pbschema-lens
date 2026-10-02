@@ -161,7 +161,7 @@ The security target is current practice for a static site built from untrusted s
 
 - A private Git repository does **not** make a published static site private.
 - A config that lists plugins fails the build. The binary does not load modules.
-- Source, config, and output paths are rejected if they contain `..`.
+- Descriptor, config, and source paths may contain `..`. Output is refused when it is the filesystem root, the working directory, or an ancestor of the working directory. A generated path that is absolute or contains a `..` segment is not written.
 
 ## Develop
 

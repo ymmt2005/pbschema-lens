@@ -94,12 +94,7 @@ func TestWriteModelSplitsPayloads(t *testing.T) {
 		Diff:      &model.SchemaDiff{AgainstLabel: "SECRET_DIFF", Added: []model.SymbolChange{}, Removed: []model.SymbolChange{}, Modified: []model.SymbolChange{}},
 	}
 	dir := t.TempDir()
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer root.Close()
-	if err := writeModel(root, schema, true); err != nil {
+	if err := writeModel(dir, schema, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "model.json")); err == nil {
@@ -163,18 +158,13 @@ func TestWriteModelSplitsPayloads(t *testing.T) {
 
 func TestWriteModelSkipsCommentsWhenFullTextIsOff(t *testing.T) {
 	dir := t.TempDir()
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer root.Close()
 	schema := &model.SchemaModel{
 		Symbols:     map[string]any{},
 		SymbolIndex: []model.SymbolIndexEntry{},
 		WKTNotes:    map[string]string{},
 		BuildInfo:   model.BuildInfo{Warnings: []string{}, Timings: map[string]int{}},
 	}
-	if err := writeModel(root, schema, false); err != nil {
+	if err := writeModel(dir, schema, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "assets", "model", "comments.json")); err == nil {
@@ -185,9 +175,9 @@ func TestWriteModelSkipsCommentsWhenFullTextIsOff(t *testing.T) {
 	}
 }
 
-func TestOpenOutputRefusesCheckoutAndRoot(t *testing.T) {
-	for _, path := range []string{"", ".", "./", "/"} {
-		if _, err := openOutput(path); err == nil {
+func TestPrepareOutputRefusesCheckoutAndRoot(t *testing.T) {
+	for _, path := range []string{"", ".", "./", "/", ".."} {
+		if _, err := prepareOutput(path); err == nil {
 			t.Fatalf("accepted %q", path)
 		}
 	}
@@ -195,24 +185,83 @@ func TestOpenOutputRefusesCheckoutAndRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := openOutput(cwd); err == nil {
+	if _, err := prepareOutput(cwd); err == nil {
 		t.Fatal("accepted the working directory")
 	}
 	parent := filepath.Dir(cwd)
 	if parent != cwd {
-		if _, err := openOutput(parent); err == nil {
+		if _, err := prepareOutput(parent); err == nil {
 			t.Fatal("accepted an ancestor of the working directory")
 		}
 	}
 	sub := t.TempDir()
-	nested := filepath.Join(sub, "out")
-	root, err := openOutput(nested)
+	nested := filepath.Join(sub, "dist", "site")
+	got, err := prepareOutput(nested)
 	if err != nil {
 		t.Fatal(err)
 	}
-	root.Close()
-	if _, err := os.Stat(nested); err != nil {
+	if _, err := os.Stat(got); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPrepareOutputRemovesDirectorySymlink(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real")
+	if err := os.Mkdir(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	keep := filepath.Join(real, "keep.txt")
+	if err := os.WriteFile(keep, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "out")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := prepareOutput(link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Fatal("RemoveAll walked through the directory symlink")
+	}
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("output path is still a symlink")
+	}
+}
+
+func TestWriteFileRejectsEscape(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(filepath.Dir(dir), "escape.txt")
+	absOutside := filepath.Join(filepath.Dir(dir), "abs-escape.txt")
+	for _, name := range []string{
+		"../escape.txt",
+		"foo/../../escape.txt",
+		filepath.Join("foo", "..", "..", "escape.txt"),
+		absOutside,
+	} {
+		if err := writeFile(dir, name, []byte("nope")); err == nil {
+			t.Fatalf("accepted %q", name)
+		}
+	}
+	for _, path := range []string{outside, absOutside} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("wrote outside the output directory: %s (%v)", path, err)
+		}
+	}
+	if err := writeFile(dir, filepath.Join("assets", "ok.txt"), []byte("yes")); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "assets", "ok.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "yes" {
+		t.Fatalf("payload %q", raw)
 	}
 }
 
