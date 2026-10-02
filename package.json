@@ -31,13 +31,13 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^24.13.6",
-    "@types/sanitize-html": "^2.16.1",
-    "marked": "^18.0.13",
-    "sanitize-html": "^2.17.7",
+    "@types/node": "^24.19.1",
+    "@types/sanitize-html": "^2.16.2",
+    "marked": "^18.0.14",
+    "sanitize-html": "^2.18.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^7.1.5",
-    "vitest": "^5.0.1"
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
   }
 }
