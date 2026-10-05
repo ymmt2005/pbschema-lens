@@ -51,6 +51,17 @@ This repository uses GitHub [immutable releases](https://docs.github.com/en/code
 
 The same page also shows **Source code (tar.gz)** and **Source code (zip)**. Those are not the CLI. GitHub always adds them when a tag exists. Use the GoReleaser asset for your OS and architecture.
 
+## Install with aqua
+
+pbschema-lens is in the [aqua](https://aquaproj.github.io/) standard registry from v4.571.0. Run these in the directory that holds `aqua.yaml`:
+
+```bash
+aqua g -i ymmt2005/pbschema-lens
+aqua i
+```
+
+`aqua g -i` adds `ymmt2005/pbschema-lens@<latest version>` to `aqua.yaml`. If that file pins an older standard registry, set its `ref` to v4.571.0 or later first. Without an `aqua.yaml`, run `aqua init` to create one.
+
 ## CLI
 
 | Command | Purpose |
