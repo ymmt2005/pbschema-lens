@@ -29,7 +29,7 @@ export function oldEnough(published, now = Date.now()) {
 export function eligibleReleases(releases, { now = Date.now(), go = false } = {}) {
   return releases.filter(r => {
     const version = stableVersion(r.version);
-    return version && (!go || version[2] > 0) && !r.prerelease && !r.draft && oldEnough(r.published, now);
+    return version && (!go || version[2] > 0) && !r.prerelease && !r.draft && !r.deprecated && oldEnough(r.published, now);
   }).sort((a, b) => compareVersions(b.version, a.version));
 }
 
@@ -175,4 +175,16 @@ export function assertObservationChange(before, after) {
 
 export function observedPublication(key, { versions, committed }, now = Date.now()) {
   return versions.includes(key) && oldEnough(committed, now) ? committed : undefined;
+}
+
+export function goModuleRelease(name, version) {
+  let repository, suffix=[];
+  if(name.startsWith('github.com/')) {
+    const parts=name.split('/'); repository=parts.slice(1,3).join('/'); suffix=parts.slice(3);
+  } else if(name.startsWith('golang.org/x/')) {
+    const parts=name.split('/'); repository=`golang/${parts[2]}`; suffix=parts.slice(3);
+  } else if(name==='google.golang.org/protobuf') repository='protocolbuffers/protobuf-go';
+  else return undefined;
+  if(/^v\d+$/.test(suffix.at(-1)??'') && Number(suffix.at(-1).slice(1))>=2) suffix.pop();
+  return {repository, tag:[...suffix,version.replace(/\+incompatible$/,'')].join('/')};
 }

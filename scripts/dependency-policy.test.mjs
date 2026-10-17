@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, finishCompiledWorkflow, unchangedChecksums, goSums, npmPackages, assertUpdateScope, assertObservationChange, observedPublication } from './dependency-policy.mjs';
+import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, finishCompiledWorkflow, unchangedChecksums, goSums, npmPackages, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease } from './dependency-policy.mjs';
 
 const now=Date.parse('2026-10-17T12:00:00Z');
 const old=new Date(now-embargoMs).toISOString();
@@ -19,6 +19,7 @@ test('selects an older eligible release when latest is embargoed; ignores prerel
     {version:'v3.0.0-rc1',published:old},
     {version:'v4.0.0',published:old,draft:true},
     {version:'v5.0.0',published:undefined},
+    {version:'v6.0.0',published:old,deprecated:'Replaced'},
   ],{now});
   assert.deepEqual(selected.map(r=>r.version),['v1.10.0','v1.9.0']);
 });
@@ -97,4 +98,12 @@ test('Go observation age comes only from the trusted base, never a new candidate
   assert.throws(()=>assertObservationChange({go:[]},{go:[key],published:old}));
   assert.throws(()=>assertObservationChange({go:[]},{go:[key+'-rc.1']}));
   assert.throws(()=>assertObservationChange({go:[]},{go:[key,key]}));
+});
+
+
+test('Go submodules use their own release tag, never the older root-module release',()=>{
+  assert.deepEqual(goModuleRelease('github.com/acme/project/sub/v2','v2.1.0'),{repository:'acme/project',tag:'sub/v2.1.0'});
+  assert.deepEqual(goModuleRelease('github.com/acme/project/v3','v3.1.0'),{repository:'acme/project',tag:'v3.1.0'});
+  assert.deepEqual(goModuleRelease('golang.org/x/net','v0.61.0'),{repository:'golang/net',tag:'v0.61.0'});
+  assert.equal(goModuleRelease('example.com/mod','v1.0.0'),undefined);
 });

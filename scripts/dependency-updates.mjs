@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { setGlobalProxyFromEnv } from 'node:http';
-import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, npmPackages, finishCompiledWorkflow, assertUpdateScope, assertObservationChange, observedPublication } from './dependency-policy.mjs';
+import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, npmPackages, finishCompiledWorkflow, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease } from './dependency-policy.mjs';
 
 // Honor the cloud/agent sandbox's proxy without changing TLS verification.
 setGlobalProxyFromEnv();
@@ -91,7 +91,7 @@ function inventory(get = read, { baseline = false } = {}) {
   for (const [name, repository] of Object.entries(repositories)) if (tools[name]) items.push({ id: `tool:${name}`, kind: 'github', repository, name, current: tools[name] });
   const aqua = get('aqua.yaml');
   const registry = /^\s+ref:\s*(v[\d.]+)/m.exec(aqua)?.[1];
-  if (!registry || !/require_checksum:\s*true/.test(aqua)) throw new Error('aqua registry and required checksums must be pinned');
+  if (!registry || !/^\s+require_checksum:\s*true\s*$/m.test(aqua)) throw new Error('aqua registry and required checksums must be pinned');
   items.push({ id: 'aqua-registry', kind: 'github', repository: 'aquaproj/aqua-registry', current: registry });
   for (const [, repository, version] of aqua.matchAll(/^\s+- name:\s*([\w.-]+\/[\w.-]+)@([^\s]+)/gm)) items.push({ id: `aqua:${repository}`, kind: 'github', repository, current: version });
   for (const file of sources) for (const ref of actionReferences(get(file), file)) {
@@ -142,15 +142,16 @@ async function modulePublication(name,version) {
   // Proxy .info.Time is a VCS commit timestamp, NOT a publication timestamp.
   // Prefer GitHub's server-stamped release time; otherwise wait for a trusted
   // merged observation to age. Unknown evidence always holds the update.
-  const repository=name.startsWith('github.com/') ? name.split('/').slice(1,3).join('/')
-    : name.startsWith('golang.org/x/') ? `golang/${name.split('/')[2]}`
-    : name==='google.golang.org/protobuf' ? 'protocolbuffers/protobuf-go' : undefined;
-  const release=repository ? (await releases(repository)).find(r=>r.tag===version) : undefined;
-  return {version,published:release?.published ?? observedPublication(`${name}@${version}`,observedVersions())};
+  const source=goModuleRelease(name,version);
+  const release=source ? (await releases(source.repository)).find(r=>r.tag===source.tag) : undefined;
+  return {...release,version,published:release?.published ?? observedPublication(`${name}@${version}`,observedVersions())};
 }
 
 async function publication(item, version) {
-  if (item.kind === 'npm') return { version, published: (await npm(item.name)).time?.[version] };
+  if (item.kind === 'npm') {
+    const data=await npm(item.name);
+    return {version,published:data.time?.[version],deprecated:data.versions[version]?.deprecated};
+  }
   if (item.kind === 'module') return modulePublication(item.name,version);
   if (item.kind === 'go' || item.kind === 'node') {
     const selected = (await choices(item)).find(r => compareVersions(r.version, version) === 0);
@@ -287,7 +288,7 @@ async function verify(base) {
   unchangedChecksums(Object.fromEntries([...beforeNpm].map(([k,v])=>[k,v.integrity])),Object.fromEntries([...afterNpm].map(([k,v])=>[k,v.integrity])),'npm');
   for (const [key,pkg] of afterNpm) if (!beforeNpm.has(key)) {
     const data = await npm(pkg.name);
-    assertEligible({ version: pkg.version, published: data.time?.[pkg.version] });
+    assertEligible({ version: pkg.version, published: data.time?.[pkg.version], deprecated:data.versions[pkg.version]?.deprecated });
     if (data.versions[pkg.version]?.dist?.integrity !== pkg.integrity) throw new Error(`npm integrity mismatch: ${key}`);
   }
   const beforeGo = goSums(previous('go.sum')), afterGo = goSums(read('go.sum'));
