@@ -87,11 +87,12 @@ export function goSums(text) {
 }
 
 export function npmPackages(lock) {
+  if(lock.lockfileVersion!==3 || !lock.packages || Array.isArray(lock.packages) || !lock.packages['']) throw new Error('Expected npm lockfile v3 with a complete packages inventory');
   const packages = new Map();
   for (const [path, pkg] of Object.entries(lock.packages ?? {})) {
     if (!path) continue;
     const name = pkg.name ?? path.split('node_modules/').at(-1);
-    if (!stableVersion(pkg.version) || !pkg.integrity || !pkg.resolved?.startsWith('https://registry.npmjs.org/')) {
+    if (pkg.link || !stableVersion(pkg.version) || !pkg.integrity || !pkg.resolved?.startsWith('https://registry.npmjs.org/')) {
       throw new Error(`Expected a stable, integrity-pinned npm registry package: ${path}`);
     }
     const key=`${name}@${pkg.version}`;

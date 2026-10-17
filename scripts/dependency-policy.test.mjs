@@ -70,10 +70,12 @@ test('existing Go, npm and aqua checksum keys cannot silently change',()=>{
 
 test('lockfile inspection includes nested transitives and excludes floating/git/workspace packages',()=>{
   const entry={version:'1.0.0',resolved:'https://registry.npmjs.org/transitive/-/transitive-1.0.0.tgz',integrity:'sha512-example'};
-  const lock={packages:{'':{},'node_modules/direct/node_modules/transitive':entry}};
+  const lock={lockfileVersion:3,packages:{'':{},'node_modules/direct/node_modules/transitive':entry}};
   assert.equal(npmPackages(lock).get('transitive@1.0.0').name,'transitive');
-  assert.throws(()=>npmPackages({packages:{'node_modules/transitive':entry,'node_modules/direct/node_modules/transitive':{...entry,integrity:'sha512-changed'}}}));
-  assert.throws(()=>npmPackages({packages:{'node_modules/direct':{...entry,resolved:'git+https://example.com/repo'}}}));
+  assert.throws(()=>npmPackages({lockfileVersion:3,packages:{'':{},'node_modules/transitive':entry,'node_modules/direct/node_modules/transitive':{...entry,integrity:'sha512-changed'}}}),/Conflicting npm integrity/);
+  assert.throws(()=>npmPackages({lockfileVersion:3,packages:{'':{},'node_modules/direct':{...entry,resolved:'git+https://example.com/repo'}}}),/integrity-pinned npm registry/);
+  assert.throws(()=>npmPackages({lockfileVersion:1,dependencies:{fresh:{version:'9.0.0'}}}),/complete packages inventory/);
+  assert.throws(()=>npmPackages({lockfileVersion:3,packages:{}}),/complete packages inventory/);
 });
 
 test('update scope rejects policy changes, package scripts, new dependencies and changed workflow commands',()=>{

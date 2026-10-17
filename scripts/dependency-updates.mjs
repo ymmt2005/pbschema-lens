@@ -284,6 +284,8 @@ async function verify(base) {
       if (await tagSHA(item.repository,item.current) !== item.sha) throw new Error(`Action SHA/comment mismatch: ${item.repository}@${item.current}`);
     }
   }
+  const lockRoot=json('package-lock.json').packages?.[''], manifest=json('package.json');
+  for(const key of ['name','version','engines','dependencies','devDependencies']) if(JSON.stringify(lockRoot?.[key])!==JSON.stringify(manifest[key])) throw new Error(`npm lockfile root differs from package.json: ${key}`);
   const beforeNpm = npmPackages(JSON.parse(previous('package-lock.json'))), afterNpm = npmPackages(json('package-lock.json'));
   unchangedChecksums(Object.fromEntries([...beforeNpm].map(([k,v])=>[k,v.integrity])),Object.fromEntries([...afterNpm].map(([k,v])=>[k,v.integrity])),'npm');
   for (const [key,pkg] of afterNpm) if (!beforeNpm.has(key)) {
