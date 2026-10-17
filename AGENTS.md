@@ -108,6 +108,7 @@ The quality target, the bar for a finished change, and how to maintain it are in
 ```bash
 npm ci
 npm test
+npm run test:e2e
 npm run typecheck
 npm run build:ui
 go test ./...
@@ -115,13 +116,14 @@ buf build examples/acme -o - --as-file-descriptor-set | go run ./cmd/pbschema-le
 buf build examples/acme -o - --as-file-descriptor-set | go run ./cmd/pbschema-lens build --config examples/acme/pbschema-lens.yaml --out examples/acme/dist --source examples/acme/proto
 ```
 
-Root `tsconfig.json` typechecks `src/`. `ui/tsconfig.json` typechecks the browser UI. `engines.node` is `>=24`. TypeScript 7 defaults `types` to `[]`; the root config keeps `compilerOptions.types: ["node"]`.
+Root `tsconfig.json` typechecks `src/`. `ui/tsconfig.json` typechecks the browser UI. `e2e/tsconfig.json` typechecks the Playwright suite. `engines.node` is `>=24`. TypeScript 7 defaults `types` to `[]`; the root config keeps `compilerOptions.types: ["node"]`.
 
 ## Generated output — do not commit
 
 These are gitignored and rewritten on every build:
 
 - `dist/`, `examples/acme/dist/`, `internal/site/dist/`
+- `e2e/.site/`, `e2e/.bin/`, `e2e/.results/`
 - `.pbschema-lens/`
 
 `internal/site/dist` is the Vite output that `go build` embeds. CI runs `npm run build:ui` before `go test` and `go build`. The Pages workflow for *this* repo builds `examples/acme` into `dist/` with `--base "/pbschema-lens/"`. Do not commit that output.
@@ -146,7 +148,7 @@ These are gitignored and rewritten on every build:
 
 `pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the `pagesWorkflow` string in `cmd/pbschema-lens/main.go`. If you change that workflow, edit that string, not a checked-in copy. Keep `examples/github-pages/README.md` in sync. The generated workflow pins each action to a release commit, installs Buf with `buf-action` (`setup_only: true`), downloads `pbschema-lens_linux_amd64.tar.gz` from `releases/latest/download`, and runs `buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --commit "$GITHUB_SHA"`. It does not pass `--source`.
 
-This repository’s own CI is `.github/workflows/ci.yml` on Node 24 and Go 1.26: display-helper tests, typecheck, `npm run build:ui`, `go test`, doctor, build the Acme example, then deploy Pages from `main` only.
+This repository’s own CI is `.github/workflows/ci.yml` on Node 24 and Go 1.26. The test job runs display-helper tests, typecheck, `npm run build:ui`, `go test`, doctor, and the Acme example build. The e2e job runs the Playwright suite. Pages deploy from `main` only, after both jobs pass.
 
 `.github/workflows/release.yml` runs on every push to `main`. `scripts/release-detect.sh` compares `package.json` on HEAD to `HEAD^`. That is enough because `main` only accepts squash merges via PR (no merge commits, no rebase merges, no direct pushes), so each push is one commit. It treats HEAD as a release only when the version changed to a new `x.y.z` and `gh release view vX.Y.Z` does not already exist. Then the job tests, builds the UI, runs `go test`, creates annotated tag `vX.Y.Z` on `$GITHUB_SHA` (or fails if that tag already points at a different commit), pushes it, and runs `goreleaser/goreleaser-action` (`release --clean`) from `.goreleaser.yaml`. GoReleaser publishes `CGO_ENABLED=0` binaries for Linux, Windows, and macOS on amd64 and arm64. Archive names are `pbschema-lens_<os>_<arch>.tar.gz` (`.zip` on Windows). Those live at `/releases/download/…`, not GitHub’s `/archive/refs/tags/…` source snapshot. Do not add a `prepare` script. Document consumer install as a pinned `/releases/download/vX.Y.Z/pbschema-lens_<os>_<arch>.tar.gz`.
 
