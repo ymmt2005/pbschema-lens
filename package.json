@@ -21,7 +21,7 @@
     "url": "https://github.com/ymmt2005/pbschema-lens/issues"
   },
   "engines": {
-    "node": "24.19.0"
+    "node": "24.21.0"
   },
   "keywords": [
     "protobuf",
@@ -35,13 +35,13 @@
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^24.19.1",
+    "@types/node": "^24.19.2",
     "@types/sanitize-html": "^2.16.2",
-    "marked": "^18.0.14",
-    "sanitize-html": "^2.18.0",
+    "marked": "^18.1.1",
+    "sanitize-html": "^2.18.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.3.2",
-    "vitest": "^5.0.3"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.4"
   }
 }
