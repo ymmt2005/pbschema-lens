@@ -123,7 +123,7 @@ export function finishCompiledWorkflow(text, sourceRefs) {
 
 export const updateFiles = ['package.json','package-lock.json','go.mod','go.sum','aqua.yaml','aqua-checksums.json',
   '.github/dependency-tools.json','.github/dependency-observations.json','.github/aw/actions-lock.json','.github/workflows/ci.yml','.github/workflows/release.yml',
-  '.github/workflows/dependency-policy.yml','.github/workflows/update-dependencies.md',
+  '.github/workflows/update-dependencies.md',
   '.github/workflows/update-dependencies.lock.yml','cmd/pbschema-lens/main.go'];
 
 export function maskVersionPins(text) {

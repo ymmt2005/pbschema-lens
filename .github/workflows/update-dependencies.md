@@ -60,7 +60,6 @@ safe-outputs:
       - .github/aw/actions-lock.json
       - .github/workflows/ci.yml
       - .github/workflows/release.yml
-      - .github/workflows/dependency-policy.yml
       - .github/workflows/update-dependencies.md
       - .github/workflows/update-dependencies.lock.yml
       - cmd/pbschema-lens/main.go
@@ -97,13 +96,19 @@ steps:
     run: |
       npm ci
       npx playwright install --with-deps chromium
-  - name: Record the trusted base
-    run: git rev-parse HEAD > /tmp/dependency-update-base
 post-steps:
   - name: Verify update policy
     env:
       GH_TOKEN: ${{ github.token }}
-    run: node scripts/dependency-updates.mjs verify "$(cat /tmp/dependency-update-base)" --updates-only
+      BASE_SHA: ${{ github.sha }}
+      DEPENDENCY_REPO: ${{ github.workspace }}
+      GIT_NO_REPLACE_OBJECTS: "1"
+    run: |
+      policy_dir=$(mktemp -d)
+      trap 'rm -rf "$policy_dir"' EXIT
+      git show "$BASE_SHA:scripts/dependency-policy.mjs" > "$policy_dir/dependency-policy.mjs"
+      git show "$BASE_SHA:scripts/dependency-updates.mjs" > "$policy_dir/dependency-updates.mjs"
+      node "$policy_dir/dependency-updates.mjs" verify "$BASE_SHA" --updates-only
 ---
 
 Prepare at most one draft update PR against main. Keep merging manual.
@@ -142,7 +147,7 @@ Go modules without GitHub release publication times use the append-only
 first; updates can use them only after that PR is merged and its base commit has
 aged 72 hours. Never use a Go module's commit timestamp as its release age.
 
-When no eligible changes or new observations exist, use the noop safe output. Otherwise use a `deps/` source branch and open a draft
-PR listing old/new versions, publication timestamps and sources, checksum changes,
-test results, and any held updates. The publishing App triggers the ordinary CI
-and the independent trusted-base dependency policy check. Do not merge the PR.
+When no eligible changes or new observations exist, use the noop safe output.
+Otherwise use a `deps/` source branch and open a draft PR listing old/new versions, publication timestamps and sources, checksum changes,
+test results, and any held updates. The updater verifies the patch before
+publishing; the App triggers ordinary CI on its PR. Do not merge the PR.

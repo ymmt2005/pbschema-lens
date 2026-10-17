@@ -95,20 +95,18 @@ job checks out that manifest even for a no-change run. Runtime Codex
 installation uses npm's 72-hour cutoff too. A compiler update that adds new
 secrets or Actions stops for human security review. Never automatically approve
 that warning or edit the generated jobs by hand. Failed compilation restores its
-previous outputs. The trusted-base check also compares security manifests and
+previous outputs. The updater's validation also compares security manifests and
 requires new secrets or Action repositories to land in a separate human-reviewed
 PR; a candidate cannot approve its own new access by recompiling.
 
-An independent **Dependency release policy / dependency-policy** check runs on
-`pull_request_target` with read-only permissions. It checks out the immutable base
-and candidate separately, executes only the base's checker, and treats candidate
-files as data. All PRs get release/checksum/Action checks. Branches beginning
-`deps/` additionally have a strict file/content allowlist and must reproduce the
-compiled workflow byte for byte. The updater's own post-step must pass before
-safe outputs can publish. Browser prerequisites are installed before the agent starts; its network policy
-allows Playwright downloads and the Buf registry. Regular CI runs unit, type, Go,
-link, and browser tests.
-Updates requiring application/policy changes are held for a separate PR.
+The monthly updater's post-step runs the checker from its immutable starting
+commit against the candidate patch. The agent's edits cannot replace the checker
+used for this validation. Updates have a strict file/content allowlist and must
+reproduce the compiled workflow byte for byte. This step must pass before safe
+outputs can publish a PR. Browser prerequisites are installed before the agent
+starts; its network policy allows Playwright downloads and the Buf registry.
+Regular PR CI runs unit, type, Go, link, and browser tests. Updates requiring
+application/policy changes are held for a separate PR.
 
 ## Enable the workflow
 
@@ -123,10 +121,7 @@ After merging this implementation:
    agent receives a read-only repository token. The App is needed because the
    ordinary `GITHUB_TOKEN` cannot publish workflow-file updates and its pushes
    would not trigger the normal PR checks.
-3. Make **Dependency release policy / dependency-policy** required in branch
-   protection/rulesets alongside normal CI checks. The workflow must first exist
-   on the default branch; it cannot protect its own introduction PR.
-4. Run the workflow manually once and inspect the draft PR and CI before relying
+3. Run the workflow manually once and inspect the draft PR and CI before relying
    on the monthly schedule. First-seen Go observations can need an initial merge
    and a second run at least 72 hours later.
 
