@@ -28,7 +28,7 @@ A change is finished when all of these hold:
 3. The result still holds after every later pass. Model build classifies, then links, then may publish, then builds the symbol index. An early decision that a later pass puts back is not done.
 4. The security target above still holds, and its tests still fail if the guard is removed. Comments stay sanitized HTML. Options stay data. Site output still refuses the working directory and filesystem root, and a generated path that leaves the output directory is rejected. Plugins stay unloaded.
 5. Root `tsc --noEmit`, `ui/tsconfig.json`, and `e2e/tsconfig.json` are clean. Generated files stay uncommitted (see Generated output in [`AGENTS.md`](AGENTS.md)). `npm run build:ui` has refreshed `internal/site/dist` before `go test` or `go build`.
-6. CI still passes. The test job runs `npm test`, typecheck, `npm run build:ui`, `go test ./...`, `doctor`, and the Acme site build. The e2e job runs `npm run test:e2e`. Those jobs guard the whole build. A green Acme build does not prove one decision, because the checked-in Acme config uses defaults and the happy path.
+6. CI still passes. The test job runs `npm test`, typecheck, `npm run build:ui`, `go test ./...`, `doctor`, the Acme site build, and `npm run test:links` with aqua-managed lychee. The e2e job runs `npm run test:e2e`. Those jobs guard the whole build. A green Acme build does not prove one decision, because the checked-in Acme config uses defaults and the happy path.
 
 ## How to maintain it
 
@@ -38,7 +38,7 @@ Pick the smallest test that goes red when the change is reverted. Size is a reso
 |---|---|---|---|
 | Small | One process. No socket, no sleep, no subprocess, no site build. | One function: parse, classify, sanitize, build a URL, shape a nav or source tree, group a field table, render an option, rank a search hit, accept or reject a path. | `src/**/*.test.ts` or `internal/**/*_test.go` next to that module |
 | Medium | Disk and localhost. Compiling a fixture with Buf is medium. | The model after every pass, when a later pass can publish, link, or index something an earlier pass rejected. Loading yaml. Writing an artifact file. | `internal/model/build_test.go` and `fixtures/` |
-| Large | `pipeline.Build`, a browser, or a release archive. | The rendered page, and only when a smaller test cannot see the failure. | Go integration tests audit Acme static HTML and internal links at two base paths. Playwright checks controls, native navigation, and JavaScript-disabled documents. |
+| Large | `pipeline.Build`, a browser, or a release archive. | The rendered page, and only when a smaller test cannot see the failure. | Go checks static page identity and duplicate IDs; lychee checks offline links/fragments at both bases. Playwright checks controls, scrolling/layout, configuration variants, and JavaScript-disabled documents. |
 
 Call the production function. A test that reimplements the condition stays green when that function is never called. A test that only reads a config value back has the same hole.
 

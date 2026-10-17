@@ -1,0 +1,5 @@
+# Every generated HTML document is checked offline. External links are skipped
+# by --offline, not by exclusions that could conceal broken internal targets.
+include_fragments = "anchor-only"
+index_files = ["index.html"]
+max_concurrency = 4

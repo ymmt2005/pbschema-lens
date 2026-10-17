@@ -1,89 +1,34 @@
-// Builds the Acme example and serves it the way GitHub Pages does:
-// a real file is returned as-is, and an unknown path returns 404.html.
-import { spawnSync } from "node:child_process";
-import { createServer } from "node:http";
-import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, extname, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+// Serve generated files like GitHub Pages, including its 404 document.
+import { createServer } from 'node:http';
+import { readFileSync, statSync } from 'node:fs';
+import { extname, join, relative, resolve, sep } from 'node:path';
+import { buildTestSites } from '../scripts/build-test-sites.mjs';
 
-const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const siteDir = join(repo, "e2e/.site");
-const bin = join(repo, "e2e/.bin/pbschema-lens");
-const port = Number(process.env.E2E_PORT ?? 4173);
-
-const types = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".woff2": "font/woff2",
-  ".png": "image/png",
-  ".webp": "image/webp",
-};
-
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { cwd: repo, stdio: "inherit", ...options });
-  if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status ?? 1);
+const sites=buildTestSites({variants:true});
+const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml'};
+function serve(port, deployments) {
+  createServer((request,response)=>{
+    let pathname;
+    try { pathname=decodeURIComponent(new URL(request.url??'/', 'http://localhost').pathname); }
+    catch { response.writeHead(400);response.end();return; }
+    const site=deployments.find(s=>s.base!=='/' && pathname.startsWith(s.base)) ?? deployments.find(s=>s.base==='/');
+    if (!site) {response.writeHead(404);response.end();return;}
+    const route=site.base==='/'?pathname:pathname.slice(site.base.length-1);
+    let file=resolve(site.dir,`.${route}`);
+    const rel=relative(site.dir,file);
+    try {
+      if (rel==='..'||rel.startsWith(`..${sep}`)) throw new Error('outside site');
+      if(statSync(file).isDirectory()) file=join(file,'index.html');
+      const content=readFileSync(file);
+      response.writeHead(200,{'content-type':types[extname(file)]??'application/octet-stream'});
+      response.end(content);
+    } catch {
+      response.writeHead(404,{'content-type':types['.html']});
+      response.end(readFileSync(join(site.dir,'404.html')));
+    }
+  }).listen(port,'127.0.0.1',()=>console.log(`Test server ready on port ${port}`));
 }
-
-function buildSite() {
-  // Always rebuild. A leftover internal/site/dist would embed the previous UI.
-  run("npm", ["run", "build:ui"]);
-  mkdirSync(dirname(bin), { recursive: true });
-  run("go", ["build", "-o", bin, "./cmd/pbschema-lens"]);
-  const descriptor = spawnSync("buf", ["build", "examples/acme", "-o", "-", "--as-file-descriptor-set"], { cwd: repo });
-  if (descriptor.error) throw descriptor.error;
-  if (descriptor.status !== 0) {
-    process.stderr.write(descriptor.stderr ?? "");
-    process.exit(descriptor.status ?? 1);
-  }
-  for (const [base, out] of [["/", siteDir], ["/pbschema-lens/", siteDir + "-prefixed"]]) {
-    run(bin, ["build", "--config", "examples/acme/pbschema-lens.yaml", "--out", out,
-      "--source", "examples/acme/proto", "--base", base],
-      { input: descriptor.stdout, stdio: ["pipe", "inherit", "inherit"] });
-  }
-
+serve(4173,sites.filter(s=>s.name==='root'||s.name==='project'));
+for (const [i,name] of ['descriptor-only','no-full-text','no-wkt','diff'].entries()) {
+  serve(4174+i,sites.filter(s=>s.name===name));
 }
-
-function inside(root, target) {
-  const rel = relative(root, target);
-  return rel === "" || (!rel.startsWith("..") && !rel.includes(`..${sep}`));
-}
-
-function resolveFile(urlPath) {
-  let pathname;
-  try {
-    pathname = decodeURIComponent(new URL(urlPath, "http://127.0.0.1").pathname);
-  } catch {
-    return null;
-  }
-  const prefixed = pathname.startsWith("/pbschema-lens/");
-  const root = prefixed ? siteDir + "-prefixed" : siteDir;
-  if (prefixed) pathname = pathname.slice("/pbschema-lens".length);
-  const target = resolve(root, `.${pathname}`);
-  if (!inside(root, target) || !existsSync(target)) return null;
-  if (statSync(target).isDirectory()) {
-    const index = join(target, "index.html");
-    return existsSync(index) ? index : null;
-  }
-  return statSync(target).isFile() ? target : null;
-}
-
-buildSite();
-const fallback = readFileSync(join(siteDir, "404.html"));
-const prefixedFallback = readFileSync(join(siteDir + "-prefixed", "404.html"));
-
-createServer((request, response) => {
-  const file = resolveFile(request.url ?? "/");
-  if (!file) {
-    response.writeHead(404, { "content-type": types[".html"] });
-    response.end(request.url?.startsWith("/pbschema-lens/") ? prefixedFallback : fallback);
-    return;
-  }
-  response.writeHead(200, { "content-type": types[extname(file)] ?? "application/octet-stream" });
-  response.end(readFileSync(file));
-}).listen(port, "127.0.0.1", () => {
-  process.stdout.write(`e2e site http://127.0.0.1:${port}/\n`);
-});

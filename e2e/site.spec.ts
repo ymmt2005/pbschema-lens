@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./fixtures";
 
 // These tests drive the built Acme site. Ranking, title strings, theme choice,
 // field tables, nav trees, sanitizing, and page HTML stay in the vitest and Go
@@ -169,7 +169,7 @@ test.describe("mobile navigation", () => {
 });
 
 test.describe("routing", () => {
-  test("the loaded site sets the document title for each kind of route", async ({ page }) => {
+  test("the loaded site sets the document title for each kind of route", async ({ page, allowedHTTPFailures }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(siteTitle);
     await expect(page.getByRole("heading", { level: 1, name: siteTitle })).toBeVisible();
@@ -190,6 +190,7 @@ test.describe("routing", () => {
     await page.getByRole("link", { name: "Source", exact: true }).click();
     await expect(page).toHaveTitle(`Source · ${siteTitle}`);
 
+    allowedHTTPFailures.push({pathname:"/search/",status:404});
     const missing = await page.goto("/search/");
     expect(missing?.status()).toBe(404);
     await expect(page).toHaveTitle(`Not found · ${siteTitle}`);
@@ -243,3 +244,27 @@ test("the explorer expands references beyond its initial 200 results", async ({ 
   await expect(page.locator("#explorer-out li")).toHaveCount(200);
   await expect(page.getByRole("button", {name:"Show more references"})).toBeVisible();
 });
+
+for (const choice of ['Light','Dark']) {
+  test(`explicit ${choice} overrides later system changes until Follow desktop`,async({page})=>{
+    await page.goto('/');
+    const setChoice=async(name:string)=>{
+      await page.getByRole('button',{name:'Theme',exact:true}).click();
+      await page.getByRole('menuitemradio',{name,exact:true}).click();
+    };
+    await setChoice(choice);
+    const dark=choice==='Dark';
+    const check=async(wantDark:boolean)=>{
+      if(wantDark)await expect(page.locator('html')).toHaveClass(/dark/);
+      else await expect(page.locator('html')).not.toHaveClass(/dark/);
+    };
+    for (const colorScheme of ['dark','light'] as const) {
+      await page.emulateMedia({colorScheme});
+      await check(dark);
+    }
+    await page.reload();await check(dark);
+    await page.emulateMedia({colorScheme:dark?'light':'dark'});await check(dark);
+    await setChoice('Follow desktop');await check(!dark);
+    await page.emulateMedia({colorScheme:dark?'dark':'light'});await check(dark);
+  });
+}
