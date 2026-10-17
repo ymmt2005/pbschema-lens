@@ -101,9 +101,12 @@ That embedded version must match the JSON Buf pin without its `v` prefix, so it
 receives the same release-age validation and appears in the generated update report.
 
 The read-only `prepare` job skips runs while a same-repository `deps/monthly-`
-PR against `main` remains open. Otherwise it applies eligible updates, verifies
-scope/age/checksums, activates the candidate's Go, Node, aqua and Buf versions,
-and runs npm installation, policy/unit/Go tests, typechecks, UI build, offline
+PR against `main` remains open. Otherwise it stages eligible manifest updates,
+activates the selected Go, Node and aqua versions, then refreshes lockfiles and
+verifies scope/age/checksums. This order lets Go resolve dependencies with
+`GOTOOLCHAIN=local`, including when `go.mod` moves to a newer runtime.
+It installs the candidate's Buf version and runs npm installation,
+policy/unit/Go tests, typechecks, UI build, offline
 links and Playwright. A second policy check runs after the tests. Only a successful,
 nonempty candidate is uploaded as a patch artifact. No-change runs open no PR;
 failures stop the run and require human investigation rather than code edits or
@@ -129,14 +132,20 @@ Local commands:
 ```sh
 npm run test:updates
 node scripts/dependency-updates.mjs plan
-node scripts/dependency-updates.mjs apply
+node scripts/dependency-updates.mjs stage
+# Activate the Go, Node and aqua versions now recorded in the manifests.
+node scripts/dependency-updates.mjs finish
 node scripts/dependency-updates.mjs verify "$(git rev-parse HEAD)" --updates-only
 node scripts/dependency-updates.mjs report "$(git rev-parse HEAD)"
 ```
 
 `plan` writes its report under ignored `.pbschema-lens/dependency-updates/`.
-`apply` recomputes the plan, refreshes the npm lockfile without lifecycle scripts,
-and refreshes aqua checksums. `report` describes the current candidate; it does
+`stage` selects updates once, writes manifest pins, and saves that selection.
+It does not run package managers or refresh lockfiles. After runtime activation,
+`finish` consumes the saved selection, refreshes the npm lockfile without lifecycle
+scripts, and refreshes aqua checksums. The `apply` shortcut runs `stage` and
+`finish` consecutively; use it only when the selected runtimes and aqua are already
+active. `report` describes the current candidate; it does
 not execute tests. To validate manual Action-pin maintenance, use `verify` without
 `--updates-only`; it also checks SHA/version comments against GitHub tags.
 

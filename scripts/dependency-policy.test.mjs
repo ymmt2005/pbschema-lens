@@ -1,10 +1,10 @@
 import { test } from 'node:test';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, unchangedChecksums, goSums, goRequirements, npmPackages, assertUpdateScope, goModuleRelease, githubToolOutputs, assertPagesBufVersion, automatedDependency, maskVersionPins, goPublicationEvidence, renderUpdateReport } from './dependency-policy.mjs';
-import { gitTagPublication, inventory, updateGoDependencies } from './dependency-updates.mjs';
+import { gitTagPublication, inventory, stage, finish, updateGoDependencies } from './dependency-updates.mjs';
 import { pendingUpdate, publishUpdate } from './dependency-pr.mjs';
 
 const now=Date.parse('2026-10-17T12:00:00Z');
@@ -110,6 +110,58 @@ test('indirect requirements and Go checksums change only with a direct dependenc
   assert.throws(()=>assertUpdateScope([['go.mod',before,before.replace('1.26.9','1.27.2')],['go.sum','old','new']]),/consequence of direct/);
   assert.doesNotThrow(()=>assertUpdateScope([['go.mod',before,indirect.replace('v1.0.0','v1.1.0')],['go.sum','old','new']]));
   assert.throws(()=>assertUpdateScope([['go.mod',before,before.replace(' // indirect','')]]),/direct Go dependency names/);
+});
+
+test('staging a newer runtime leaves lockfiles untouched until activation and finish',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'pbschema-runtime-update-'));
+  try {
+    const mod='module example.com/project\n\ngo 1.26.9\n\nrequire example.com/direct v1.0.0\n';
+    const sum='example.com/direct v1.0.0 h1:YWJj=\n';
+    const pkg={engines:{node:'24.19.0'},devDependencies:{example:'^1.0.0'}};
+    const lock=JSON.stringify({packages:{'':pkg}});
+    for(const [file,value] of Object.entries({
+      'go.mod':mod,'go.sum':sum,'package.json':JSON.stringify(pkg),'package-lock.json':lock,
+      '.github/dependency-tools.json':JSON.stringify({aqua:'v2.63.0',buf:'v1.74.0'}),
+      'aqua.yaml':'# aquaproj/aqua/v2.63.0/json-schema\n',
+      'cmd/pbschema-lens/main.go':'version: "1.74.0"',
+    })) {
+      mkdirSync(join(root,file,'..'),{recursive:true});
+      writeFileSync(join(root,file),value);
+    }
+    let selections=0,activeGo='1.26.9',activeNode='24.19.0';
+    await stage({root,select:async()=>{
+      selections++;
+      return [
+        {kind:'go',id:'go',current:'1.26.9',next:'1.27.2'},
+        {kind:'node',id:'node',current:'24.19.0',next:'24.21.0'},
+        {kind:'module',id:'module:example.com/direct',name:'example.com/direct',next:'v1.1.0'},
+      ];
+    }});
+    assert.equal(readFileSync(join(root,'go.mod'),'utf8'),mod.replace('1.26.9','1.27.2'));
+    assert.equal(readFileSync(join(root,'go.sum'),'utf8'),sum);
+    assert.equal(readFileSync(join(root,'package-lock.json'),'utf8'),lock);
+    const commands=[];
+    const execute=(command,args)=>{
+      commands.push([command,args]);
+      if(command==='go') {
+        assert.equal(activeGo,'1.27.2','GOTOOLCHAIN=local requires the staged Go runtime');
+        if(args[0]==='get') writeFileSync(join(root,'go.mod'),readFileSync(join(root,'go.mod'),'utf8').replace('v1.0.0','v1.1.0'));
+      }
+      if(command==='npm') assert.equal(activeNode,'24.21.0');
+    };
+    await assert.rejects(finish({root,execute}),/GOTOOLCHAIN=local requires the staged Go runtime/);
+    assert.equal(readFileSync(join(root,'go.sum'),'utf8'),sum);
+    // Model setup-go/setup-node reading the staged manifests, with automatic
+    // toolchain switching disabled. Package managers must run after this point.
+    activeGo=/^go (\S+)$/m.exec(readFileSync(join(root,'go.mod'),'utf8'))[1];
+    activeNode=JSON.parse(readFileSync(join(root,'package.json'),'utf8')).engines.node;
+    commands.length=0;
+    await finish({root,execute});
+    assert.equal(selections,1,'finish must reuse the selection made before runtime activation');
+    assert.deepEqual(commands.slice(0,2),[['go',['get','example.com/direct@v1.1.0']],['go',['mod','tidy']]]);
+    assert.deepEqual(commands.map(([command,args])=>[command,args[0]]),[['go','get'],['go','mod'],['npm','install'],['aqua','update-checksum'],['aqua','install']]);
+    assert.match(readFileSync(join(root,'go.mod'),'utf8'),/example.com\/direct v1\.1\.0/);
+  } finally {rmSync(root,{recursive:true,force:true});}
 });
 
 test('Go dependency hold restores both files while retaining an independent runtime update',async()=>{

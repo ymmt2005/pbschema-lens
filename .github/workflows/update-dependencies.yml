@@ -43,49 +43,40 @@ jobs:
         if: steps.pending.outputs.pending == 'false'
         id: base
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: Stage eligible manifest updates
         if: steps.pending.outputs.pending == 'false'
+        id: stage
+        run: node scripts/dependency-updates.mjs stage
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.stage.outcome == 'success'
+        with:
+          node-version-file: package.json
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.stage.outcome == 'success'
         with:
           go-version-file: go.mod
-      - name: Read current aqua version
-        if: steps.pending.outputs.pending == 'false'
-        id: current
+      - name: Read candidate tool versions
+        if: steps.stage.outcome == 'success'
+        id: candidate
         run: node scripts/dependency-updates.mjs tools >> "$GITHUB_OUTPUT"
       - uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e # v4.0.5
-        if: steps.pending.outputs.pending == 'false'
+        if: steps.stage.outcome == 'success'
         with:
-          aqua_version: ${{ steps.current.outputs.aqua }}
+          aqua_version: ${{ steps.candidate.outputs.aqua }}
           aqua_opts: ""
-      - name: Apply eligible updates and verify policy
-        if: steps.pending.outputs.pending == 'false'
+      - name: Refresh lockfiles and verify policy
+        if: steps.stage.outcome == 'success'
         id: apply
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
-          node scripts/dependency-updates.mjs apply
+          node scripts/dependency-updates.mjs finish
           node scripts/dependency-updates.mjs verify "$BASE_SHA" --updates-only
           if git diff --quiet; then
             echo 'changed=false' >> "$GITHUB_OUTPUT"
           else
             echo 'changed=true' >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: steps.apply.outputs.changed == 'true'
-        with:
-          node-version-file: package.json
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        if: steps.apply.outputs.changed == 'true'
-        with:
-          go-version-file: go.mod
-      - name: Read candidate tool versions
-        if: steps.apply.outputs.changed == 'true'
-        id: candidate
-        run: node scripts/dependency-updates.mjs tools >> "$GITHUB_OUTPUT"
-      - uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e # v4.0.5
-        if: steps.apply.outputs.changed == 'true'
-        with:
-          aqua_version: ${{ steps.candidate.outputs.aqua }}
-          aqua_opts: ""
       - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
         if: steps.apply.outputs.changed == 'true'
         with:
