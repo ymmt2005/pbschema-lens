@@ -33,8 +33,8 @@ npm run test:e2e
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` selects an existing Chromium executable when needed. The same shared builder prepares both base paths and four focused root-based builds: descriptor-only, full-text disabled, WKT disabled, and a tiny real descriptor comparison. The test server starts and stops with Playwright; ports 4173–4177 must be free.
 
 - Full offline link checks run at both bases, without a browser crawl.
-- Native field/enum/source anchors and RPC navigation run at desktop and 320px. Bounding-box assertions check header clearance and viewport position, including direct loads, reloads, and same-page field navigation.
-- Narrow User/Flag layouts check document-wide overflow and access to schema content. Intentional table/source/code scrolling is allowed; disclosure tests check active ancestors.
+- Native field/enum/source anchors and RPC navigation run at desktop and 320px. Bounding-box assertions check header clearance and viewport position, including field/enum/source reloads and same-page field navigation.
+- Narrow User/Flag layouts check document-wide overflow and access to schema content. Text-range geometry checks representative field names, long types, and validation chips inside the table scroller and viewport. Intentional table/source/code scrolling is allowed; disclosure tests check active ancestors.
 - Each configuration variant runs once at desktop width. Theme tests emulate system changes around explicit overrides and Follow desktop.
 - Existing no-JavaScript checks remain at both bases, and the 390px drawer check remains.
 

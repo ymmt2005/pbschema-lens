@@ -10,6 +10,25 @@ async function belowHeader(page: Page, target: Locator) {
     return Boolean(box && header && viewport && box.y >= header.y+header.height-1 && box.y+box.height <= viewport.height+1);
   },{message:'fragment target must fit below the sticky header in the viewport'}).toBe(true);
 }
+async function tableTextReachable(target: Locator) {
+  await expect(target).toBeVisible();
+  await target.scrollIntoViewIfNeeded();
+  await expect.poll(()=>target.evaluate(node=>{
+    const table=node.closest<HTMLElement>('.table-wrap')!;
+    const bounds=table.getBoundingClientRect();
+    const header=document.querySelector('header.sticky')!.getBoundingClientRect();
+    const left=Math.max(0,bounds.left+table.clientLeft);
+    const right=Math.min(innerWidth,bounds.left+table.clientLeft+table.clientWidth);
+    const range=document.createRange();
+    range.selectNodeContents(node);
+    const rects=Array.from(range.getClientRects()).filter(rect=>rect.width>0 && rect.height>0);
+    // Measure the text itself: a visible cell can still contain clipped text.
+    return rects.length>0 && rects.every(rect=>
+      rect.left>=left-1 && rect.right<=right+1 &&
+      rect.top>=Math.max(header.bottom,bounds.top+table.clientTop)-1 &&
+      rect.bottom<=Math.min(innerHeight,bounds.top+table.clientTop+table.clientHeight)+1);
+  }),{message:'all representative text must be reachable inside the table scroller and viewport'}).toBe(true);
+}
 for (const width of [1440,320]) {
   test.describe(`native navigation at ${width}px`,()=>{
     test.use({viewport:{width,height:width===320?844:1000}});
@@ -24,6 +43,8 @@ for (const width of [1440,320]) {
     });
     test('enum fragments and source-line navigation clear the header',async({page})=>{
       await page.goto('/reference/enums/acme.user.v1.UserState/#user-state-active');
+      await belowHeader(page,page.locator('#user-state-active'));
+      await page.reload();
       await belowHeader(page,page.locator('#user-state-active'));
       await page.goto('/reference/messages/acme.user.v1.User.Preferences/');
       await page.getByRole('link',{name:'View source',exact:true}).click();
@@ -55,8 +76,11 @@ test.describe('narrow document layout',()=>{
       const field=page.locator(name==='acme.user.v1.User'?'#display-name':'#metadata');
       const longType=page.locator(name==='acme.user.v1.User'?'#created-at':'#metadata').locator('td').nth(2);
       await expect(longType).toContainText(name==='acme.user.v1.User'?'google.protobuf.Timestamp':'map<string, string>');
-      await field.scrollIntoViewIfNeeded();
-      await expect(field.locator('.validation-chip').first()).toBeVisible();
+      await tableTextReachable(field.locator('a').first());
+      await tableTextReachable(longType);
+      const chips=field.locator('.validation-chip');
+      await expect(chips.first()).toContainText(name==='acme.user.v1.User'?'string.min_len=1':'map.max_items=20');
+      for (const chip of await chips.all()) await tableTextReachable(chip);
       // Reach the right edge through an intentional table scroller if necessary.
       await page.locator('.table-wrap').first().evaluate(node=>{node.scrollLeft=node.scrollWidth;});
       const description=field.locator('td').last();
