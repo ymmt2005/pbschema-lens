@@ -1,6 +1,7 @@
 package site
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -342,5 +343,66 @@ func TestNoScriptMobileNavigationIncludesStandardLibraryAndDiff(t *testing.T) {
 		if !found[want] {
 			t.Errorf("mobile fallback missing %s", want)
 		}
+	}
+}
+
+func TestUsedByLimitsEachRelationAndPreservesAllReferenceData(t *testing.T) {
+	for _, count := range []int{0, 1, 40, 41, 81} {
+		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			s := renderFixture()
+			var references []model.SymbolReference
+			for i := 0; i < count; i++ {
+				references = append(references, model.SymbolReference{Kind: "field-type", FromID: fmt.Sprintf("field-%03d", i), ToID: "m"})
+			}
+			// A later relation must retain its own allowance, not share a global cap.
+			references = append(references, model.SymbolReference{Kind: "rpc-input", FromID: "last-rpc", ToID: "m"})
+			s.Messages[0].ReferencedBy = references
+			r, err := newRenderer(s, Options{Base: "/pbschema-lens/"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := r.fragment("used-by", references)
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc, err := html.Parse(strings.NewReader(string(raw)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			items := 0
+			walkHTML(doc, func(n *html.Node) {
+				if n.Type == html.ElementNode && n.Data == "li" {
+					items++
+				}
+			})
+			want := count
+			if want > 40 {
+				want = 40
+			}
+			want++
+			if items != want {
+				t.Errorf("rendered %d references, want %d", items, want)
+			}
+			text := string(raw)
+			if !strings.Contains(text, "last-rpc") {
+				t.Error("later relation was lost")
+			}
+			if count > 40 {
+				if strings.Contains(text, "field-040") {
+					t.Error("reference beyond the cap rendered")
+				}
+				if !strings.Contains(text, fmt.Sprintf("Showing 40 of %d references", count)) {
+					t.Error("missing truncation count")
+				}
+				if !strings.Contains(text, `href="/pbschema-lens/explore/"`) {
+					t.Error("missing base-aware explorer link")
+				}
+			} else if strings.Contains(text, "Showing 40 of") {
+				t.Error("untruncated relation shows truncation message")
+			}
+			if len(s.Messages[0].ReferencedBy) != count+1 {
+				t.Error("rendering mutated complete reference data")
+			}
+		})
 	}
 }

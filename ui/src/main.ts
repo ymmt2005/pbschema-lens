@@ -190,18 +190,26 @@ function installExplorer() {
   const out = document.getElementById("explorer-out");
   if (!select || !out) return;
   let token = 0;
-  select.addEventListener("change", () => { void update().catch(error => {
+  let limit = 200;
+  const refresh = () => { void update().catch(error => {
     out.textContent = error instanceof Error ? error.message : "References could not be loaded.";
-  }); });
+  }); };
+  select.addEventListener("change", () => { limit = 200; refresh(); });
+  out.addEventListener("click", event => {
+    if (!(event.target as Element).closest("[data-more-references]")) return;
+    limit += 200;
+    refresh();
+  });
   async function update() {
     const current = ++token;
+    const displayLimit = limit;
     const [index, refs] = await Promise.all([loader.index(), loader.references()]);
     if (current !== token) return;
     const item = index.symbolIndex.find(entry => entry.id === select!.value);
     if (!item) { out!.textContent = ""; return; }
     const names = Object.fromEntries(index.symbolIndex.map(entry => [entry.id, entry.fullName]));
     const hrefs = Object.fromEntries(index.symbolIndex.map(entry => [entry.id, entry.urlPath ? href(entry.urlPath) : ""]));
-    out!.innerHTML = incomingReferencesHtml(item.fullName, refs.filter(ref => ref.toId === item.id), names, hrefs, "");
+    out!.innerHTML = incomingReferencesHtml(item.fullName, refs.filter(ref => ref.toId === item.id), names, hrefs, "", displayLimit);
   }
 }
 function readBase(): string {

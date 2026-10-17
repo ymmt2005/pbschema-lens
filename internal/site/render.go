@@ -264,8 +264,11 @@ func (r *renderer) fieldRows(msg *model.DocMessage, prefix string) []fieldRow {
 	return out
 }
 
+const usedByReferenceLimit = 40
+
 type referenceGroup struct {
 	Kind  string
+	Total int
 	Items []model.SymbolReference
 }
 
@@ -279,7 +282,10 @@ func groupReferences(refs []model.SymbolReference) []referenceGroup {
 			positions[ref.Kind] = i
 			out = append(out, referenceGroup{Kind: ref.Kind})
 		}
-		out[i].Items = append(out[i].Items, ref)
+		out[i].Total++
+		if len(out[i].Items) < usedByReferenceLimit {
+			out[i].Items = append(out[i].Items, ref)
+		}
 	}
 	return out
 }

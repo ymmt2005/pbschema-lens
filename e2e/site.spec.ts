@@ -225,3 +225,21 @@ test.describe("routing", () => {
     await expect(page.locator("#explorer-out a").first()).toBeVisible();
   });
 });
+
+
+test("the explorer expands references beyond its initial 200 results", async ({ page }) => {
+  const refs = Array.from({length:205}, (_,i) => ({kind:"field-type",fromId:`reference-${i}`,toId:"message:acme.user.v1.User"}));
+  await page.route("**/assets/model/references.json", route => route.fulfill({json:refs}));
+  await page.goto("/explore/");
+  await page.locator("#symbol-select").selectOption("message:acme.user.v1.User");
+  await expect(page.locator("#explorer-out li")).toHaveCount(200);
+  await page.getByRole("button", {name:"Show more references"}).click();
+  await expect(page.locator("#explorer-out li")).toHaveCount(205);
+  await expect(page.locator("#explorer-out")).toContainText("reference-204");
+  await expect(page.getByRole("button", {name:"Show more references"})).toHaveCount(0);
+  await page.locator("#symbol-select").selectOption("enum:acme.user.v1.UserState");
+  await expect(page.locator("#explorer-out")).toContainText("No incoming references");
+  await page.locator("#symbol-select").selectOption("message:acme.user.v1.User");
+  await expect(page.locator("#explorer-out li")).toHaveCount(200);
+  await expect(page.getByRole("button", {name:"Show more references"})).toBeVisible();
+});
