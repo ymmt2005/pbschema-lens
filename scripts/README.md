@@ -81,7 +81,16 @@ The selector enforces:
 
 Automatic scope includes Go/Node runtimes, direct Go requirements, npm
 dependencies, aqua and its registry/packages, Buf, and GoReleaser. GitHub Actions
-are maintained manually. Automated patches cannot change workflow files, policy
+are maintained manually. Their pins live in `.github/workflows/`, where GitHub
+requires additional workflow-write access. The built-in `GITHUB_TOKEN` cannot
+be granted that access; `actions: write` permits operations on workflow runs,
+not editing workflow files. Using a regular workflow does not change this limit.
+Automatically publishing those changes would require an App token or PAT with
+workflow-write access, outside this updater's token-only authentication policy.
+See [GitHub's file-update requirements](https://docs.github.com/en/rest/repos/contents#create-or-update-file-contents)
+and [available token permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions).
+
+Automated patches cannot change workflow files, policy
 scripts, package scripts, application version, or application code. Only the Buf
 CLI version in the generated Pages template may change in Go source.
 
