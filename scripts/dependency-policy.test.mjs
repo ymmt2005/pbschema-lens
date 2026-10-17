@@ -1,8 +1,8 @@
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, finishCompiledWorkflow, unchangedChecksums, goSums, goRequirements, npmPackages, assertUpdateScope, goModuleRelease, githubToolOutputs, automatedDependency, maskVersionPins, goPublicationEvidence } from './dependency-policy.mjs';
+import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, unchangedChecksums, goSums, goRequirements, npmPackages, assertUpdateScope, goModuleRelease, githubToolOutputs, automatedDependency, maskVersionPins, goPublicationEvidence, renderUpdateReport } from './dependency-policy.mjs';
 import { gitTagPublication } from './dependency-updates.mjs';
+import { pendingUpdate, publishUpdate } from './dependency-pr.mjs';
 
 const now=Date.parse('2026-10-17T12:00:00Z');
 const old=new Date(now-embargoMs).toISOString();
@@ -50,18 +50,6 @@ test('Actions require full hashes and exact semantic version comments, including
   assert.equal(refs[0].repository,'owner/repository');
   assert.equal(refs[0].action,'owner/repository/path');
   for(const line of [`uses: owner/repo@v1.2.3 # v1.2.3`,`uses: owner/repo@${sha}`,`uses: owner/repo@${sha} # v1`]) assert.throws(()=>actionReferences(line));
-});
-
-test('compiled output restores source comments and reads Node from package.json',()=>{
-  const sha='a'.repeat(40), source=actionReferences(`uses: owner/repo@${sha} # v1.2.3`);
-  const text=`  - uses: owner/repo@${sha}\n    with:\n      node-version: '24'\n    run: npm install --ignore-scripts -g @openai/codex@1.2.3`;
-  const result=finishCompiledWorkflow(text,source);
-  assert.match(result,/# v1\.2\.3/);
-  assert.match(result,/node-version-file: package.json/);
-  assert.match(result,/--before=.*72 hours ago/);
-  assert.equal(finishCompiledWorkflow(result,source),result);
-  assert.doesNotMatch(finishCompiledWorkflow('  - name: Checkout repository for patch context\n    if: needs.agent.outputs.has_patch == true\n    run: echo manifest',[]), /if:/);
-  assert.throws(()=>finishCompiledWorkflow(text,[]));
 });
 
 test('existing Go, npm and aqua checksum keys cannot silently change',()=>{
@@ -131,64 +119,27 @@ test('Go submodules use their own release tag, never the older root-module relea
 
 
 test('Buf Action input omits v while release metadata and other tools retain their tag prefix',()=>{
-  const output=githubToolOutputs({buf:'v1.73.0',aqua:'v2.63.0','gh-aw':'v0.91.12'});
-  assert.deepEqual(output,['buf=1.73.0','aqua=v2.63.0','gh_aw=v0.91.12']);
+  const output=githubToolOutputs({buf:'v1.73.0',aqua:'v2.63.0'});
+  assert.deepEqual(output,['buf=1.73.0','aqua=v2.63.0']);
   const buf=output[0].split('=')[1];
   assert.equal(`https://github.com/bufbuild/buf/releases/download/v${buf}/buf-Linux-x86_64`,'https://github.com/bufbuild/buf/releases/download/v1.73.0/buf-Linux-x86_64');
   assert.equal(maskVersionPins('version: "1.73.0"'),maskVersionPins('version: "1.74.0"'));
 });
 
 
-test('automatic updates exclude Actions and compiler artifacts while retaining other tools',()=>{
-  const items=[{id:'action:actions/setup-node',kind:'action'},{id:'tool:gh-aw',kind:'github'},
+test('automatic updates exclude Actions while retaining tools',()=>{
+  const items=[{id:'action:actions/setup-node',kind:'action'},
     {id:'tool:buf',kind:'github'},{id:'tool:goreleaser',kind:'github'},
     {id:'tool:aqua',kind:'github'},{id:'go',kind:'go'},{id:'node',kind:'node'},
     {id:'npm:vite',kind:'npm'},{id:'go:example.com/mod',kind:'module'}];
-  assert.deepEqual(items.filter(automatedDependency).map(i=>i.id),items.slice(2).map(i=>i.id));
+  assert.deepEqual(items.filter(automatedDependency).map(i=>i.id),items.slice(1).map(i=>i.id));
   for(const file of ['.github/workflows/ci.yml','.github/workflows/release.yml',
-    '.github/workflows/update-dependencies.md','.github/workflows/update-dependencies.lock.yml',
-    '.github/aw/actions-lock.json']) assert.throws(()=>assertUpdateScope([[file,'old','new']]),/Update cannot change/);
-  const tools={aqua:'v2.63.0',buf:'v1.73.0','gh-aw':'v0.91.12','gh-aw-linux-amd64-sha256':'a'.repeat(64)};
+    '.github/workflows/update-dependencies.yml']) assert.throws(()=>assertUpdateScope([[file,'old','new']]),/Update cannot change/);
+  const tools={aqua:'v2.63.0',buf:'v1.73.0'};
   assert.doesNotThrow(()=>assertUpdateScope([['.github/dependency-tools.json',JSON.stringify(tools),JSON.stringify({...tools,buf:'v1.74.0'})]]));
-  for(const patch of [{'gh-aw':'v0.92.0'},{'gh-aw-linux-amd64-sha256':'b'.repeat(64)}])
-    assert.throws(()=>assertUpdateScope([['.github/dependency-tools.json',JSON.stringify(tools),JSON.stringify({...tools,...patch})]]),/outside automatic update scope/);
   const source='version: "1.73.0"\nuses: owner/action@'+'a'.repeat(40)+' # v1.0.0';
   assert.doesNotThrow(()=>assertUpdateScope([['cmd/pbschema-lens/main.go',source,source.replace('1.73.0','1.74.0')]]));
   assert.throws(()=>assertUpdateScope([['cmd/pbschema-lens/main.go',source,source.replace('# v1.0.0','# v1.1.0')]]),/more than.*Buf/);
-});
-
-
-// Execute the production Actions script with an API stub; no GitHub writes.
-const dispatchSource=readFileSync(new URL('../.github/workflows/update-dependencies.md',import.meta.url),'utf8');
-const dispatchLines=dispatchSource.split('          script: |\n')[1].split('\n');
-const dispatchBody=[];
-for(const line of dispatchLines) { if(!line.startsWith('            ')) break; dispatchBody.push(line.slice(12)); }
-const dispatchCI=new (Object.getPrototypeOf(async function(){}).constructor)('github','context','process',dispatchBody.join('\n'));
-
-test('token-only publishing dispatches existing CI on the same-repository update branch',async()=>{
-  const calls=[];
-  const github={rest:{pulls:{get:async args=>{
-    calls.push(['get',args]);
-    return {data:{head:{repo:{full_name:'owner/repo'},ref:'deps/monthly-update'},base:{ref:'main'}}};
-  }},actions:{createWorkflowDispatch:async args=>calls.push(['dispatch',args])}}};
-  await dispatchCI(github,{repo:{owner:'owner',repo:'repo'}},{env:{PR_NUMBER:'42'}});
-  assert.deepEqual(calls,[['get',{owner:'owner',repo:'repo',pull_number:42}],
-    ['dispatch',{owner:'owner',repo:'repo',workflow_id:'ci.yml',ref:'deps/monthly-update'}]]);
-});
-
-test('CI dispatch refuses forks, unrelated branches, wrong bases, and invalid PR numbers',async()=>{
-  for(const patch of [
-    {head:{repo:{full_name:'fork/repo'},ref:'deps/update'}},
-    {head:{repo:{full_name:'owner/repo'},ref:'main'}},
-    {base:{ref:'release'}},
-  ]) {
-    let dispatched=false;
-    const pr={head:{repo:{full_name:'owner/repo'},ref:'deps/update'},base:{ref:'main'},...patch};
-    const github={rest:{pulls:{get:async()=>({data:pr})},actions:{createWorkflowDispatch:async()=>{dispatched=true;}}}};
-    await assert.rejects(()=>dispatchCI(github,{repo:{owner:'owner',repo:'repo'}},{env:{PR_NUMBER:'42'}}),/same-repository/);
-    assert.equal(dispatched,false);
-  }
-  await assert.rejects(()=>dispatchCI({}, {}, {env:{PR_NUMBER:'invalid'}}),/Invalid update PR number/);
 });
 
 
@@ -227,4 +178,69 @@ test('GitHub tag metadata uses annotated tagger dates and lightweight target com
   }
   assert.equal(await gitTagPublication('acme/project','v1.2.3',async()=>null),undefined);
   await assert.rejects(()=>gitTagPublication('acme/project','v1.2.3',async()=>{throw new Error('HTTP 403');}),/403/);
+});
+
+
+test('PR report names timestamp fallbacks and explains accepted backdating risk',()=>{
+  const data={updates:[{name:'golang.org/x/net',before:'v0.59.0',after:'v0.61.0',published:old,source:'git-commit'}],checksums:{Go:{added:2,removed:2}}};
+  const text=renderUpdateReport(data);
+  assert.match(text,/golang.org\/x\/net \| v0.59.0 \| v0.61.0/);
+  assert.match(text,/git-commit/);
+  assert.match(text,/can be backdated/);
+  assert.match(text,/do not prove.*72 hours/);
+  assert.match(text,/Go: \+2 \/ -2/);
+  assert.doesNotMatch(renderUpdateReport({...data,updates:[{...data.updates[0],source:'github-release'}]}),/Accepted timestamp risk/);
+  assert.match(renderUpdateReport({...data,updates:[{...data.updates[0],name:'x|<y>\nz'}]}),/x\\\|&lt;y&gt; z/);
+});
+
+const base='a'.repeat(40), branch='deps/monthly-123-1', repository='owner/repo';
+function publisher(overrides={}) {
+  const calls=[];
+  return {calls,options:{repository,base,branch,patch:'candidate.patch',
+    request:async(method,path,body)=>{calls.push([method,path,body]);return method==='GET'?[]:{html_url:'https://github.com/owner/repo/pull/42'};},
+    git:(_command,args)=>{calls.push(['git',args]);return args[0]==='rev-parse'?base:args[0]==='diff'?'go.mod\n':'';},
+    check:async(sha,options)=>{calls.push(['verify',sha,options]);},
+    describe:async()=>{calls.push(['report']);return 'Generated report';},...overrides}};
+}
+
+test('publisher revalidates before pushing, creates a draft PR, and dispatches CI using the built-in token',async()=>{
+  const {calls,options}=publisher();
+  assert.deepEqual(await publishUpdate(options),{skipped:false,url:'https://github.com/owner/repo/pull/42'});
+  assert(calls.findIndex(c=>c[0]==='verify')<calls.findIndex(c=>c[0]==='git'&&c[1][0]==='push'));
+  assert.deepEqual(calls.find(c=>c[0]==='verify'),['verify',base,{updatesOnly:true}]);
+  assert.deepEqual(calls.filter(c=>c[0]==='POST'),[
+    ['POST','repos/owner/repo/pulls',{title:'deps: monthly dependency updates',head:branch,base:'main',draft:true,body:'Generated report'}],
+    ['POST','repos/owner/repo/actions/workflows/ci.yml/dispatches',{ref:branch}],
+  ]);
+  assert.deepEqual(calls.find(c=>c[0]==='git'&&c[1][0]==='push'),['git',['push','origin',`HEAD:refs/heads/${branch}`]]);
+});
+
+test('publisher skips an existing same-repository monthly PR without rewriting it',async()=>{
+  const pr={head:{repo:{full_name:repository},ref:'deps/monthly-100-1'},base:{ref:'main'},html_url:'existing'};
+  const {options}=publisher({request:async()=>[pr],git:()=>{throw new Error('Must not touch checkout');}});
+  assert.deepEqual(await publishUpdate(options),{skipped:true,url:'existing'});
+  for(const patch of [{head:{...pr.head,repo:{full_name:'fork/repo'}}},{head:{...pr.head,ref:'some-feature'}},{base:{ref:'release'}}])
+    assert.equal(await pendingUpdate(repository,async()=>[{...pr,...patch}]),undefined);
+});
+
+test('publisher refuses invalid destinations, mismatched bases, and failed policy verification before publication',async()=>{
+  for(const patch of [{branch:'main'},{branch:'deps/monthly-malicious'},{base:'main'},{repository:'../evil'}]) {
+    const {calls,options}=publisher(patch);
+    await assert.rejects(()=>publishUpdate(options),/Invalid/);
+    assert.equal(calls.length,0);
+  }
+  const mismatch=publisher({git:()=> 'b'.repeat(40)});
+  await assert.rejects(()=>publishUpdate(mismatch.options),/tested base/);
+  const failure=publisher({check:async()=>{throw new Error('Embargo violation');}});
+  await assert.rejects(()=>publishUpdate(failure.options),/Embargo violation/);
+  assert.equal(failure.calls.some(c=>c[0]==='POST'||c[0]==='git'&&c[1][0]==='push'),false);
+});
+
+test('publisher treats an empty patch as a no-op and fails closed on out-of-scope changes',async()=>{
+  for(const file of ['', 'scripts/dependency-policy.mjs']) {
+    const {calls,options}=publisher({git:(_command,args)=>args[0]==='rev-parse'?base:args[0]==='diff'?file:''});
+    if(file) await assert.rejects(()=>publishUpdate(options),/outside dependency scope/);
+    else assert.deepEqual(await publishUpdate(options),{skipped:true});
+    assert.equal(calls.some(c=>c[0]==='POST'),false);
+  }
 });

@@ -1,0 +1,150 @@
+name: Monthly dependency updates
+
+on:
+  schedule:
+    - cron: "17 3 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: monthly-dependency-updates
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      changed: ${{ steps.apply.outputs.changed }}
+      base: ${{ steps.base.outputs.sha }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      AQUA_ENFORCE_CHECKSUM: "true"
+      AQUA_ENFORCE_REQUIRE_CHECKSUM: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: package.json
+      - name: Skip while a monthly update PR is open
+        id: pending
+        run: node scripts/dependency-pr.mjs check
+      - name: Record immutable base
+        if: steps.pending.outputs.pending == 'false'
+        id: base
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pending.outputs.pending == 'false'
+        with:
+          go-version-file: go.mod
+      - name: Read current aqua version
+        if: steps.pending.outputs.pending == 'false'
+        id: current
+        run: node scripts/dependency-updates.mjs tools >> "$GITHUB_OUTPUT"
+      - uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e # v4.0.5
+        if: steps.pending.outputs.pending == 'false'
+        with:
+          aqua_version: ${{ steps.current.outputs.aqua }}
+          aqua_opts: ""
+      - name: Apply eligible updates and verify policy
+        if: steps.pending.outputs.pending == 'false'
+        id: apply
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          node scripts/dependency-updates.mjs apply
+          node scripts/dependency-updates.mjs verify "$BASE_SHA" --updates-only
+          if git diff --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.apply.outputs.changed == 'true'
+        with:
+          node-version-file: package.json
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.apply.outputs.changed == 'true'
+        with:
+          go-version-file: go.mod
+      - name: Read candidate tool versions
+        if: steps.apply.outputs.changed == 'true'
+        id: candidate
+        run: node scripts/dependency-updates.mjs tools >> "$GITHUB_OUTPUT"
+      - uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e # v4.0.5
+        if: steps.apply.outputs.changed == 'true'
+        with:
+          aqua_version: ${{ steps.candidate.outputs.aqua }}
+          aqua_opts: ""
+      - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
+        if: steps.apply.outputs.changed == 'true'
+        with:
+          version: ${{ steps.candidate.outputs.buf }}
+          setup_only: true
+          github_token: ${{ github.token }}
+      - name: Validate candidate with its updated runtimes and tools
+        if: steps.apply.outputs.changed == 'true'
+        run: |
+          npm ci
+          npm run test:updates
+          npm test
+          npm run typecheck
+          npm run build:ui
+          go test ./...
+          npm run test:links
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Export tested patch and report
+        if: steps.apply.outputs.changed == 'true'
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          node scripts/dependency-updates.mjs verify "$BASE_SHA" --updates-only
+          git diff --check
+          mkdir -p .pbschema-lens/dependency-candidate
+          git diff --binary "$BASE_SHA" > .pbschema-lens/dependency-candidate/update.patch
+          node scripts/dependency-updates.mjs report "$BASE_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.apply.outputs.changed == 'true'
+        with:
+          name: dependency-candidate
+          path: .pbschema-lens/dependency-candidate/update.patch
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.base }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: package.json
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dependency-candidate
+          path: .pbschema-lens/dependency-candidate
+      - name: Revalidate and publish draft PR, then dispatch CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ needs.prepare.outputs.base }}
+        run: node scripts/dependency-pr.mjs publish "$BASE_SHA" .pbschema-lens/dependency-candidate/update.patch

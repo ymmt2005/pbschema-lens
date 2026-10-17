@@ -1,10 +1,10 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, readdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, lstatSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { setGlobalProxyFromEnv } from 'node:http';
-import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, goRequirements, npmPackages, finishCompiledWorkflow, assertUpdateScope, goModuleRelease, githubToolOutputs, automatedDependency, goPublicationEvidence } from './dependency-policy.mjs';
+import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, goRequirements, npmPackages, assertUpdateScope, goModuleRelease, githubToolOutputs, automatedDependency, goPublicationEvidence, renderUpdateReport } from './dependency-policy.mjs';
 
 // Honor the cloud/agent sandbox's proxy without changing TLS verification.
 setGlobalProxyFromEnv();
@@ -13,10 +13,8 @@ export const repo = resolve(process.env.DEPENDENCY_REPO ?? resolve(dirname(fileU
 const work = join(repo, '.pbschema-lens/dependency-updates');
 const held = [];
 const toolFile = '.github/dependency-tools.json';
-const workflow = '.github/workflows/update-dependencies.md';
-const compiled = '.github/workflows/update-dependencies.lock.yml';
-const sources = [...readdirSync(join(repo,'.github/workflows')).filter(f=>/\.(?:ya?ml|md)$/.test(f) && !f.endsWith('.lock.yml')).map(f=>`.github/workflows/${f}`), 'cmd/pbschema-lens/main.go'];
-const repositories = { aqua: 'aquaproj/aqua', buf: 'bufbuild/buf', goreleaser: 'goreleaser/goreleaser', 'gh-aw': 'github/gh-aw' };
+const sources = [...readdirSync(join(repo,'.github/workflows')).filter(f=>/\.ya?ml$/.test(f)).map(f=>`.github/workflows/${f}`), 'cmd/pbschema-lens/main.go'];
+const repositories = { aqua: 'aquaproj/aqua', buf: 'bufbuild/buf', goreleaser: 'goreleaser/goreleaser' };
 const read = file => readFileSync(join(repo, file), 'utf8');
 const json = file => JSON.parse(read(file));
 const writeJSON = (file, value) => writeFileSync(join(repo, file), JSON.stringify(value, null, 2) + '\n');
@@ -160,16 +158,16 @@ async function modulePublication(name,version) {
 async function publication(item, version) {
   if (item.kind === 'npm') {
     const data=await npm(item.name);
-    return {version,published:data.time?.[version],deprecated:data.versions[version]?.deprecated};
+    return {version,published:data.time?.[version],deprecated:data.versions[version]?.deprecated,source:'npm-registry'};
   }
   if (item.kind === 'module') return modulePublication(item.name,version);
   if (item.kind === 'go' || item.kind === 'node') {
     const selected = (await choices(item)).find(r => compareVersions(r.version, version) === 0);
     if (!selected) throw new Error(`Go/Node version is not eligible: ${version}`);
-    return selected;
+    return {...selected,source:item.kind==='go'?'go-release-history':'node-release-index'};
   }
   const data = await github(`repos/${item.repository}/releases/tags/${encodeURIComponent(version)}`);
-  return { ...data, version: numeric(version), published: data.published_at };
+  return { ...data, version: numeric(version), published: data.published_at, source:'github-release' };
 }
 
 async function plan() {
@@ -230,43 +228,7 @@ async function apply() {
   run('aqua',['install']);
 }
 
-async function compiler() {
-  const tools = json(toolFile), expected = tools['gh-aw-linux-amd64-sha256'];
-  if (!/^v\d+\.\d+\.\d+$/.test(tools['gh-aw']) || !/^[a-f0-9]{64}$/.test(expected)) throw new Error('Invalid gh-aw pin');
-  const release = await github(`repos/github/gh-aw/releases/tags/${tools['gh-aw']}`);
-  assertEligible({ version: tools['gh-aw'], published: release.published_at });
-  const asset = release.assets.find(a => a.name === 'linux-amd64');
-  if (asset?.digest !== `sha256:${expected}`) throw new Error('gh-aw asset digest differs from the committed pin');
-  const binary = join(work,`gh-aw-${tools['gh-aw']}`);
-  mkdirSync(work,{recursive:true});
-  if (!existsSync(binary)) {
-    const response = await fetch(asset.browser_download_url,{signal:AbortSignal.timeout(120_000)});
-    if (!response.ok) throw new Error(`gh-aw download failed: ${response.status}`);
-    writeFileSync(binary,Buffer.from(await response.arrayBuffer()));
-  }
-  if (createHash('sha256').update(readFileSync(binary)).digest('hex') !== expected) throw new Error('gh-aw binary checksum mismatch');
-  chmodSync(binary,0o755);
-  return binary;
-}
-
-async function compile() {
-  const files=[compiled,'.github/aw/actions-lock.json','.gitattributes'].map(f=>join(repo,f));
-  const saved=new Map(files.map(f=>[f,existsSync(f)?readFileSync(f):null]));
-  try {
-    const result=spawnSync(await compiler(),['compile','update-dependencies','--no-check-update','--action-mode','release'],{cwd:repo,encoding:'utf8'});
-    const log=(result.stdout??'')+(result.stderr??'');
-    console.log(log);
-    if(result.error) throw result.error;
-    if(result.status!==0) throw new Error(`gh-aw compilation exited ${result.status}`);
-    if(log.includes('SECURITY REVIEW REQUIRED')) throw new Error('New compiler permissions/actions/secrets require human review before recompilation');
-    writeFileSync(join(repo,compiled),finishCompiledWorkflow(read(compiled),sources.flatMap(file=>actionReferences(read(file),file))));
-  } catch(error) {
-    for(const [file,contents] of saved) if(contents===null) rmSync(file,{force:true}); else writeFileSync(file,contents);
-    throw error;
-  }
-}
-
-async function verify(base) {
+export async function verify(base, { updatesOnly = process.argv.includes('--updates-only') } = {}) {
   if (!/^[a-f0-9]{40}$/.test(base ?? '')) throw new Error('verify needs an immutable base commit SHA');
   const previous = file => {
     const result=spawnSync('git',['show',`${base}:${file}`],{cwd:repo,encoding:'utf8'});
@@ -274,16 +236,20 @@ async function verify(base) {
     if(result.status!==0) throw new Error(`Cannot read base file: ${file}`);
     return result.stdout;
   };
-  const old = inventory(previous,{baseline:true}), current = inventory();
-  if (process.argv.includes('--updates-only')) {
+  if (updatesOnly) {
+    for (const line of run('git',['diff','--raw',base,'--'],{stdio:'pipe'}).trim().split('\n').filter(Boolean)) {
+      if (!/^:100644 100644 /.test(line)) throw new Error('Updates cannot add, delete, or change file modes');
+    }
     const files=run('git',['diff','--name-only',base,'--'],{stdio:'pipe'}).trim().split('\n').filter(Boolean);
+    for (const file of files) if (!lstatSync(join(repo,file)).isFile()) throw new Error(`Update must contain regular files: ${file}`);
     assertUpdateScope(files.map(file=>[file,previous(file),read(file)]));
   }
+  const old = inventory(previous,{baseline:true}), current = inventory();
   for (const file of sources) if (/\b(?:node|go)-version:\s/.test(read(file))) throw new Error(`${file}: Go/Node must use their manifest version-file inputs`);
   for (const item of current) {
     const same = old.some(i => i.id === item.id && i.current === item.current && (i.kind !== 'action' || i.sha === item.sha));
     if (!same) assertEligible(await publication(item,item.current), { go: item.kind === 'go' });
-    if (item.kind === 'action' && !process.argv.includes('--updates-only')) {
+    if (item.kind === 'action' && !updatesOnly) {
       if (old.some(i => i.id === item.id && i.current === item.current && i.sha !== item.sha)) throw new Error(`Action tag moved: ${item.repository}@${item.current}`);
       if (await tagSHA(item.repository,item.current) !== item.sha) throw new Error(`Action SHA/comment mismatch: ${item.repository}@${item.current}`);
     }
@@ -323,22 +289,40 @@ async function verify(base) {
     }
     if (expected?.toLowerCase() !== entry.checksum.toLowerCase()) throw new Error(`aqua artifact checksum mismatch: ${entry.id}`);
   }
-  if(!process.argv.includes('--updates-only')) {
-    // Compiled Actions must obey the same SHA/comment policy as handwritten ones.
-    if (existsSync(join(repo,compiled))) for (const ref of actionReferences(read(compiled),compiled)) {
-      assertEligible(await publication({kind:'github',repository:ref.repository},ref.version));
-      if (await tagSHA(ref.repository,ref.version) !== ref.sha) throw new Error(`Compiled action SHA mismatch: ${ref.action}`);
-    }
-    const tools=json(toolFile);
-    const compilerRelease=await github(`repos/github/gh-aw/releases/tags/${tools['gh-aw']}`);
-    if (compilerRelease.assets.find(a=>a.name==='linux-amd64')?.digest !== `sha256:${tools['gh-aw-linux-amd64-sha256']}`) throw new Error('Compiler checksum does not match the release');
-    for (const entry of Object.values(json('.github/aw/actions-lock.json').entries)) {
-      const repository=entry.repo.split('/').slice(0,2).join('/');
-      assertEligible(await publication({kind:'github',repository},entry.version));
-      if (await tagSHA(repository,entry.version)!==entry.sha) throw new Error(`Action cache SHA mismatch: ${entry.repo}`);
-    }
-  }
   console.log('Dependency release policy passed.');
+}
+
+export async function report(base) {
+  if (!/^[a-f0-9]{40}$/.test(base ?? '')) throw new Error('report needs an immutable base commit SHA');
+  const previous = file => run('git',['show',`${base}:${file}`],{stdio:'pipe'});
+  const old = inventory(previous,{baseline:true}), current = inventory();
+  const updates = [], seen = new Set();
+  async function add(item, before, after) {
+    const evidence = await publication(item,after);
+    updates.push({ name:item.name ?? item.id, before, after, published:evidence.published, source:evidence.source });
+    seen.add(`${item.kind}:${item.name ?? item.id}@${after}`);
+  }
+  for (const item of current.filter(automatedDependency)) {
+    const before = old.find(i => i.id === item.id)?.current;
+    if (before !== item.current) await add(item,before,item.current);
+  }
+  const beforeNpm = npmPackages(JSON.parse(previous('package-lock.json'))), afterNpm = npmPackages(json('package-lock.json'));
+  for (const [key,pkg] of afterNpm) if (!beforeNpm.has(key) && !seen.has(`npm:${key}`)) {
+    const before = [...beforeNpm.values()].filter(p => p.name === pkg.name).map(p => p.version).join(', ');
+    await add({kind:'npm',name:pkg.name},before,pkg.version);
+  }
+  const beforeGo = goSums(previous('go.sum')), afterGo = goSums(read('go.sum'));
+  for (const key of Object.keys(afterGo)) if (!(key in beforeGo)) {
+    const at = key.lastIndexOf('@'), name = key.slice(0,at), version = key.slice(at+1).replace(/\/go.mod$/,'');
+    if (!seen.has(`module:${name}@${version}`)) await add({kind:'module',name},old.find(i => i.name === name)?.current,version);
+  }
+  const beforeAqua = JSON.parse(previous('aqua-checksums.json')).checksums, afterAqua = json('aqua-checksums.json').checksums;
+  const counts = (before,after) => ({added:after.filter(k => !before.includes(k)).length,removed:before.filter(k => !after.includes(k)).length});
+  return renderUpdateReport({updates,checksums:{
+    Go:counts(Object.keys(beforeGo),Object.keys(afterGo)),
+    npm:counts([...beforeNpm.keys()],[...afterNpm.keys()]),
+    aqua:counts(beforeAqua.map(c=>c.id),afterAqua.map(c=>c.id)),
+  },runURL:process.env.GITHUB_SERVER_URL && `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`});
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -347,8 +331,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (command === 'plan') await plan();
     else if (command === 'apply') await apply();
     else if (command === 'verify') await verify(process.argv[3]);
-    else if (command === 'compile') await compile();
+    else if (command === 'report') console.log(await report(process.argv[3]));
     else if (command === 'tools') for (const line of githubToolOutputs(json(toolFile))) console.log(line);
-    else throw new Error('Usage: node scripts/dependency-updates.mjs plan|apply|verify BASE_SHA|compile|tools');
+    else throw new Error('Usage: node scripts/dependency-updates.mjs plan|apply|verify BASE_SHA|report BASE_SHA|tools');
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

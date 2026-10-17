@@ -174,17 +174,21 @@ Install Chromium with `npx playwright install --with-deps chromium`; an existing
 
 ## Dependency updates
 
-The monthly/manual Codex workflow is `.github/workflows/update-dependencies.md`;
-its compiled `.lock.yml` is committed. Read `scripts/README.md` before updating
-pins. Use `node scripts/dependency-updates.mjs compile`, rather than raw `gh aw
-compile`, so generated Action version comments and manifest-based Node selection
-remain intact. `npm run test:updates` tests the release policy.
+The monthly/manual workflow is `.github/workflows/update-dependencies.yml`, using
+`scripts/dependency-updates.mjs` and `scripts/dependency-pr.mjs`. It is fully
+mechanical, with no agent or compiler. Read `scripts/README.md` before updating
+pins. `npm run test:updates` tests selection, reporting, and publication guards.
 
-Automated update PRs can change runtime/dependency/tool version pins and checksums.
+Automated PRs can change runtime/dependency/tool version pins and checksums.
 Explicit Go upgrades target direct requirements only; indirect requirements change
 only as a consequence. Git timestamp fallbacks have an accepted backdating risk
-that update PRs must explain. Actions, workflow files, and the
-agentic-workflow compiler are outside automatic scope; maintain their pins manually. They cannot change policy scripts,
-workflow commands/permissions, package scripts, or application code. Hold an update
-that needs those changes for a separate human-reviewed PR. Never disable checksum
-verification or bypass the 72-hour embargo to make an update pass.
+that generated PRs must explain. Actions and workflow files are outside automatic
+scope; maintain them manually. Updates cannot change policy/package scripts,
+application version, or application code, except the generated Pages Buf version.
+Failures require human investigation. Never disable checksum verification or
+bypass the 72-hour embargo to make an update pass.
+
+Preparation installs and tests candidate dependencies with read-only permissions.
+Publishing uses a separate clean job: load trusted scripts before applying the
+artifact, validate its scope and metadata, then create a draft PR and dispatch CI.
+Never approve, merge, or force-push update PRs. Skip while a monthly PR is open.

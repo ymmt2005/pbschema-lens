@@ -119,30 +119,11 @@ export function npmPackages(lock) {
   return packages;
 }
 
-// gh-aw serializes custom YAML steps without their comments and installs its
-// own Node runtime. Keep generated workflows under the same repository policy.
-export function finishCompiledWorkflow(text, sourceRefs) {
-  const versions = new Map(sourceRefs.map(ref => [`${ref.action}@${ref.sha}`, ref.version]));
-  const output = text.split('\n').map(line => {
-    const ref = /^(\s*(?:-\s*)?uses:\s*)([^\s]+@[a-f0-9]{40})\s*$/.exec(line);
-    if (!ref) return line;
-    const version = versions.get(ref[2]);
-    if (!version) throw new Error(`Generated action has no known version: ${ref[2]}`);
-    return `${ref[1]}${ref[2]} # ${version}`;
-  }).join('\n')
-    // Detection can also run for a noop output. Its manifest must exist then.
-    .replace(/(- name: Checkout repository for patch context\n)\s*if: [^\n]+\n/g, '$1')
-    .replace(/^(\s+)node-version:\s*[^\n]+$/gm, '$1node-version-file: package.json')
-    .replace(/npm install --ignore-scripts -g /g, 'npm install --ignore-scripts --before="$(date -u -d \'72 hours ago\' +%FT%TZ)" -g ');
-  actionReferences(output, 'compiled workflow');
-  return output;
-}
-
 export const updateFiles = ['package.json','package-lock.json','go.mod','go.sum','aqua.yaml','aqua-checksums.json',
   '.github/dependency-tools.json','cmd/pbschema-lens/main.go'];
 
 export function automatedDependency(item) {
-  return item.kind!=='action' && item.id!=='tool:gh-aw' && !(item.kind==='module' && item.indirect);
+  return item.kind!=='action' && !(item.kind==='module' && item.indirect);
 }
 
 export function maskVersionPins(text) {
@@ -172,7 +153,6 @@ export function assertUpdateScope(changes) {
     } else if (file === '.github/dependency-tools.json') {
       const a=JSON.parse(before), b=JSON.parse(after);
       if (JSON.stringify(Object.keys(a).sort()) !== JSON.stringify(Object.keys(b).sort())) throw new Error('Update changed the tool inventory');
-      for(const key of ['gh-aw','gh-aw-linux-amd64-sha256']) if(a[key]!==b[key]) throw new Error('Agentic-workflow compiler updates are outside automatic update scope');
     } else if (file === 'go.mod') {
       if (JSON.stringify(direct(before).map(r => r.name).sort()) !== JSON.stringify(direct(after).map(r => r.name).sort())) throw new Error('Update changed direct Go dependency names');
       if (!updatedDirect && JSON.stringify(goRequirements(before)) !== JSON.stringify(goRequirements(after))) throw new Error('Indirect Go dependencies can change only as a consequence of direct dependency updates');
@@ -215,4 +195,19 @@ export function goPublicationEvidence(version, release, fallback) {
     published: release ? release.published_at : fallback?.published,
     source: release ? 'github-release' : fallback?.source,
   };
+}
+
+export function renderUpdateReport({updates,checksums,runURL}) {
+  const cell = value => String(value ?? '—').replaceAll('\\','\\\\').replaceAll('|','\\|').replaceAll('<','&lt;').replaceAll('>','&gt;').replace(/[\r\n]/g,' ');
+  const lines = ['Monthly dependency updates selected mechanically under the repository release policy.',
+    '', '| Dependency | Before | After | Timestamp (UTC) | Source |', '| --- | --- | --- | --- | --- |'];
+  for (const u of updates) lines.push(`| ${[u.name,u.before || undefined,u.after,u.published,u.source].map(cell).join(' | ')} |`);
+  if (updates.some(u => ['git-tag','git-commit','go-proxy-commit'].includes(u.source))) lines.push('',
+    '**Accepted timestamp risk:** Git tag and commit timestamps are author-controlled and can be backdated. A newly created lightweight tag can point to an old commit. Fallback dates do not prove the version has been public for 72 hours. The rows above identify the affected dependencies and sources.');
+  lines.push('', 'Existing checksum values are preserved. Checksum entries added/removed:');
+  for (const [name,count] of Object.entries(checksums)) lines.push(`- ${cell(name)}: +${count.added} / -${count.removed}`);
+  lines.push('', 'Go upgrades target direct requirements only; indirect changes follow from those upgrades. GitHub Actions remain outside automatic update scope.',
+    '', 'The workflow requires policy validation, npm installation, unit tests, typechecks, the UI build, Go tests, offline links, and Playwright tests before publication. CI is dispatched explicitly on this PR branch after publication. Approval and merging remain manual.');
+  if (runURL) lines.push('', `[Preparation results and held-update logs](${runURL})`);
+  return lines.join('\n')+'\n';
 }
