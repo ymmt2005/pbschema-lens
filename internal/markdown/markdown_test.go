@@ -82,6 +82,28 @@ func TestHeadingTextInCodeStaysLiteral(t *testing.T) {
 	}
 }
 
+func TestCommentHeadingsAfterForeignContentRepair(t *testing.T) {
+	for _, foreign := range []string{"svg", "math"} {
+		for _, raw := range []string{"style", "script", "textarea"} {
+			for level := 1; level <= 6; level++ {
+				source := fmt.Sprintf(`<%s><%s><h%d onclick="alert(1)">Title</h%d></%s></%s>`, foreign, raw, level, level, raw, foreign)
+				t.Run(fmt.Sprintf("%s/%s/h%d", foreign, raw, level), func(t *testing.T) {
+					got := RenderSafe(source)
+					want := fmt.Sprintf("<h%d>Title</h%d>", min(level+1, 6), min(level+1, 6))
+					if !strings.Contains(got, want) {
+						t.Fatalf("repaired heading not normalized: got %q, want %q", got, want)
+					}
+					for _, banned := range []string{"<h1", "<svg", "<math", "<style", "<script", "<textarea", "onclick", "alert"} {
+						if strings.Contains(got, banned) {
+							t.Errorf("unexpected %q in %q", banned, got)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestEscapeHTML(t *testing.T) {
 	got := EscapeHTML(`<foo & "bar">`)
 	want := "&lt;foo &amp; &quot;bar&quot;&gt;"
