@@ -17,7 +17,6 @@ const sources = [...readdirSync(join(repo,'.github/workflows')).filter(f=>/\.ya?
 const repositories = { aqua: 'aquaproj/aqua', buf: 'bufbuild/buf', goreleaser: 'goreleaser/goreleaser' };
 const read = file => readFileSync(join(repo, file), 'utf8');
 const json = file => JSON.parse(read(file));
-const writeJSON = (file, value) => writeFileSync(join(repo, file), JSON.stringify(value, null, 2) + '\n');
 
 export function run(command, args, options = {}) {
   const result = spawnSync(command, args, { cwd: repo, encoding: 'utf8', stdio: 'inherit', ...options });
@@ -186,9 +185,13 @@ async function plan() {
   return updates;
 }
 
-async function apply() {
-  const updates = await plan();
-  const pkg = json('package.json'), tools = json(toolFile);
+// Stage pins without invoking package managers. CI must activate these runtime
+// versions before resolving dependencies (setup-go sets GOTOOLCHAIN=local).
+export async function stage({root=repo,select=plan} = {}) {
+  const updates = await select();
+  const read = file => readFileSync(join(root,file),'utf8');
+  const write = (file,value) => writeFileSync(join(root,file),value);
+  const pkg = JSON.parse(read('package.json')), tools = JSON.parse(read(toolFile));
   let mod = read('go.mod'), aqua = read('aqua.yaml');
   for (const item of updates) {
     if (item.kind === 'node') pkg.engines.node = item.next;
@@ -198,20 +201,28 @@ async function apply() {
     else if (item.id === 'aqua-registry') aqua = aqua.replace(`ref: ${item.current}`,`ref: ${item.next}`);
     else if (item.id.startsWith('aqua:')) aqua = aqua.replace(`${item.repository}@${item.current}`,`${item.repository}@${item.next}`);
   }
-  writeJSON('package.json',pkg); writeJSON(toolFile,tools);
-  writeFileSync(join(repo,'go.mod'),mod); writeFileSync(join(repo,'aqua.yaml'),aqua);
+  write('package.json',JSON.stringify(pkg,null,2)+'\n'); write(toolFile,JSON.stringify(tools,null,2)+'\n');
+  write('go.mod',mod); write('aqua.yaml',aqua);
   // Keep the generated Pages template's Buf pin aligned with repository CI.
-  writeFileSync(join(repo,'cmd/pbschema-lens/main.go'),read('cmd/pbschema-lens/main.go').replace(/version: "v?\d+\.\d+\.\d+"/,`version: "${tools.buf.replace(/^v/,'')}"`));
+  write('cmd/pbschema-lens/main.go',read('cmd/pbschema-lens/main.go').replace(/version: "v?\d+\.\d+\.\d+"/,`version: "${tools.buf.replace(/^v/,'')}"`));
   // The schema pin is the same aqua release used by the installer.
-  writeFileSync(join(repo,'aqua.yaml'),read('aqua.yaml').replace(/aquaproj\/aqua\/v[\d.]+\/json-schema/,`aquaproj/aqua/${tools.aqua}/json-schema`));
+  write('aqua.yaml',read('aqua.yaml').replace(/aquaproj\/aqua\/v[\d.]+\/json-schema/,`aquaproj/aqua/${tools.aqua}/json-schema`));
+  const directory=join(root,'.pbschema-lens/dependency-updates');
+  mkdirSync(directory,{recursive:true});
+  writeFileSync(join(directory,'staged.json'),JSON.stringify({updates},null,2)+'\n');
+}
+
+// Consume exactly the staged selection after setup-go/setup-node have run.
+export async function finish({root=repo,execute=(command,args)=>run(command,args,{cwd:root}),published=modulePublication} = {}) {
+  const {updates}=JSON.parse(readFileSync(join(root,'.pbschema-lens/dependency-updates/staged.json'),'utf8'));
   const modules = updates.filter(i => i.kind === 'module' && !i.indirect).map(i => `${i.name}@${i.next}`);
   // Direct requirements still have their original versions here. The selected
   // Go runtime is independent and remains eligible even if dependencies hold.
-  await updateGoDependencies(modules);
-  run('npm',['install','--package-lock-only','--ignore-scripts','--before',new Date(Date.now()-72*60*60*1000).toISOString()]);
+  await updateGoDependencies(modules,{root,execute,published});
+  execute('npm',['install','--package-lock-only','--ignore-scripts','--before',new Date(Date.now()-72*60*60*1000).toISOString()]);
   // Registry release hashes must be reviewed just like tool artifact hashes.
-  run('aqua',['update-checksum']);
-  run('aqua',['install']);
+  execute('aqua',['update-checksum']);
+  execute('aqua',['install']);
 }
 
 export async function updateGoDependencies(modules, {root=repo,execute=(command,args)=>run(command,args,{cwd:root}),published=modulePublication} = {}) {
@@ -338,10 +349,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const command = process.argv[2];
     if (command === 'plan') await plan();
-    else if (command === 'apply') await apply();
+    else if (command === 'stage') await stage();
+    else if (command === 'finish') await finish();
+    else if (command === 'apply') { await stage(); await finish(); }
     else if (command === 'verify') await verify(process.argv[3]);
     else if (command === 'report') console.log(await report(process.argv[3]));
     else if (command === 'tools') for (const line of githubToolOutputs(json(toolFile))) console.log(line);
-    else throw new Error('Usage: node scripts/dependency-updates.mjs plan|apply|verify BASE_SHA|report BASE_SHA|tools');
+    else throw new Error('Usage: node scripts/dependency-updates.mjs plan|stage|finish|apply|verify BASE_SHA|report BASE_SHA|tools');
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }
