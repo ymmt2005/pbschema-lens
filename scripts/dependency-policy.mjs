@@ -204,7 +204,7 @@ export function renderUpdateReport({updates,checksums,runURL}) {
   for (const u of updates) lines.push(`| ${[u.name,u.before || undefined,u.after,u.published,u.source].map(cell).join(' | ')} |`);
   if (updates.some(u => ['git-tag','git-commit','go-proxy-commit'].includes(u.source))) lines.push('',
     '**Accepted timestamp risk:** Git tag and commit timestamps are author-controlled and can be backdated. A newly created lightweight tag can point to an old commit. Fallback dates do not prove the version has been public for 72 hours. The rows above identify the affected dependencies and sources.');
-  lines.push('', 'Existing checksum values are preserved. Checksum entries added/removed:');
+  lines.push('', 'Existing checksum values are preserved. Checksum entries added/removed:', '');
   for (const [name,count] of Object.entries(checksums)) lines.push(`- ${cell(name)}: +${count.added} / -${count.removed}`);
   lines.push('', 'Go upgrades target direct requirements only; indirect changes follow from those upgrades. GitHub Actions remain outside automatic update scope.',
     '', 'The workflow requires policy validation, npm installation, unit tests, typechecks, the UI build, Go tests, offline links, and Playwright tests before publication. CI is dispatched explicitly on this PR branch after publication. Approval and merging remain manual.');
