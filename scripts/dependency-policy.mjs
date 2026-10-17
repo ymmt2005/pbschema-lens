@@ -122,9 +122,11 @@ export function finishCompiledWorkflow(text, sourceRefs) {
 }
 
 export const updateFiles = ['package.json','package-lock.json','go.mod','go.sum','aqua.yaml','aqua-checksums.json',
-  '.github/dependency-tools.json','.github/dependency-observations.json','.github/aw/actions-lock.json','.github/workflows/ci.yml','.github/workflows/release.yml',
-  '.github/workflows/update-dependencies.md',
-  '.github/workflows/update-dependencies.lock.yml','cmd/pbschema-lens/main.go'];
+  '.github/dependency-tools.json','.github/dependency-observations.json','cmd/pbschema-lens/main.go'];
+
+export function automatedDependency(item) {
+  return item.kind!=='action' && item.id!=='tool:gh-aw';
+}
 
 export function maskVersionPins(text) {
   return text.replace(/(uses:\s*[^\s@]+)@[a-f0-9]{40}\s+#\s*v\d+\.\d+\.\d+/g,'$1@VERSION')
@@ -137,7 +139,7 @@ export function maskVersionPins(text) {
 export function assertUpdateScope(changes) {
   for (const [file, before, after] of changes) {
     if (!updateFiles.includes(file)) throw new Error(`Update cannot change ${file}`);
-    if (['package-lock.json','go.sum','aqua-checksums.json','.github/workflows/update-dependencies.lock.yml'].includes(file)) continue;
+    if (['package-lock.json','go.sum','aqua-checksums.json'].includes(file)) continue;
     if (file === 'package.json') {
       const strip = text => {
         const pkg = JSON.parse(text);
@@ -148,12 +150,10 @@ export function assertUpdateScope(changes) {
       if (strip(before) !== strip(after)) throw new Error('Update changed package metadata, scripts, or dependency names');
     } else if (file === '.github/dependency-observations.json') {
       assertObservationChange(JSON.parse(before), JSON.parse(after));
-    } else if (file === '.github/aw/actions-lock.json') {
-      const a=JSON.parse(before).entries, b=JSON.parse(after).entries;
-      unchangedChecksums(Object.fromEntries(Object.entries(a).map(([k,v])=>[k,v.sha])),Object.fromEntries(Object.entries(b).map(([k,v])=>[k,v.sha])),'Actions lock');
     } else if (file === '.github/dependency-tools.json') {
       const a=JSON.parse(before), b=JSON.parse(after);
       if (JSON.stringify(Object.keys(a).sort()) !== JSON.stringify(Object.keys(b).sort())) throw new Error('Update changed the tool inventory');
+      for(const key of ['gh-aw','gh-aw-linux-amd64-sha256']) if(a[key]!==b[key]) throw new Error('Agentic-workflow compiler updates are outside automatic update scope');
     } else if (file === 'go.mod') {
       const module = /^module\s+(.+)$/m.exec(before)?.[1];
       if (/^module\s+(.+)$/m.exec(after)?.[1] !== module) throw new Error('Update changed the Go module identity');
@@ -162,6 +162,9 @@ export function assertUpdateScope(changes) {
         if (/^(?:require\s+)?[\w./~-]+\s+v\d+\.\d+\.\d+(?:\+incompatible)?$/.test(line)) continue;
         throw new Error(`Update changed a Go directive beyond dependency versions: ${line}`);
       }
+    } else if(file==='cmd/pbschema-lens/main.go') {
+      const maskBuf=text=>text.replace(/(version:\s*")v?\d+\.\d+\.\d+(")/g,'$1VERSION$2');
+      if(maskBuf(before)!==maskBuf(after)) throw new Error('Update changed more than the generated Pages Buf version');
     } else if (maskVersionPins(before) !== maskVersionPins(after)) throw new Error(`Update changed more than version pins in ${file}`);
   }
 }
@@ -188,18 +191,6 @@ export function goModuleRelease(name, version) {
   else return undefined;
   if(/^v\d+$/.test(suffix.at(-1)??'') && Number(suffix.at(-1).slice(1))>=2) suffix.pop();
   return {repository, tag:[...suffix,version.replace(/\+incompatible$/,'')].join('/')};
-}
-
-// Compare against trusted history, not the candidate's claim that its generated
-// manifest was already reviewed. Retrying compilation cannot approve new access.
-export function assertCompilerReview(before, after) {
-  const parse=text=>JSON.parse(/^# gh-aw-manifest: (.+)$/m.exec(text)?.[1] ?? 'null');
-  const old=parse(before), next=parse(after);
-  if(!old || !next || !Array.isArray(next.secrets) || !Array.isArray(next.actions)) throw new Error('Missing compiler security manifest');
-  const addedSecrets=next.secrets.filter(s=>!old.secrets.includes(s));
-  const knownActions=new Set(old.actions.map(a=>a.repo));
-  const addedActions=next.actions.map(a=>a.repo).filter(a=>!knownActions.has(a));
-  if(addedSecrets.length || addedActions.length) throw new Error(`Compiler access requires a separate human-reviewed PR: ${[...addedSecrets,...addedActions].join(', ')}`);
 }
 
 export function githubToolOutputs(tools) {

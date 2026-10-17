@@ -45,8 +45,8 @@ Failure screenshots and retry traces remain in `e2e/.results/` and are uploaded 
 
 # Monthly dependency updates
 
-[GitHub Agentic Workflows](https://github.github.com/gh-aw/) runs Codex at 03:17 UTC
-on the first day of each month, or through **Actions → Monthly dependency updates
+[GitHub Agentic Workflows](https://github.github.com/gh-aw/) runs Codex at 12:17 JST
+(03:17 UTC) on the first day of each month, or through **Actions → Monthly dependency updates
 → Run workflow**. It prepares at most one draft PR; merging stays manual. There is
 no Renovate configuration. Source lives in
 `.github/workflows/update-dependencies.md`; its compiled `.lock.yml` is committed.
@@ -60,7 +60,7 @@ The deterministic helper, rather than the agent's judgment, selects versions:
   in `package.json`, selects LTS, and skips the first LTS-designated release in
   each major line. `@types/node` follows the selected Node major.
 - npm uses registry publication times, including every new transitive lockfile
-  entry. Actions/tools/aqua use GitHub Release publication times. Go toolchains
+  entry. Tool/aqua updates use GitHub Release publication times. Go toolchains
   use the official release history and Node uses the official distribution index.
 - A Go module's proxy timestamp can be an old commit date, so it cannot establish
   release age. Prefer a GitHub Release publication time. Otherwise add its version
@@ -70,10 +70,16 @@ The deterministic helper, rather than the agent's judgment, selects versions:
   that clock for the whole inventory. A later manual/monthly run can apply the
   update. New unaged Go transitives hold the Go dependency bump and get observed
   for a later run; other updates may proceed.
-- Resolve Action tags to commits, including annotated tags, and use full SHAs
-  followed by matching exact version comments. Preserve existing Go/npm/aqua
-  checksums. Newly added npm/aqua/compiler artifacts must match upstream digests.
-  Go's native download also checks `go.sum` against the checksum database.
+- Preserve existing Go/npm/aqua checksums. New npm/aqua artifacts must match
+  upstream digests. Go's native download also checks `go.sum` against the checksum
+  database.
+
+Automatic scope includes Go/Node runtimes, Go/npm dependencies, aqua and its
+registry/packages, Buf, and GoReleaser. GitHub Actions and the agentic-workflow
+compiler remain fixed for manual maintenance. Automated patches cannot change
+workflow files, the Actions lock cache, or the compiler version/checksum. Buf's
+version in the CLI's generated Pages template is the only permitted Go source
+edit; its Action pins stay unchanged.
 
 Local commands (Linux amd64 for compilation):
 
@@ -87,44 +93,44 @@ node scripts/dependency-updates.mjs verify "$(git rev-parse origin/main)"
 
 `plan` writes its report under the ignored `.pbschema-lens/dependency-updates/`.
 `apply` recomputes the plan, refreshes lockfiles without npm lifecycle scripts,
-refreshes aqua checksums, and recompiles. The compiler is downloaded from its
-pinned official release and checked against both its committed SHA-256 and the
-GitHub asset digest. Compilation preserves Action version comments and reads
+and refreshes aqua checksums without regenerating workflow files. For intentional
+manual workflow edits, `compile` downloads the compiler from its pinned official
+release and checks both its committed SHA-256 and the GitHub asset digest. Compilation preserves Action version comments and reads
 Node from `package.json`, including the framework's runtime setup. The detection
 job checks out that manifest even for a no-change run. Runtime Codex
 installation uses npm's 72-hour cutoff too. A compiler update that adds new
 secrets or Actions stops for human security review. Never automatically approve
 that warning or edit the generated jobs by hand. Failed compilation restores its
-previous outputs. The updater's validation also compares security manifests and
-requires new secrets or Action repositories to land in a separate human-reviewed
-PR; a candidate cannot approve its own new access by recompiling.
+previous outputs. Compiler upgrades and new workflow access require a separate
+human-reviewed change.
 
 The monthly updater's post-step runs the checker from its immutable starting
 commit against the candidate patch. The agent's edits cannot replace the checker
-used for this validation. Updates have a strict file/content allowlist and must
-reproduce the compiled workflow byte for byte. This step must pass before safe
+used for this validation. Updates have a strict file/content allowlist that
+excludes all workflow files and compiler pins. This step must pass before safe
 outputs can publish a PR. Browser prerequisites are installed before the agent
 starts; its network policy allows Playwright downloads and the Buf registry.
-Regular PR CI runs unit, type, Go, link, and browser tests. Updates requiring
-application/policy changes are held for a separate PR.
+The publishing/reporting jobs use the repository's built-in `GITHUB_TOKEN`.
+After a PR is created, the conclusion job dispatches `ci.yml` on its same-repository
+`deps/` branch. GitHub allows `workflow_dispatch` with this token even though its
+PR/push events do not automatically start workflows. No-change runs dispatch
+nothing. CI runs unit, type, Go, link, and browser tests; its existing deployment
+guards skip Pages deployment on the update branch. Updates requiring application
+or policy changes are held for a separate PR.
 
 ## Enable the workflow
 
 After merging this implementation:
 
 1. Add repository secret `OPENAI_API_KEY` for Codex inference.
-2. Install a GitHub App on this repository with **Contents: read/write**,
-   **Pull requests: read/write**, **Issues: read/write** (requested by the
-   framework for PR/report handling), and **Workflows: read/write**. Add its client ID
-   as repository variable `DEPENDENCY_APP_ID` and its PEM private key as secret
-   `DEPENDENCY_APP_PRIVATE_KEY`. Only the framework's publishing/reporting jobs receive that key; the
-   agent receives a read-only repository token. The App is needed because the
-   ordinary `GITHUB_TOKEN` cannot publish workflow-file updates and its pushes
-   would not trigger the normal PR checks.
+2. In **Settings → Actions → General → Workflow permissions**, enable
+   **Allow GitHub Actions to create and approve pull requests**. The updater
+   requests the write permissions needed for publishing and CI dispatch only in
+   the framework's publishing/reporting jobs; the agent's token stays read-only.
 3. Run the workflow manually once and inspect the draft PR and CI before relying
    on the monthly schedule. First-seen Go observations can need an initial merge
    and a second run at least 72 hours later.
 
 Store credentials only in repository settings, never in files or PR bodies. A
 compiler validation/local dry run does not validate inference or PR publication;
-those require the configured repository credentials and a real workflow run.
+those require the repository API key, PR-creation setting, and a real workflow run.

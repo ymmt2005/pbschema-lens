@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { setGlobalProxyFromEnv } from 'node:http';
-import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, npmPackages, finishCompiledWorkflow, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease, assertCompilerReview, githubToolOutputs } from './dependency-policy.mjs';
+import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, npmPackages, finishCompiledWorkflow, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease, githubToolOutputs, automatedDependency } from './dependency-policy.mjs';
 
 // Honor the cloud/agent sandbox's proxy without changing TLS verification.
 setGlobalProxyFromEnv();
@@ -164,13 +164,11 @@ async function publication(item, version) {
 
 async function plan() {
   const updates = [];
-  for (const item of inventory()) {
+  for (const item of inventory().filter(automatedDependency)) {
     const selected = (await choices(item))[0];
     if (!selected || compareVersions(selected.version, numeric(item.current)) <= 0) continue;
     const next = { ...item, next: selected.tag ?? selected.version.replace(/^go/, '').replace(/^v/, ''), published: selected.published };
     if (item.kind === 'module') next.next = selected.version;
-    if (item.kind === 'action') next.sha = await tagSHA(item.repository, next.next);
-    if (item.id === 'tool:gh-aw') next.sha256 = selected.assets.find(a => a.name === 'linux-amd64')?.digest?.replace(/^sha256:/, '');
     updates.push(next);
   }
   mkdirSync(work, { recursive: true });
@@ -187,19 +185,12 @@ async function apply() {
     if (item.kind === 'node') pkg.engines.node = item.next;
     else if (item.kind === 'go') mod = mod.replace(/^go \S+$/m, `go ${item.next}`);
     else if (item.kind === 'npm') pkg[item.section][item.name] = pkg[item.section][item.name].replace(item.current,item.next);
-    else if (item.id.startsWith('tool:')) { tools[item.name] = item.next; if (item.name === 'gh-aw') tools['gh-aw-linux-amd64-sha256'] = item.sha256; }
+    else if (item.id.startsWith('tool:')) tools[item.name] = item.next;
     else if (item.id === 'aqua-registry') aqua = aqua.replace(`ref: ${item.current}`,`ref: ${item.next}`);
     else if (item.id.startsWith('aqua:')) aqua = aqua.replace(`${item.repository}@${item.current}`,`${item.repository}@${item.next}`);
   }
   writeJSON('package.json',pkg); writeJSON(toolFile,tools);
   writeFileSync(join(repo,'go.mod'),mod); writeFileSync(join(repo,'aqua.yaml'),aqua);
-  for (const file of sources) {
-    let text = read(file);
-    for (const item of updates.filter(i => i.kind === 'action')) {
-      text = text.replace(/(uses:\s*)([^\s@]+)@([a-f0-9]{40})(\s+#\s*)(v\d+\.\d+\.\d+)/g,(all,lead,action,sha,comment) => action.split('/').slice(0,2).join('/') === item.repository ? `${lead}${action}@${item.sha}${comment}${item.next}` : all);
-    }
-    writeFileSync(join(repo,file),text);
-  }
   // Keep the generated Pages template's Buf pin aligned with repository CI.
   writeFileSync(join(repo,'cmd/pbschema-lens/main.go'),read('cmd/pbschema-lens/main.go').replace(/version: "v?\d+\.\d+\.\d+"/,`version: "${tools.buf.replace(/^v/,'')}"`));
   // The schema pin is the same aqua release used by the installer.
@@ -228,7 +219,6 @@ async function apply() {
   // Registry release hashes must be reviewed just like tool artifact hashes.
   run('aqua',['update-checksum']);
   run('aqua',['install']);
-  await compile();
 }
 
 async function compiler() {
@@ -286,7 +276,7 @@ async function verify(base) {
   for (const item of current) {
     const same = old.some(i => i.id === item.id && i.current === item.current && (i.kind !== 'action' || i.sha === item.sha));
     if (!same) assertEligible(await publication(item,item.current), { go: item.kind === 'go' });
-    if (item.kind === 'action') {
+    if (item.kind === 'action' && !process.argv.includes('--updates-only')) {
       if (old.some(i => i.id === item.id && i.current === item.current && i.sha !== item.sha)) throw new Error(`Action tag moved: ${item.repository}@${item.current}`);
       if (await tagSHA(item.repository,item.current) !== item.sha) throw new Error(`Action SHA/comment mismatch: ${item.repository}@${item.current}`);
     }
@@ -326,24 +316,20 @@ async function verify(base) {
     }
     if (expected?.toLowerCase() !== entry.checksum.toLowerCase()) throw new Error(`aqua artifact checksum mismatch: ${entry.id}`);
   }
-  // Compiled Actions must obey the same SHA/comment policy as handwritten ones.
-  if (existsSync(join(repo,compiled))) for (const ref of actionReferences(read(compiled),compiled)) {
-    assertEligible(await publication({kind:'github',repository:ref.repository},ref.version));
-    if (await tagSHA(ref.repository,ref.version) !== ref.sha) throw new Error(`Compiled action SHA mismatch: ${ref.action}`);
-  }
-  const tools=json(toolFile);
-  const compilerRelease=await github(`repos/github/gh-aw/releases/tags/${tools['gh-aw']}`);
-  if (compilerRelease.assets.find(a=>a.name==='linux-amd64')?.digest !== `sha256:${tools['gh-aw-linux-amd64-sha256']}`) throw new Error('Compiler checksum does not match the release');
-  for (const entry of Object.values(json('.github/aw/actions-lock.json').entries)) {
-    const repository=entry.repo.split('/').slice(0,2).join('/');
-    assertEligible(await publication({kind:'github',repository},entry.version));
-    if (await tagSHA(repository,entry.version)!==entry.sha) throw new Error(`Action cache SHA mismatch: ${entry.repo}`);
-  }
-  if (process.argv.includes('--updates-only')) {
-    assertCompilerReview(previous(compiled),read(compiled));
-    const before=read(compiled);
-    await compile();
-    if (read(compiled)!==before) throw new Error('Generated workflow differs from the pinned compiler output');
+  if(!process.argv.includes('--updates-only')) {
+    // Compiled Actions must obey the same SHA/comment policy as handwritten ones.
+    if (existsSync(join(repo,compiled))) for (const ref of actionReferences(read(compiled),compiled)) {
+      assertEligible(await publication({kind:'github',repository:ref.repository},ref.version));
+      if (await tagSHA(ref.repository,ref.version) !== ref.sha) throw new Error(`Compiled action SHA mismatch: ${ref.action}`);
+    }
+    const tools=json(toolFile);
+    const compilerRelease=await github(`repos/github/gh-aw/releases/tags/${tools['gh-aw']}`);
+    if (compilerRelease.assets.find(a=>a.name==='linux-amd64')?.digest !== `sha256:${tools['gh-aw-linux-amd64-sha256']}`) throw new Error('Compiler checksum does not match the release');
+    for (const entry of Object.values(json('.github/aw/actions-lock.json').entries)) {
+      const repository=entry.repo.split('/').slice(0,2).join('/');
+      assertEligible(await publication({kind:'github',repository},entry.version));
+      if (await tagSHA(repository,entry.version)!==entry.sha) throw new Error(`Action cache SHA mismatch: ${entry.repo}`);
+    }
   }
   console.log('Dependency release policy passed.');
 }

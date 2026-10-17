@@ -180,8 +180,9 @@ pins. Use `node scripts/dependency-updates.mjs compile`, rather than raw `gh aw
 compile`, so generated Action version comments and manifest-based Node selection
 remain intact. `npm run test:updates` tests the release policy.
 
-Automated update PRs can change version pins, checksums, generated workflow output,
-and the append-only Go observation inventory. They cannot change policy scripts,
+Automated update PRs can change runtime/dependency/tool version pins, checksums,
+and the append-only Go observation inventory. Actions, workflow files, and the
+agentic-workflow compiler are outside automatic scope; maintain their pins manually. They cannot change policy scripts,
 workflow commands/permissions, package scripts, or application code. Hold an update
 that needs those changes for a separate human-reviewed PR. Never disable checksum
 verification or bypass the 72-hour embargo to make an update pass.
