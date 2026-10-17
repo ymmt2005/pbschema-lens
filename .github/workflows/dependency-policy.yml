@@ -1,0 +1,37 @@
+name: Dependency release policy
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted-policy
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: trusted-policy/package.json
+      - name: Check candidate data with the trusted base policy
+        env:
+          DEPENDENCY_REPO: ${{ github.workspace }}/candidate
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          UPDATE_SCOPE: ${{ startsWith(github.event.pull_request.head.ref, 'deps/') }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          args=()
+          if [[ "$UPDATE_SCOPE" == true ]]; then args+=(--updates-only); fi
+          node trusted-policy/scripts/dependency-updates.mjs verify "$BASE_SHA" "${args[@]}"

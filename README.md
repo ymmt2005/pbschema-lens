@@ -184,7 +184,7 @@ The security target is current practice for a static site built from untrusted s
 
 ## Develop
 
-The released binary does not require Node. Building this repository from source needs Node to compile `internal/site/dist` before `go build`, and Go 1.26 or newer.
+The released binary does not require Node. Building this repository from source needs Node to compile `internal/site/dist` before `go build`, and the Go patch version pinned in `go.mod`. The Node runtime is pinned in `package.json` (`engines.node`). See [development checks and dependency updates](scripts/README.md).
 
 ```bash
 npm test

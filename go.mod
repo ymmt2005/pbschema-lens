@@ -1,6 +1,6 @@
 module github.com/ymmt2005/pbschema-lens
 
-go 1.26.0
+go 1.26.9
 
 require (
 	github.com/goccy/go-yaml v1.19.2
