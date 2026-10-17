@@ -25,7 +25,7 @@ type Options struct {
 	WriteSchema bool
 }
 
-// Write copies the embedded UI, stamps the base path, and writes one shell per route.
+// Write copies embedded assets and renders a complete HTML document for each route.
 // Generated paths stay under the output directory. An absolute path or a ".." segment is rejected.
 func Write(outDir string, schema *model.SchemaModel, opts Options) error {
 	base := normalizeBase(opts.Base)
@@ -71,23 +71,32 @@ func Write(outDir string, schema *model.SchemaModel, opts Options) error {
 	if err != nil {
 		return err
 	}
-	if err := writeShells(out, shell, schema); err != nil {
+	if err := writePages(out, shell, schema, opts); err != nil {
 		return err
 	}
 	return writeArtifacts(out, schema, opts)
 }
 
-func writeShells(out string, shell []byte, schema *model.SchemaModel) error {
+func writePages(out string, shell []byte, schema *model.SchemaModel, opts Options) error {
+	renderer, err := newRenderer(schema, opts)
+	if err != nil {
+		return err
+	}
 	for _, route := range routes(schema) {
-		if route == "/" {
-			continue
+		page, err := renderer.page(route, shell)
+		if err != nil {
+			return fmt.Errorf("render %s: %w", route, err)
 		}
-		dir := filepath.FromSlash(strings.Trim(route, "/"))
-		if err := writeFile(out, filepath.Join(dir, "index.html"), shell); err != nil {
+		name := filepath.Join(strings.Trim(route, "/"), "index.html")
+		if err := writeFile(out, name, page); err != nil {
 			return err
 		}
 	}
-	return writeFile(out, "404.html", shell)
+	page, err := renderer.page("/404.html", shell)
+	if err != nil {
+		return err
+	}
+	return writeFile(out, "404.html", page)
 }
 
 func writeArtifacts(out string, schema *model.SchemaModel, opts Options) error {

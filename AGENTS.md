@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository. Human-facing product docs
 
 ## What this is
 
-pbschema-lens is a **static** Protocol Buffers schema explorer. Buf compiles the schema. This repo reads a `FileDescriptorSet`, builds a renderer-independent symbol model in Go, and copies an embedded browser UI that renders that model. There is no documentation server, database, or schema registry.
+pbschema-lens is a **static** Protocol Buffers schema explorer. Buf compiles the schema. This repo reads a `FileDescriptorSet`, builds a renderer-independent symbol model in Go, and renders complete HTML pages in Go. Embedded CSS and JavaScript provide styling and interactive controls. There is no documentation server, database, or schema registry.
 
 Do not introduce Starlight, MDX, a runtime docs server, or a path that runs Node, JavaScript, or WebAssembly inside the `pbschema-lens` process. The browser UI is compiled ahead of time and embedded. The Go process does not invoke Buf and does not compile `.proto` files.
 
@@ -19,8 +19,8 @@ Do not introduce Starlight, MDX, a runtime docs server, or a path that runs Node
 | `internal/markdown/` | Comment sanitizer |
 | `internal/model/` | `SchemaModel` producer, options, semantic renderers, diff |
 | `internal/pipeline/` | Orchestration for `build`, `dev`, and `diff` |
-| `internal/site/` | Embed the compiled UI, stamp tokens, write per-symbol JSON |
-| `ui/` | Vite browser UI. Compiled into `internal/site/dist` |
+| `internal/site/` | Go HTML templates, navigation trees, embedded assets, JSON exports |
+| `ui/` | Vite-built styling and progressive controls, embedded from `internal/site/dist` |
 | `src/core/` | Display helpers and the TypeScript `SchemaModel` types |
 | `site/src/` | Shared CSS and theme imported by `ui/` |
 | `examples/acme/` | Bundled demo schema; published to GitHub Pages |
@@ -31,22 +31,16 @@ During development, run `npm run build:ui` before `go build` or `go run ./cmd/pb
 
 ## Internal architecture
 
-Data flows one way. The browser renders JSON shards under `assets/model/`. It does not call Buf or rebuild the descriptor set.
+Data flows one way. Go renders the model into HTML at build time. Ordinary navigation and source browsing need no JavaScript or JSON requests. Search and the used-by picker fetch their data on demand; the browser does not call Buf or rebuild the descriptor set.
 
 ```mermaid
 flowchart TD
-  buf["buf build -o - --as-file-descriptor-set"]
-  fds["FileDescriptorSet bytes"]
-  model["SchemaModel"]
-  json["assets/model/*.json"]
-  ui["embedded UI"]
-  out["static HTML + assets/protobuf/*.json"]
-
-  buf --> fds
-  fds -->|"internal/fds · protodesc"| model
-  model -->|"internal/model"| json
-  ui -->|"internal/site"| out
-  json --> out
+  buf[Buf] --> fds[FileDescriptorSet]
+  fds --> model[Go SchemaModel]
+  model --> templates[Go HTML templates]
+  templates --> pages[Complete static pages]
+  model --> json[JSON exports and search data]
+  assets[Embedded CSS and progressive controls] --> pages
 ```
 
 `cmd/pbschema-lens` loads `pbschema-lens.yaml` (`internal/config`) and calls `pipeline.Build`. That is the only orchestration entry point for `build`, `dev`, and `diff`.
@@ -57,7 +51,7 @@ The product reads a `FileDescriptorSet` from a file or from stdin (`-`). It does
 
 ### Model (`internal/model/`)
 
-`SchemaModel` (`internal/model/types.go`, mirrored by `src/core/types.ts`) is the contract between the Go pipeline and the browser. Every documented entity is a `DocSymbol` in `model.symbols`, with kind-specific lists (`messages`, `services`, …) as indexes into that map.
+`SchemaModel` (`internal/model/types.go`, mirrored by `src/core/types.ts`) is the contract for Go rendering and JSON exports. Every documented entity is a `DocSymbol` in `model.symbols`, with kind-specific lists (`messages`, `services`, …) as indexes into that map.
 
 `Build`:
 
@@ -74,9 +68,13 @@ A config that lists `plugins` fails the build. The binary does not load plugin m
 
 ### Site
 
-`internal/site` copies the embedded Vite build into the output directory, stamps `/__PBSCHEMA_BASE__/`, `__DATA_BASE__`, `__SITE_URL__`, `__FULL_TEXT__`, and `__TITLE__`, and copies `index.html` onto every `generatePage` route plus `/explore`, `/graph`, and `/diff`. It writes that same shell to `404.html` so an unknown path still loads the site, and adds `/source` when any source text is present. Search opens from the header on any page and has no route of its own. Site output refuses a filesystem root, the working directory, or an ancestor of the working directory, then replaces that directory with `RemoveAll` and `MkdirAll`. A generated path that is absolute or contains a `..` segment is not written. Model data is split: `assets/model/index.json` (nav, search, package and file cards, shard keys), `assets/model/symbols/<sha256>.json` (one page plus the children it renders), `assets/model/source/<sha256>.json` (proto text), `assets/model/graph.json`, `assets/model/references.json`, and `assets/model/diff.json` when a diff exists. `assets/model/comments.json` is written when full-text search is on. There is no monolithic `model.json`. Every build writes `assets/protobuf/symbols.json` and `build-info.json`. The exported `assets/protobuf/references.json` and `schema.binpb` follow `artifacts.references` and `artifacts.descriptorSet`.
+`internal/site` copies the embedded Vite assets and uses `html/template` to render complete documents for all published routes, `/explore/`, `/graph/`, `/diff/`, and `/source/` when sources are present. Each document contains its own title, canonical link, sidebar, content, and anchors. `404.html` contains the not-found page. Links use ordinary browser navigation; there is no client-side router or page hydration. Only sanitized model comments and built-in WKT notes cross the raw HTML boundary. Other schema text and URL attributes use contextual template escaping.
 
-The browser loads `index.json` first, then the payload named by that index. Display helpers (package nav, field table, source tree, search ranking) stay in TypeScript under `src/core/` and run in the browser. Comment search fetches `comments.json` when `search.fullText` is omitted or true. The diff page fetches `diff.json`. There is no Pagefind index. `dev` watches the descriptor file and does not invoke Buf. Repository link commits come from `--commit` or `source.commit`; the process does not run git.
+The Vite document provides asset URLs and placeholders; configuration is stamped before inserting rendered content, so schema text is never interpreted as a stamping token. Source text is escaped before syntax spans are added. Output refuses a filesystem root, the working directory, or an ancestor of the working directory, and rejects generated paths that are absolute or contain `..` segments.
+
+JSON exports remain compatible: `assets/model/index.json`, symbol/source shards, `graph.json`, `references.json`, optional `diff.json`, and `comments.json` when full-text search is enabled. Ordinary pages do not fetch these files. Search lazily loads the index and comments; the explorer picker loads the index and references. Symbol pages show at most 40 incoming references per relation, with a link to the explorer when truncated. The explorer initially renders 200 references and provides Show more to reach the rest. JSON exports retain the complete reference data. The exported `assets/protobuf/symbols.json` and `build-info.json` are always written; `references.json` and `schema.binpb` follow configuration.
+
+`dev` watches the descriptor file and does not invoke Buf. Repository link commits come from `--commit` or `source.commit`; the process does not run git.
 
 ### Where to change what
 
@@ -87,17 +85,17 @@ The browser loads `index.json` first, then the payload named by that index. Disp
 | Descriptor ingest | `internal/fds/fds.go` |
 | Symbol graph, comments, options | `internal/model/` (`types.go` and `src/core/types.ts` together when the JSON shape changes) |
 | HTTP / validation / field-behavior chips | `internal/model/semantic.go` (`google.api.http`, `buf.validate`, `cybozu.validate`, …) |
-| Field table grouping and Validation column | `src/core/field-table.ts` + `ui/src/main.ts` |
-| Sidebar package tree and home area summary | `src/core/package-nav.ts` + `ui/src/main.ts` |
-| Source file tree | `src/core/source-tree.ts` + `ui/src/main.ts` |
+| Field table grouping and Validation column | `internal/site/render.go` + `internal/site/templates/common.html` |
+| Sidebar package tree and home area summary | `internal/site/trees.go` + `internal/site/templates/trees.html` |
+| Source file tree | `internal/site/trees.go` + `internal/site/templates/trees.html` |
 | Symbol search ranking | `src/core/search.ts` + `ui/src/main.ts` |
 | RPC method URLs | `internal/model/links.go` |
-| Page layout, tables, source browser, theme | `ui/src/main.ts`, `site/src/styles/global.css`, `site/src/lib/theme.ts` |
+| Page layout, tables, source browser, theme | `internal/site/templates/`, `site/src/styles/global.css`; progressive controls in `ui/src/main.ts` |
 | Example schema | `examples/acme/proto/` |
 | Pages workflow template | `pagesWorkflow` in `cmd/pbschema-lens/main.go` |
 | GitHub Release binaries | `.goreleaser.yaml` and `.github/workflows/release.yml` (`scripts/release-detect.sh`) |
 
-If you change `SchemaModel`, update the Go producer and the TypeScript type. The JSON under `assets/model/` is the API between them.
+If you change `SchemaModel`, update the Go producer and the TypeScript type. Preserve the JSON export contract for interactive controls and consumers.
 
 ## Quality
 
@@ -123,7 +121,7 @@ Root `tsconfig.json` typechecks `src/`. `ui/tsconfig.json` typechecks the browse
 These are gitignored and rewritten on every build:
 
 - `dist/`, `examples/acme/dist/`, `internal/site/dist/`
-- `e2e/.site/`, `e2e/.bin/`, `e2e/.results/`
+- `e2e/.site/`, `e2e/.site-prefixed/`, `e2e/.bin/`, `e2e/.results/`
 - `.pbschema-lens/`
 
 `internal/site/dist` is the Vite output that `go build` embeds. CI runs `npm run build:ui` before `go test` and `go build`. The Pages workflow for *this* repo builds `examples/acme` into `dist/` with `--base "/pbschema-lens/"`. Do not commit that output.
@@ -163,3 +161,7 @@ Do not run `gh release create`, `git tag`, or attach assets by hand.
 3. Ordinary `main` pushes (docs, features, this workflow itself) do not change `package.json` version, so they skip.
 
 Do not delete a published tag or Release. This repo uses immutable releases: a deleted tag name cannot be reused (that is why `v0.2.0` was skipped). If the version on `main` is wrong, bump to the next patch in a new PR. Do not move a published tag to a later commit.
+
+## Static rendering checks
+
+Go renderer tests own page markup, field grouping, titles, escaping, and navigation trees. The Acme integration test reads generated HTML at both `/` and `/pbschema-lens/` and checks internal targets, fragments, and duplicate IDs without a browser. Playwright checks controls and complete documents with JavaScript disabled, plus navigation while JSON requests are blocked. Run `npm run test:e2e` after installing Chromium with `npx playwright install --with-deps chromium`. An existing browser can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`; the default uses Playwright's browser.

@@ -1,6 +1,6 @@
 package model
 
-// SchemaModel is the JSON document the browser renders.
+// SchemaModel is the renderer-independent model used by Go templates and JSON exports.
 type SchemaModel struct {
 	Title       string             `json:"title"`
 	Packages    []*DocPackage      `json:"packages"`

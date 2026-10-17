@@ -25,14 +25,14 @@ buf build -o - --as-file-descriptor-set \
 
 `--source` is the directory of `.proto` files used for the in-site source browser. Omit it when you only have a descriptor set. The tool does not look for a `proto` directory on its own.
 
-Pages are client-rendered shells that fetch JSON, so open the site over HTTP. `dev` watches the descriptor file and serves the site. It does not invoke Buf.
+Go renders complete HTML pages at build time. Reading pages, following links, and browsing source work without JavaScript. Search, theme controls, and the used-by picker use JavaScript. Serve the site over HTTP for assets and interactive features. `dev` watches the descriptor file and serves the site. It does not invoke Buf.
 
 ```bash
 buf build -o schema.binpb --as-file-descriptor-set
 pbschema-lens dev schema.binpb --out dist --port 43147
 ```
 
-A static file server works the same way. Opening `dist/index.html` as a local file does not, because the browser blocks those fetches.
+A static file server works the same way. Use HTTP rather than opening `dist/index.html` as a local file: site-relative asset URLs and interactive data requests require the configured site root.
 
 ## Install from a GitHub Release
 
@@ -164,11 +164,13 @@ externalLinks:
 
 ## Architecture
 
-Compilation is Buf's job. pbschema-lens reads a `FileDescriptorSet`, builds the symbol model in Go, and copies an embedded browser UI. The Go process does not run Node, JavaScript, or WebAssembly, and it does not invoke Buf. Starlight is not used.
+Compilation is Buf's job. pbschema-lens reads a `FileDescriptorSet`, builds the symbol model in Go, and renders pages using Go HTML templates. CSS and progressive JavaScript controls are compiled ahead of time and embedded. The Go process does not run Node, JavaScript, or WebAssembly, and it does not invoke Buf. Starlight is not used.
 
-The site does not ship one `model.json`. `assets/model/index.json` is the nav and search catalog. Each symbol page fetches `assets/model/symbols/<shard>.json`, and each source file fetches `assets/model/source/<shard>.json`. Those shard names are SHA-256 keys stored in the index. The package graph, comment text, schema diff, and reference list are separate files, loaded when those views run.
+Every published route contains its documentation, navigation, title, and anchors in the generated HTML. There is no client-side routing or page hydration. Static link checkers can inspect the generated documents directly.
 
-Comments are treated as untrusted data. Go renders them as Markdown with a sanitized HTML allowlist before they are written into those JSON files. They are never compiled as MDX or JavaScript. Safe links are `http`, `https`, `mailto`, relative paths, and `#fragment`. `javascript:`, `data:`, and protocol-relative `//host` links are dropped.
+JSON artifacts remain available under `assets/model/` and `assets/protobuf/`. Search loads the index and optional comment index on demand; the used-by picker loads reference data. Symbol/source shards, graph data, and schema diffs remain exported for consumers, but page rendering does not fetch them.
+
+Comments are treated as untrusted data. Go renders them as Markdown with a sanitized HTML allowlist before they are inserted into pages or exported as JSON. Other schema text and link attributes are escaped by Go HTML templates. They are never compiled as MDX or JavaScript. Safe links are `http`, `https`, `mailto`, relative paths, and `#fragment`. `javascript:`, `data:`, and protocol-relative `//host` links are dropped.
 
 ## Security notes
 
@@ -191,7 +193,7 @@ go test ./...
 buf build examples/acme -o - --as-file-descriptor-set | go run ./cmd/pbschema-lens doctor --config examples/acme/pbschema-lens.yaml
 ```
 
-`npm run test:e2e` builds the Acme site and drives it in Chromium. It checks the shell, search dialog, theme menu, mobile drawer, and routing. Ranking, titles, theme choice, sanitizing, and page HTML stay in `npm test` and `go test`.
+Install the browser once with `npx playwright install --with-deps chromium`. `npm run test:e2e` builds Acme separately at `/` and `/pbschema-lens/` and drives it in Chromium. It checks search, theme, mobile navigation, and native page navigation, including JavaScript-disabled pages and blocked JSON requests. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium installation. `go test ./...` checks page rendering and audits generated internal links, fragments, and duplicate IDs at both base paths. Search ranking and other browser helpers remain covered by `npm test`.
 
 The example API lives in `examples/acme` and is published to [GitHub Pages](https://ymmt2005.github.io/pbschema-lens/) after CI tests pass. The `pbschema-lens init --github-pages` template is documented in `examples/github-pages`.
 

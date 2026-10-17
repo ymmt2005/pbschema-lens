@@ -14,12 +14,13 @@ export function incomingReferencesHtml(
   names: Record<string, string>,
   hrefs: Record<string, string>,
   prefix: string,
+  limit = 200,
 ): string {
   if (!refs.length) {
     return `<p>No incoming references for <strong>${escapeHtml(fullName)}</strong>.</p>`;
   }
   const items = refs
-    .slice(0, 200)
+    .slice(0, limit)
     .map((ref) => {
       const href = hrefs[ref.fromId];
       const name = escapeHtml(names[ref.fromId] ?? ref.fromId);
@@ -29,5 +30,8 @@ export function incomingReferencesHtml(
       return `<li>${label} <span class="text-[color:var(--fg-muted)]">· ${escapeHtml(ref.kind)}</span></li>`;
     })
     .join("");
-  return `<p class="mb-3">${refs.length} incoming reference(s)</p><ul class="space-y-1">${items}</ul>`;
+  const more = refs.length > limit
+    ? `<p class="mt-3">Showing ${limit} of ${refs.length} references.</p><button type="button" data-more-references class="mt-2 rounded-md border border-[color:var(--line)] px-3 py-1">Show more references</button>`
+    : "";
+  return `<p class="mb-3">${refs.length} incoming reference(s)</p><ul class="space-y-1">${items}</ul>${more}`;
 }

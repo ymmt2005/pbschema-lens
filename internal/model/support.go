@@ -112,6 +112,13 @@ func allBases(model *SchemaModel) []*baseSymbol {
 	return out
 }
 
+// SymbolMetadata exposes the shared, read-only rendering metadata of a symbol.
+// The model remains the authority for page visibility, links, and sanitized comments.
+func SymbolMetadata(symbol any) *baseSymbol {
+	base, _ := basePtr(symbol)
+	return base
+}
+
 func basePtr(symbol any) (*baseSymbol, bool) {
 	switch s := symbol.(type) {
 	case *DocPackage:
