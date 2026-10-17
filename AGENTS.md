@@ -106,6 +106,8 @@ The quality target, the bar for a finished change, and how to maintain it are in
 ```bash
 npm ci
 npm test
+aqua install
+npm run test:links
 npm run test:e2e
 npm run typecheck
 npm run build:ui
@@ -121,7 +123,7 @@ Root `tsconfig.json` typechecks `src/`. `ui/tsconfig.json` typechecks the browse
 These are gitignored and rewritten on every build:
 
 - `dist/`, `examples/acme/dist/`, `internal/site/dist/`
-- `e2e/.site/`, `e2e/.site-prefixed/`, `e2e/.bin/`, `e2e/.results/`
+- `.pbschema-lens/test-sites/`, `.pbschema-lens/test-configs/`, `.pbschema-lens/bin/`, `.pbschema-lens/link-reports/`, `e2e/.results/`
 - `.pbschema-lens/`
 
 `internal/site/dist` is the Vite output that `go build` embeds. CI runs `npm run build:ui` before `go test` and `go build`. The Pages workflow for *this* repo builds `examples/acme` into `dist/` with `--base "/pbschema-lens/"`. Do not commit that output.
@@ -146,7 +148,7 @@ These are gitignored and rewritten on every build:
 
 `pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the `pagesWorkflow` string in `cmd/pbschema-lens/main.go`. If you change that workflow, edit that string, not a checked-in copy. Keep `examples/github-pages/README.md` in sync. The generated workflow pins each action to a release commit, installs Buf with `buf-action` (`setup_only: true`), downloads `pbschema-lens_linux_amd64.tar.gz` from `releases/latest/download`, and runs `buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --commit "$GITHUB_SHA"`. It does not pass `--source`.
 
-This repository’s own CI is `.github/workflows/ci.yml` on Node 24 and Go 1.26. The test job runs display-helper tests, typecheck, `npm run build:ui`, `go test`, doctor, and the Acme example build. The e2e job runs the Playwright suite. Pages deploy from `main` only, after both jobs pass.
+This repository’s own CI is `.github/workflows/ci.yml` on Node 24 and Go 1.26. The test job runs display-helper tests, typecheck, `npm run build:ui`, `go test`, doctor, the Acme example build, and offline lychee checks at both base paths. Lychee is pinned and checksum-managed by aqua. The e2e job runs the Playwright suite. Pages deploy from `main` only, after both jobs pass.
 
 `.github/workflows/release.yml` runs on every push to `main`. `scripts/release-detect.sh` compares `package.json` on HEAD to `HEAD^`. That is enough because `main` only accepts squash merges via PR (no merge commits, no rebase merges, no direct pushes), so each push is one commit. It treats HEAD as a release only when the version changed to a new `x.y.z` and `gh release view vX.Y.Z` does not already exist. Then the job tests, builds the UI, runs `go test`, creates annotated tag `vX.Y.Z` on `$GITHUB_SHA` (or fails if that tag already points at a different commit), pushes it, and runs `goreleaser/goreleaser-action` (`release --clean`) from `.goreleaser.yaml`. GoReleaser publishes `CGO_ENABLED=0` binaries for Linux, Windows, and macOS on amd64 and arm64. Archive names are `pbschema-lens_<os>_<arch>.tar.gz` (`.zip` on Windows). Those live at `/releases/download/…`, not GitHub’s `/archive/refs/tags/…` source snapshot. Do not add a `prepare` script. Document consumer install as a pinned `/releases/download/vX.Y.Z/pbschema-lens_<os>_<arch>.tar.gz`.
 
@@ -164,4 +166,8 @@ Do not delete a published tag or Release. This repo uses immutable releases: a d
 
 ## Static rendering checks
 
-Go renderer tests own page markup, field grouping, titles, escaping, and navigation trees. The Acme integration test reads generated HTML at both `/` and `/pbschema-lens/` and checks internal targets, fragments, and duplicate IDs without a browser. Playwright checks controls and complete documents with JavaScript disabled, plus navigation while JSON requests are blocked. Run `npm run test:e2e` after installing Chromium with `npx playwright install --with-deps chromium`. An existing browser can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`; the default uses Playwright's browser.
+Go renderer tests own page markup, field grouping, titles, escaping, and navigation trees. The Acme Go integration test reads generated HTML at both bases and checks page identity and duplicate IDs. `npm run test:links` uses aqua-managed lychee for generic internal targets and fragments, with real positive/negative cases at both bases and CI failure reports. Keep link exclusions narrow and documented; the current offline check has none.
+
+Playwright checks progressive controls, no-JavaScript documents, native anchors below the header at desktop/320px, narrow layouts, configuration variants, and a real descriptor diff. Tests import the shared browser-error monitor from `e2e/fixtures.ts`; intentional HTTP failures use exact per-test exceptions. Read [`scripts/README.md`](scripts/README.md) for the matrix, build layout, tools, ports, reports, and local commands.
+
+Install Chromium with `npx playwright install --with-deps chromium`; an existing browser can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`. Both check workflows rebuild embedded Vite assets before compiling Go. Outputs are under `.pbschema-lens/`; Playwright artifacts remain in `e2e/.results/`.

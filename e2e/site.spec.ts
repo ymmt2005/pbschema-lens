@@ -244,3 +244,27 @@ test("the explorer expands references beyond its initial 200 results", async ({ 
   await expect(page.locator("#explorer-out li")).toHaveCount(200);
   await expect(page.getByRole("button", {name:"Show more references"})).toBeVisible();
 });
+
+for (const choice of ['Light','Dark']) {
+  test(`explicit ${choice} overrides later system changes until Follow desktop`,async({page})=>{
+    await page.goto('/');
+    const setChoice=async(name:string)=>{
+      await page.getByRole('button',{name:'Theme',exact:true}).click();
+      await page.getByRole('menuitemradio',{name,exact:true}).click();
+    };
+    await setChoice(choice);
+    const dark=choice==='Dark';
+    const check=async(wantDark:boolean)=>{
+      if(wantDark)await expect(page.locator('html')).toHaveClass(/dark/);
+      else await expect(page.locator('html')).not.toHaveClass(/dark/);
+    };
+    for (const colorScheme of ['dark','light'] as const) {
+      await page.emulateMedia({colorScheme});
+      await check(dark);
+    }
+    await page.reload();await check(dark);
+    await page.emulateMedia({colorScheme:dark?'light':'dark'});await check(dark);
+    await setChoice('Follow desktop');await check(!dark);
+    await page.emulateMedia({colorScheme:dark?'dark':'light'});await check(dark);
+  });
+}
