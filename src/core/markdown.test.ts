@@ -6,6 +6,31 @@ import { urlPathFor, fileSourcePath, repositoryBlobUrl } from "./urls.js";
 import type { SchemaModel } from "./types.js";
 
 describe("markdown sanitization", () => {
+  it("reflows soft breaks while preserving paragraphs, hard breaks, and code whitespace", () => {
+    expect(renderSafeMarkdown("support\nworkflows").trim()).toBe("<p>support\nworkflows</p>");
+    expect(renderSafeMarkdown("support\n\nworkflows").trim()).toBe("<p>support</p>\n<p>workflows</p>");
+    for (const source of ["support  \nworkflows", "support\\\nworkflows"]) {
+      expect(renderSafeMarkdown(source)).toMatch(/support<br\s*\/>\s*workflows/);
+    }
+    for (const source of ["```\nfirst\n  second\n```", "    first\n      second\n"]) {
+      expect(renderSafeMarkdown(source)).toContain("<pre><code>first\n  second\n</code></pre>");
+    }
+  });
+
+  it("places Markdown and raw HTML headings below the page title, capped at h6", () => {
+    for (let level = 1; level <= 6; level++) {
+      const target = Math.min(level + 1, 6);
+      for (const source of ["#".repeat(level) + " Section", `<h${level} onclick="alert(1)">Section</h${level}>`]) {
+        expect(renderSafeMarkdown(source).trim()).toBe(`<h${target}>Section</h${target}>`);
+      }
+    }
+    expect(renderSafeMarkdown("Section\n=======").trim()).toBe("<h2>Section</h2>");
+    expect(renderSafeMarkdown("<H1>Section</H1>").trim()).toBe("<h2>Section</h2>");
+    expect(renderSafeMarkdown("`<h1>Title</h1>`")).toContain("&lt;h1&gt;Title&lt;/h1&gt;");
+    expect(renderSafeMarkdown('```html\n<h1>Title</h1>\n```')).toContain("&lt;h1&gt;Title&lt;/h1&gt;");
+    expect(renderSafeMarkdown('<a href="https://example.com" title="<h1>Title</h1>">link</a>')).toContain('title="&lt;h1&gt;Title&lt;/h1&gt;"');
+  });
+
   it("strips script tags and event handlers", () => {
     const html = renderSafeMarkdown(`Hello <script>alert("xss")</script> **world** <img src=x onerror="alert(1)">`);
     expect(html).toContain("world");

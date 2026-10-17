@@ -34,7 +34,6 @@ var (
 	mdParser   = parser.New(parser.WithExtensions(extension.GFMParser))
 	mdRenderer = gmhtml.New(
 		gmhtml.WithUnsafe(),
-		gmhtml.WithHardWraps(),
 		gmhtml.WithExtensions(extension.GFMHTMLRenderer),
 	)
 )
@@ -69,7 +68,31 @@ func RenderSafe(markdown string) string {
 	if err := mdRenderer.Render(&buf, source, doc); err != nil {
 		return EscapeHTML(markdown)
 	}
-	return sanitize(buf.String())
+	return sanitize(commentHeadings(buf.String()))
+}
+
+// commentHeadings places sections beneath the document title. Normalize the
+// rendered HTML so Markdown and permitted raw HTML headings follow the same
+// policy. Tokenization leaves heading-like text in code and attributes alone;
+// sanitization still owns all tag, attribute, and URL filtering afterwards.
+func commentHeadings(fragment string) string {
+	z := html.NewTokenizer(strings.NewReader(fragment))
+	var out strings.Builder
+	for {
+		kind := z.Next()
+		if kind == html.ErrorToken {
+			return out.String()
+		}
+		raw := string(z.Raw())
+		if kind == html.StartTagToken || kind == html.EndTagToken || kind == html.SelfClosingTagToken {
+			token := z.Token()
+			if len(token.Data) == 2 && token.Data[0] == 'h' && token.Data[1] >= '1' && token.Data[1] < '6' {
+				token.Data = "h" + string(token.Data[1]+1)
+				raw = token.String()
+			}
+		}
+		out.WriteString(raw)
+	}
 }
 
 // EscapeHTML escapes text that will be inserted into HTML.

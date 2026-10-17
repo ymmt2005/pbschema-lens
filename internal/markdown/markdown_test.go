@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -31,10 +32,53 @@ func TestAllowsSafeHTML(t *testing.T) {
 	}
 }
 
-func TestHardBreakDoesNotIndentTheNextLine(t *testing.T) {
-	html := RenderSafe("support\nworkflows")
-	if !strings.Contains(html, "<br>workflows") {
-		t.Fatalf("hard break %s", html)
+func TestCommentNewlines(t *testing.T) {
+	for _, tc := range []struct{ name, source, want string }{
+		{"soft break", "support\nworkflows", "<p>support\nworkflows</p>"},
+		{"paragraph", "support\n\nworkflows", "<p>support</p>\n<p>workflows</p>"},
+		{"two-space hard break", "support  \nworkflows", "<p>support<br>workflows</p>"},
+		{"backslash hard break", "support\\\nworkflows", "<p>support<br>workflows</p>"},
+		{"fenced code", "```proto\nmessage User {\n  string name = 1;\n}\n```", "<pre><code class=\"language-proto\">message User {\n  string name = 1;\n}\n</code></pre>"},
+		{"indented code", "Example:\n\n    first\n      second\n", "<p>Example:</p>\n<pre><code>first\n  second\n</code></pre>"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := strings.TrimSpace(RenderSafe(tc.source)); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCommentHeadingLevels(t *testing.T) {
+	for level := 1; level <= 6; level++ {
+		wantLevel := min(level+1, 6)
+		for _, source := range []string{
+			strings.Repeat("#", level) + " Section",
+			fmt.Sprintf(`<h%d onclick="alert(1)">Section</h%d>`, level, level),
+		} {
+			want := fmt.Sprintf("<h%d>Section</h%d>", wantLevel, wantLevel)
+			if got := strings.TrimSpace(RenderSafe(source)); got != want {
+				t.Errorf("source %q: got %q, want %q", source, got, want)
+			}
+		}
+	}
+	for _, source := range []string{"Section\n=======", "<H1>Section</H1>"} {
+		if got := strings.TrimSpace(RenderSafe(source)); got != "<h2>Section</h2>" {
+			t.Errorf("source %q: got %q", source, got)
+		}
+	}
+}
+
+func TestHeadingTextInCodeStaysLiteral(t *testing.T) {
+	for _, source := range []string{"`<h1>Title</h1>`", "```html\n<h1>Title</h1>\n```"} {
+		got := RenderSafe(source)
+		if !strings.Contains(got, "&lt;h1&gt;Title&lt;/h1&gt;") || strings.Contains(got, "<h2>") {
+			t.Fatalf("code changed: %s", got)
+		}
+	}
+	got := RenderSafe(`<a href="https://example.com" title="<h1>Title</h1>">link</a>`)
+	if !strings.Contains(got, `title="&lt;h1&gt;Title&lt;/h1&gt;"`) {
+		t.Fatalf("heading-like attribute changed: %s", got)
 	}
 }
 

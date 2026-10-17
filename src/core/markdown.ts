@@ -1,7 +1,7 @@
 import { marked } from "marked";
 import sanitizeHtml from "sanitize-html";
 
-marked.setOptions({ gfm: true, breaks: true });
+marked.setOptions({ gfm: true, breaks: false });
 
 const ALLOWED_TAGS = [
   "p",
@@ -63,6 +63,11 @@ export function renderSafeMarkdown(markdown: string): string {
     allowedSchemes: ["http", "https", "mailto"],
     transformTags: {
       a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer" }),
+      // Normalize both Markdown and raw HTML headings beneath the page title.
+      // The tag/attribute allowlists and URL filtering above remain unchanged.
+      ...Object.fromEntries([1, 2, 3, 4, 5].map(level => [
+        `h${level}`, sanitizeHtml.simpleTransform(`h${level + 1}`, {}),
+      ])),
     },
     disallowedTagsMode: "discard",
   });

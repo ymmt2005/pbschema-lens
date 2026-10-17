@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package e2e.typography.v1;
+
+// # Typography specimen
+//
+// This paragraph is wrapped in the source
+// and should flow naturally in the browser.
+//
+// A second paragraph contains `inline code` and a
+// [documentation link](https://example.invalid/typography).
+//
+// ## Lists and quotations
+//
+// - First unordered item
+//   - Nested unordered item
+// - Second unordered item
+//
+// 1. First ordered item
+// 2. Second ordered item
+//
+// > A quotation with a visible border.
+// > This source newline should also reflow.
+//
+// ## Wide code and table
+//
+// ```proto
+// message Example {
+//   string a_deliberately_long_field_name_that_requires_local_scrolling_on_a_narrow_screen_without_losing_the_end_of_the_line = 1;
+// }
+// ```
+//
+// | First column | Second column | Third column | Fourth column | Fifth column | Last column |
+// | --- | --- | --- | --- | --- | --- |
+// | `e2e.typography.v1.FirstColumn` | `e2e.typography.v1.SecondColumn` | `e2e.typography.v1.ThirdColumn` | `e2e.typography.v1.FourthColumn` | `e2e.typography.v1.FifthColumn` | `e2e.typography.v1.LastColumn` |
+message Specimen {
+  // A field comment with **emphasis**, `inline code`, and a list:
+  //
+  // - A field-level item
+  // - Another field-level item
+  string note = 1;
+}
