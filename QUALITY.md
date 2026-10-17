@@ -28,7 +28,7 @@ A change is finished when all of these hold:
 3. The result still holds after every later pass. Model build classifies, then links, then may publish, then builds the symbol index. An early decision that a later pass puts back is not done.
 4. The security target above still holds, and its tests still fail if the guard is removed. Comments stay sanitized HTML. Options stay data. Site output still refuses the working directory and filesystem root, and a generated path that leaves the output directory is rejected. Plugins stay unloaded.
 5. Root `tsc --noEmit`, `ui/tsconfig.json`, and `e2e/tsconfig.json` are clean. Generated files stay uncommitted (see Generated output in [`AGENTS.md`](AGENTS.md)). `npm run build:ui` has refreshed `internal/site/dist` before `go test` or `go build`.
-6. CI still passes: `npm test`, typecheck, `npm run build:ui`, `go test ./...`, `npm run test:e2e`, `doctor`, and the Acme site build. Those jobs guard the whole build. A green Acme build does not prove one decision, because the checked-in Acme config uses defaults and the happy path.
+6. CI still passes. The test job runs `npm test`, typecheck, `npm run build:ui`, `go test ./...`, `doctor`, and the Acme site build. The e2e job runs `npm run test:e2e`. Those jobs guard the whole build. A green Acme build does not prove one decision, because the checked-in Acme config uses defaults and the happy path.
 
 ## How to maintain it
 

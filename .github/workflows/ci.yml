@@ -12,9 +12,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -42,6 +39,34 @@ jobs:
         run: go build -o pbschema-lens ./cmd/pbschema-lens
       - name: Doctor
         run: buf build examples/acme -o - --as-file-descriptor-set | ./pbschema-lens doctor --config examples/acme/pbschema-lens.yaml
+      - name: Build example site
+        run: buf build examples/acme -o - --as-file-descriptor-set | ./pbschema-lens build --config examples/acme/pbschema-lens.yaml --out dist --base "/${{ github.event.repository.name }}/" --source examples/acme/proto
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist
+
+  e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26"
+      - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
+        with:
+          setup_only: true
+          github_token: ${{ github.token }}
+      - name: Install
+        run: npm ci
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Browser tests
@@ -54,17 +79,10 @@ jobs:
           path: e2e/.results
           if-no-files-found: ignore
           include-hidden-files: true
-      - name: Build example site
-        run: buf build examples/acme -o - --as-file-descriptor-set | ./pbschema-lens build --config examples/acme/pbschema-lens.yaml --out dist --base "/${{ github.event.repository.name }}/" --source examples/acme/proto
-      - name: Upload Pages artifact
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: dist
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: test
+    needs: [test, e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: read
