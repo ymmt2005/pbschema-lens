@@ -30,12 +30,13 @@ npx playwright install --with-deps chromium
 npm run test:e2e
 ```
 
-`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` selects an existing Chromium executable when needed. The same shared builder prepares both base paths and four focused root-based builds: descriptor-only, full-text disabled, WKT disabled, and a tiny real descriptor comparison. The test server starts and stops with Playwright; ports 4173–4177 must be free.
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` selects an existing Chromium executable when needed. The same shared builder prepares both base paths and four focused root-based builds: descriptor-only, full-text disabled, WKT disabled, and a tiny real descriptor comparison. A separate test-only typography build runs on port 4178; its fixture stays out of the published Acme catalog. The test server starts and stops with Playwright; ports 4173–4178 must be free.
 
 - Full offline link checks run at both bases, without a browser crawl.
 - Native field/enum/source anchors and RPC navigation run at desktop and 320px. Bounding-box assertions check header clearance and viewport position, including field/enum/source reloads and same-page field navigation.
 - Narrow User/Flag layouts check document-wide overflow and access to schema content. Text-range geometry checks representative field names, long types, and validation chips inside the table scroller and viewport. Intentional table/source/code scrolling is allowed; disclosure tests check active ancestors.
 - Each configuration variant runs once at desktop width. Theme tests emulate system changes around explicit overrides and Follow desktop.
+- Comment typography runs in light/dark themes at desktop and 320px. The real FieldMask page checks heading hierarchy, paragraph spacing, soft-wrap reflow, and compact code. The test-only specimen covers list markers, blockquotes, inline code, and reachable wide code/table content through local scrollers. Assertions use computed styles and text geometry; there are no screenshot goldens.
 - Existing no-JavaScript checks remain at both bases, and the 390px drawer check remains.
 
 Every browser test imports `e2e/fixtures.ts`. Its automatic monitor fails on JavaScript errors, failed same-origin requests, and HTTP error responses; diagnostics are attached to the Playwright result. Intentional 404 navigations declare their exact pathname/status in that test's `allowedHTTPFailures` list. API requests explicitly used to assert omitted files are tested directly. The JSON-blocking navigation test expects no JSON requests at all, so an unexpected aborted request still fails. Third-party font/network availability is outside this monitor's same-origin scope.

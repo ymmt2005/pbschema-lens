@@ -49,6 +49,9 @@ export function buildTestSites({ variants = false } = {}) {
     const after=run('buf',['build','fixtures/e2e-diff/after','-o','-','--as-file-descriptor-set'],{stdio:['ignore','pipe','inherit']});
     const previous=join(configDir,'previous.binpb');writeFileSync(previous,before);
     build('diff','/',{config:diffConfig,source:false,input:after,against:previous});
+    // Only the test server publishes the typography specimen; Acme stays clean.
+    const typography=run('buf',['build','fixtures/e2e-typography','-o','-','--as-file-descriptor-set'],{stdio:['ignore','pipe','inherit']});
+    build('typography','/',{config:config('typography','title: Typography fixture\ninput: "-"\n'),source:false,input:typography});
   }
   return sites;
 }

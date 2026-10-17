@@ -34,7 +34,6 @@ var (
 	mdParser   = parser.New(parser.WithExtensions(extension.GFMParser))
 	mdRenderer = gmhtml.New(
 		gmhtml.WithUnsafe(),
-		gmhtml.WithHardWraps(),
 		gmhtml.WithExtensions(extension.GFMHTMLRenderer),
 	)
 )
@@ -130,8 +129,14 @@ func writeAllowed(w io.Writer, node *html.Node) {
 			}
 			return
 		}
+		// Normalize parsed heading nodes after HTML tree repair. A standalone
+		// tokenizer can miss headings that escape foreign raw-text elements.
+		tag := node.Data
+		if len(tag) == 2 && tag[0] == 'h' && tag[1] >= '1' && tag[1] < '6' {
+			tag = "h" + string(tag[1]+1)
+		}
 		io.WriteString(w, "<")
-		io.WriteString(w, node.Data)
+		io.WriteString(w, tag)
 		writeAttrs(w, node)
 		if void(node.Data) {
 			io.WriteString(w, ">")
@@ -142,7 +147,7 @@ func writeAllowed(w io.Writer, node *html.Node) {
 			writeAllowed(w, child)
 		}
 		io.WriteString(w, "</")
-		io.WriteString(w, node.Data)
+		io.WriteString(w, tag)
 		io.WriteString(w, ">")
 	default:
 		for child := node.FirstChild; child != nil; child = child.NextSibling {

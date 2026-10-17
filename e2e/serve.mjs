@@ -29,6 +29,6 @@ function serve(port, deployments) {
   }).listen(port,'127.0.0.1',()=>console.log(`Test server ready on port ${port}`));
 }
 serve(4173,sites.filter(s=>s.name==='root'||s.name==='project'));
-for (const [i,name] of ['descriptor-only','no-full-text','no-wkt','diff'].entries()) {
+for (const [i,name] of ['descriptor-only','no-full-text','no-wkt','diff','typography'].entries()) {
   serve(4174+i,sites.filter(s=>s.name===name));
 }

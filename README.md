@@ -172,6 +172,8 @@ JSON artifacts remain available under `assets/model/` and `assets/protobuf/`. Se
 
 Comments are treated as untrusted data. Go renders them as Markdown with a sanitized HTML allowlist before they are inserted into pages or exported as JSON. Other schema text and link attributes are escaped by Go HTML templates. They are never compiled as MDX or JavaScript. Safe links are `http`, `https`, `mailto`, relative paths, and `#fragment`. `javascript:`, `data:`, and protocol-relative `//host` links are dropped.
 
+Source-wrapped comment paragraphs reflow naturally. Use a blank line for a new paragraph, two trailing spaces or a backslash for an explicit Markdown line break, and fenced code blocks for examples or ASCII diagrams whose whitespace matters. Comment headings appear one level below their Markdown level, capped at `h6`, reserving `h1` for the page title. Wide Markdown tables and code examples scroll within their own containers.
+
 ## Security notes
 
 The security target is current practice for a static site built from untrusted schema text. When a sanitizer bypass or a new HTML, URL, or path sink becomes known, the allowlist and its tests move with it. The full bar is [`QUALITY.md`](QUALITY.md).
