@@ -204,29 +204,37 @@ async function apply() {
   writeFileSync(join(repo,'cmd/pbschema-lens/main.go'),read('cmd/pbschema-lens/main.go').replace(/version: "v?\d+\.\d+\.\d+"/,`version: "${tools.buf.replace(/^v/,'')}"`));
   // The schema pin is the same aqua release used by the installer.
   writeFileSync(join(repo,'aqua.yaml'),read('aqua.yaml').replace(/aquaproj\/aqua\/v[\d.]+\/json-schema/,`aquaproj/aqua/${tools.aqua}/json-schema`));
-  const savedMod=read('go.mod'), savedSum=read('go.sum');
   const modules = updates.filter(i => i.kind === 'module' && !i.indirect).map(i => `${i.name}@${i.next}`);
-  if (modules.length) {
-    run('go',['get',...modules]);
-    run('go',['mod','tidy']);
-  }
+  // Direct requirements still have their original versions here. The selected
+  // Go runtime is independent and remains eligible even if dependencies hold.
+  await updateGoDependencies(modules);
+  run('npm',['install','--package-lock-only','--ignore-scripts','--before',new Date(Date.now()-72*60*60*1000).toISOString()]);
+  // Registry release hashes must be reviewed just like tool artifact hashes.
+  run('aqua',['update-checksum']);
+  run('aqua',['install']);
+}
+
+export async function updateGoDependencies(modules, {root=repo,execute=(command,args)=>run(command,args,{cwd:root}),published=modulePublication} = {}) {
+  if (!modules.length) return false;
+  const modFile=join(root,'go.mod'), sumFile=join(root,'go.sum');
+  // Snapshot both files before go get can change any direct or indirect version.
+  const savedMod=readFileSync(modFile,'utf8'), savedSum=readFileSync(sumFile,'utf8');
+  execute('go',['get',...modules]);
+  execute('go',['mod','tidy']);
   let holdGo=false;
   const previousSums=goSums(savedSum);
-  for(const key of Object.keys(goSums(read('go.sum')))) if(!(key in previousSums)) {
+  for(const key of Object.keys(goSums(readFileSync(sumFile,'utf8')))) if(!(key in previousSums)) {
     const at=key.lastIndexOf('@'), name=key.slice(0,at), version=key.slice(at+1).replace(/\/go.mod$/,'');
-    const evidence=await modulePublication(name,version);
+    const evidence=await published(name,version);
     if(!eligibleReleases([evidence]).length) {
       holdGo=true;
     }
   }
   if(holdGo) {
-    writeFileSync(join(repo,'go.mod'),savedMod); writeFileSync(join(repo,'go.sum'),savedSum);
+    writeFileSync(modFile,savedMod); writeFileSync(sumFile,savedSum);
     console.log('Held Go dependency changes until new transitive versions satisfy the release embargo.');
   }
-  run('npm',['install','--package-lock-only','--ignore-scripts','--before',new Date(Date.now()-72*60*60*1000).toISOString()]);
-  // Registry release hashes must be reviewed just like tool artifact hashes.
-  run('aqua',['update-checksum']);
-  run('aqua',['install']);
+  return holdGo;
 }
 
 export async function verify(base, { updatesOnly = process.argv.includes('--updates-only') } = {}) {

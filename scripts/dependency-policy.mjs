@@ -198,9 +198,9 @@ export function assertPagesBufVersion(source, pin) {
   }
 }
 
-// A published Release always takes precedence, including while under embargo.
-// Only an absent Release can use Git timestamps, whose backdating risk the
-// maintainer accepts. They do not prove when the tag became public.
+// A Release returned by the API always takes precedence, including while under
+// embargo. A 404 can also hide a draft this token cannot see; in that case use
+// Git timestamps with the maintainer-accepted risk, not proof of publication age.
 export function goPublicationEvidence(version, release, fallback) {
   return {
     ...release, version,
@@ -215,7 +215,7 @@ export function renderUpdateReport({updates,checksums,runURL}) {
     '', '| Dependency | Before | After | Timestamp (UTC) | Source |', '| --- | --- | --- | --- | --- |'];
   for (const u of updates) lines.push(`| ${[u.name,u.before || undefined,u.after,u.published,u.source].map(cell).join(' | ')} |`);
   if (updates.some(u => ['git-tag','git-commit','go-proxy-commit'].includes(u.source))) lines.push('',
-    '**Accepted timestamp risk:** Git tag and commit timestamps are author-controlled and can be backdated. A newly created lightweight tag can point to an old commit. Fallback dates do not prove the version has been public for 72 hours. The rows above identify the affected dependencies and sources.');
+    '**Accepted timestamp risk:** Git tag and commit timestamps are author-controlled and can be backdated. A newly created lightweight tag can point to an old commit. Fallback dates do not prove the version has been public for 72 hours. A GitHub Release API 404 can also hide a draft this token cannot see. The rows above identify the affected dependencies and sources.');
   lines.push('', 'Existing checksum values are preserved. Checksum entries added/removed:', '');
   for (const [name,count] of Object.entries(checksums)) lines.push(`- ${cell(name)}: +${count.added} / -${count.removed}`);
   lines.push('', 'Go upgrades target direct requirements only; indirect changes follow from those upgrades. GitHub Actions remain outside automatic update scope.',

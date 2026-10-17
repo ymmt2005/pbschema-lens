@@ -547,7 +547,7 @@ jobs:
       - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
         with:
           setup_only: true
-          version: "1.73.0"
+          version: "1.74.0"
           github_token: ${{ github.token }}
       - name: Install pbschema-lens
         run: |

@@ -52,8 +52,8 @@ runs at 12:17 JST (03:17 UTC) on the first day of each month, or manually with
 
 The selector enforces:
 
-- A 72-hour embargo; prereleases, drafts, deprecated npm releases, future dates,
-  and missing evidence are ineligible. Date-only Go/Node release dates wait until
+- A 72-hour embargo; prereleases, API-visible drafts, deprecated npm releases,
+  future dates, and missing evidence are ineligible. Date-only Go/Node release dates wait until
   the end of the publication day plus 72 hours.
 - Go comes from the exact `go` directive in `go.mod` and skips every `1.x.0`.
   Node comes from exact `engines.node` in `package.json`, selects LTS, and skips
@@ -62,16 +62,20 @@ The selector enforces:
 - npm uses registry publication times for every new lockfile version, including
   transitives. Tools and aqua use GitHub Release publication times. Go toolchains
   use the official release history; Node uses the official distribution index.
-- Go modules prefer the exact tag's GitHub Release `published_at`. A fresh or
-  draft Release cannot be bypassed with an older Git date. Without a Release,
-  use the annotated tag's tagger date, or the target commit's committer date for
-  lightweight tags. Modules without a known GitHub mapping use the Go proxy's
+- Go modules prefer the exact tag's GitHub Release `published_at`. When the API
+  returns a Release, its timestamp and draft/prerelease flags take precedence
+  over older Git dates. If the API returns 404, use the Git fallback below; a
+  draft the token cannot see is indistinguishable from an absent Release.
+  Without an API-visible Release, use the annotated tag's tagger date, or the
+  target commit's committer date for lightweight tags. Modules without a known
+  GitHub mapping use the Go proxy's
   commit timestamp. Missing or invalid dates still hold the update.
 - **Accepted timestamp risk:** Git dates can be backdated, and a new lightweight
   tag can point to an old commit. These dates do not prove 72 hours of public
-  availability. The generated PR identifies fallback sources and explains the
-  risk. New Go transitives undergo the same age checks; an ineligible transitive
-  holds the Go dependency bump while other updates proceed.
+  availability, and an inaccessible draft may trigger this fallback. The generated
+  PR identifies fallback sources and explains the risk. New Go transitives undergo
+  the same age checks; an ineligible transitive restores both Go dependency files
+  to their pre-`go get` snapshot. Independent runtime/npm/tool updates proceed.
 - Discover and explicitly upgrade only direct Go requirements. Never target
   `// indirect` requirements or use `go get -u`. Run `go mod tidy` only after a
   direct update; indirect requirements and Go checksums may change as its

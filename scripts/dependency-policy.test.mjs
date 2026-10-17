@@ -1,8 +1,10 @@
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, unchangedChecksums, goSums, goRequirements, npmPackages, assertUpdateScope, goModuleRelease, githubToolOutputs, assertPagesBufVersion, automatedDependency, maskVersionPins, goPublicationEvidence, renderUpdateReport } from './dependency-policy.mjs';
-import { gitTagPublication, inventory } from './dependency-updates.mjs';
+import { gitTagPublication, inventory, updateGoDependencies } from './dependency-updates.mjs';
 import { pendingUpdate, publishUpdate } from './dependency-pr.mjs';
 
 const now=Date.parse('2026-10-17T12:00:00Z');
@@ -110,6 +112,36 @@ test('indirect requirements and Go checksums change only with a direct dependenc
   assert.throws(()=>assertUpdateScope([['go.mod',before,before.replace(' // indirect','')]]),/direct Go dependency names/);
 });
 
+test('Go dependency hold restores both files while retaining an independent runtime update',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'pbschema-go-hold-'));
+  try {
+    const mod='module example.com/project\n\ngo 1.27.2\n\nrequire example.com/direct v1.0.0\n';
+    const sum='example.com/direct v1.0.0 h1:YWJj=\n';
+    const nextMod=mod.replace('v1.0.0','v1.1.0')+'require example.com/transitive v2.0.0 // indirect\n';
+    const nextSum=sum+'example.com/direct v1.1.0 h1:ZGVm=\nexample.com/transitive v2.0.0 h1:Z2hp=\n';
+    for (const embargoed of [true,false]) {
+      writeFileSync(join(root,'go.mod'),mod); writeFileSync(join(root,'go.sum'),sum);
+      const commands=[];
+      const held=await updateGoDependencies(['example.com/direct@v1.1.0'],{root,
+        execute:(command,args)=>{
+          commands.push([command,args]);
+          if(args[0]==='get') {writeFileSync(join(root,'go.mod'),nextMod);writeFileSync(join(root,'go.sum'),nextSum);}
+        },
+        published:async(name,version)=>({version,published:embargoed&&name==='example.com/transitive'?'2999-01-01T00:00:00Z':'2000-01-01T00:00:00Z'}),
+      });
+      assert.equal(held,embargoed);
+      assert.equal(readFileSync(join(root,'go.mod'),'utf8'),embargoed?mod:nextMod);
+      assert.equal(readFileSync(join(root,'go.sum'),'utf8'),embargoed?sum:nextSum);
+      assert.deepEqual(commands,[['go',['get','example.com/direct@v1.1.0']],['go',['mod','tidy']]]);
+    }
+  } finally {rmSync(root,{recursive:true,force:true});}
+});
+
+test('no direct Go update means no Go commands or publication requests',async()=>{
+  const unexpected=()=>{throw new Error('Unexpected Go operation');};
+  assert.equal(await updateGoDependencies([],{root:'/not-a-project',execute:unexpected,published:unexpected}),false);
+});
+
 
 test('Go submodules use their own release tag, never the older root-module release',()=>{
   assert.deepEqual(goModuleRelease('github.com/acme/project/sub/v2','v2.1.0'),{repository:'acme/project',tag:'sub/v2.1.0'});
@@ -176,6 +208,7 @@ test('Go uses the exact GitHub Release publication date before an older Git time
   assert.deepEqual(eligibleReleases([evidence],{now}),[]);
   assert.equal(eligibleReleases([goPublicationEvidence('v1.2.3',{published_at:old},undefined)],{now}).length,1);
   assert.equal(goPublicationEvidence('v1.2.3',{published_at:null,draft:true},fallback).published,null);
+  assert.deepEqual(eligibleReleases([goPublicationEvidence('v1.2.3',{published_at:old,draft:true},fallback)],{now}),[]);
 });
 
 test('Go accepts old fallback timestamps but holds missing and fresh timestamps',()=>{
