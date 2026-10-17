@@ -205,9 +205,17 @@ test.describe("routing", () => {
     await expect(page.getByText("Nested profile preferences.")).toBeVisible();
     await page.getByRole("link", { name: "View source" }).click();
     await expect(page).toHaveURL(/\/source\/acme\/user\/v1\/user\.proto\/#L\d+$/);
-    const line = new URL(page.url()).hash.slice(1);
-    await expect(page.locator(`#${line}`)).toBeVisible();
-    await expect(page.locator(`#${line}`)).toContainText("Preferences");
+    const lineId = new URL(page.url()).hash.slice(1);
+    const line = page.locator(`#${lineId}`);
+    await expect(line).toContainText("Preferences");
+    const lineBox = await line.boundingBox();
+    const headerBox = await page.locator("header").boundingBox();
+    const viewport = page.viewportSize();
+    expect(lineBox).not.toBeNull();
+    expect(headerBox).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    expect(lineBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
+    expect(lineBox!.y + lineBox!.height).toBeLessThanOrEqual(viewport!.height + 1);
   });
 
   test("the used-by explorer lists references for the symbol the visitor picks", async ({ page }) => {

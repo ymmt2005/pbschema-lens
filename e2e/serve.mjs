@@ -29,9 +29,8 @@ function run(command, args, options = {}) {
 }
 
 function buildSite() {
-  if (!existsSync(join(repo, "internal/site/dist/index.html"))) {
-    run("npm", ["run", "build:ui"]);
-  }
+  // Always rebuild. A leftover internal/site/dist would embed the previous UI.
+  run("npm", ["run", "build:ui"]);
   mkdirSync(dirname(bin), { recursive: true });
   run("go", ["build", "-o", bin, "./cmd/pbschema-lens"]);
   const descriptor = spawnSync("buf", ["build", "examples/acme", "-o", "-", "--as-file-descriptor-set"], { cwd: repo });
