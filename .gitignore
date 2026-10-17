@@ -6,5 +6,8 @@ examples/acme/dist/
 *.tsbuildinfo
 .DS_Store
 internal/site/dist/
+e2e/.site/
+e2e/.bin/
+e2e/.results/
 agent-tools/
 uploads/

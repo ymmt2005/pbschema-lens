@@ -39,6 +39,10 @@ jobs:
         run: go build -o pbschema-lens ./cmd/pbschema-lens
       - name: Doctor
         run: buf build examples/acme -o - --as-file-descriptor-set | ./pbschema-lens doctor --config examples/acme/pbschema-lens.yaml
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser tests
+        run: npm run test:e2e
       - name: Build example site
         run: buf build examples/acme -o - --as-file-descriptor-set | ./pbschema-lens build --config examples/acme/pbschema-lens.yaml --out dist --base "/${{ github.event.repository.name }}/" --source examples/acme/proto
       - name: Upload Pages artifact

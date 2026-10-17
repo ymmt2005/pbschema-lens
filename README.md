@@ -184,11 +184,14 @@ The released binary does not require Node. Building this repository from source 
 
 ```bash
 npm test
+npm run test:e2e
 npm run typecheck
 npm run build:ui
 go test ./...
 buf build examples/acme -o - --as-file-descriptor-set | go run ./cmd/pbschema-lens doctor --config examples/acme/pbschema-lens.yaml
 ```
+
+`npm run test:e2e` builds the Acme site and drives it in Chromium. It checks the shell, search dialog, theme menu, mobile drawer, and routing. Ranking, titles, theme choice, sanitizing, and page HTML stay in `npm test` and `go test`.
 
 The example API lives in `examples/acme` and is published to [GitHub Pages](https://ymmt2005.github.io/pbschema-lens/) after CI tests pass. The `pbschema-lens init --github-pages` template is documented in `examples/github-pages`.
 
