@@ -105,6 +105,8 @@ PR against `main` remains open. Otherwise it stages eligible manifest updates,
 activates the selected Go, Node and aqua versions, then refreshes lockfiles and
 verifies scope/age/checksums. This order lets Go resolve dependencies with
 `GOTOOLCHAIN=local`, including when `go.mod` moves to a newer runtime.
+The aqua installer installs only the CLI; `finish` updates checksums before
+installing any aqua-managed packages.
 It installs the candidate's Buf version and runs npm installation,
 policy/unit/Go tests, typechecks, UI build, offline
 links and Playwright. A second policy check runs after the tests. Only a successful,

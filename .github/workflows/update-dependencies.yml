@@ -63,7 +63,8 @@ jobs:
         if: steps.stage.outcome == 'success'
         with:
           aqua_version: ${{ steps.candidate.outputs.aqua }}
-          aqua_opts: ""
+          # finish updates checksums before installing staged package versions.
+          enable_aqua_install: false
       - name: Refresh lockfiles and verify policy
         if: steps.stage.outcome == 'success'
         id: apply
