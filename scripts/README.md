@@ -93,6 +93,8 @@ and [available token permissions](https://docs.github.com/en/actions/reference/w
 Automated patches cannot change workflow files, policy
 scripts, package scripts, application version, or application code. Only the Buf
 CLI version in the generated Pages template may change in Go source.
+That embedded version must match the JSON Buf pin without its `v` prefix, so it
+receives the same release-age validation and appears in the generated update report.
 
 The read-only `prepare` job skips runs while a same-repository `deps/monthly-`
 PR against `main` remains open. Otherwise it applies eligible updates, verifies

@@ -186,6 +186,18 @@ export function githubToolOutputs(tools) {
   return Object.entries(tools).map(([key,value])=>`${key.replaceAll('-','_')}=${key==='buf'?value.replace(/^v/,''):value}`);
 }
 
+export function assertPagesBufVersion(source, pin) {
+  const workflow = /^const pagesWorkflow = `([\s\S]*?)`/m.exec(source)?.[1] ?? '';
+  const steps = [...workflow.matchAll(/^( *)- uses: bufbuild\/buf-action@[^\n]*\n/gm)];
+  if (steps.length !== 1) throw new Error('Generated Pages workflow must contain exactly one Buf Action');
+  const step = workflow.slice(steps[0].index + steps[0][0].length).split(new RegExp(`^${steps[0][1]}- `,'m'))[0];
+  const versions = [...step.matchAll(/^\s+version:\s*"([^"]*)"\s*$/gm)];
+  const expected = /^v?(\d+\.\d+\.\d+)$/.exec(pin ?? '')?.[1];
+  if (!stableVersion(expected ?? '') || versions.length !== 1 || versions[0][1] !== expected) {
+    throw new Error('Generated Pages Buf version must match dependency-tools.json buf without its v prefix');
+  }
+}
+
 // A published Release always takes precedence, including while under embargo.
 // Only an absent Release can use Git timestamps, whose backdating risk the
 // maintainer accepts. They do not prove when the tag became public.

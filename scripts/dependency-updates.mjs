@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { setGlobalProxyFromEnv } from 'node:http';
-import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, goRequirements, npmPackages, assertUpdateScope, goModuleRelease, githubToolOutputs, automatedDependency, goPublicationEvidence, renderUpdateReport } from './dependency-policy.mjs';
+import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, goRequirements, npmPackages, assertUpdateScope, goModuleRelease, githubToolOutputs, assertPagesBufVersion, automatedDependency, goPublicationEvidence, renderUpdateReport } from './dependency-policy.mjs';
 
 // Honor the cloud/agent sandbox's proxy without changing TLS verification.
 setGlobalProxyFromEnv();
@@ -81,7 +81,7 @@ async function releases(repository) {
   return result;
 }
 
-function inventory(get = read, { baseline = false } = {}) {
+export function inventory(get = read, { baseline = false } = {}) {
   const items = [];
   const pkg = JSON.parse(get('package.json'));
   const mod = get('go.mod');
@@ -100,6 +100,7 @@ function inventory(get = read, { baseline = false } = {}) {
     items.push({ id: `go:${name}`, kind: 'module', name, indirect, current: version });
   }
   const tools = JSON.parse(get(toolFile) || '{}');
+  if (!baseline) assertPagesBufVersion(get('cmd/pbschema-lens/main.go'),tools.buf);
   for (const [name, repository] of Object.entries(repositories)) if (tools[name]) items.push({ id: `tool:${name}`, kind: 'github', repository, name, current: tools[name] });
   const aqua = get('aqua.yaml');
   const registry = /^\s+ref:\s*(v[\d.]+)/m.exec(aqua)?.[1];

@@ -1,7 +1,8 @@
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, unchangedChecksums, goSums, goRequirements, npmPackages, assertUpdateScope, goModuleRelease, githubToolOutputs, automatedDependency, maskVersionPins, goPublicationEvidence, renderUpdateReport } from './dependency-policy.mjs';
-import { gitTagPublication } from './dependency-updates.mjs';
+import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, unchangedChecksums, goSums, goRequirements, npmPackages, assertUpdateScope, goModuleRelease, githubToolOutputs, assertPagesBufVersion, automatedDependency, maskVersionPins, goPublicationEvidence, renderUpdateReport } from './dependency-policy.mjs';
+import { gitTagPublication, inventory } from './dependency-updates.mjs';
 import { pendingUpdate, publishUpdate } from './dependency-pr.mjs';
 
 const now=Date.parse('2026-10-17T12:00:00Z');
@@ -124,6 +125,29 @@ test('Buf Action input omits v while release metadata and other tools retain the
   const buf=output[0].split('=')[1];
   assert.equal(`https://github.com/bufbuild/buf/releases/download/v${buf}/buf-Linux-x86_64`,'https://github.com/bufbuild/buf/releases/download/v1.73.0/buf-Linux-x86_64');
   assert.equal(maskVersionPins('version: "1.73.0"'),maskVersionPins('version: "1.74.0"'));
+});
+
+test('generated Pages Buf input matches the release pin and rejects missing or duplicate inputs',()=>{
+  const source='const pagesWorkflow = `name: Pages\n    steps:\n      - uses: bufbuild/buf-action@abc\n        with:\n          version: "1.73.0"\n      - name: Next step\n        run: echo next\n`';
+  for (const pin of ['v1.73.0','1.73.0']) assert.doesNotThrow(()=>assertPagesBufVersion(source,pin));
+  for (const changed of [
+    source.replace('1.73.0','999.0.0'),
+    source.replace('1.73.0','v1.73.0'),
+    source.replace('          version: "1.73.0"\n',''),
+    source.replace('          version: "1.73.0"','          version: "1.73.0"\n          version: "1.73.0"'),
+  ]) assert.throws(()=>assertPagesBufVersion(changed,'v1.73.0'),/must match/);
+  assert.throws(()=>assertPagesBufVersion(source.replace('bufbuild/buf-action','other/action'),'v1.73.0'),/exactly one Buf Action/);
+  assert.throws(()=>assertPagesBufVersion(source,undefined),/must match/);
+});
+
+test('production inventory rejects a template-only Buf pin change before verification or reporting',()=>{
+  const get = file => readFileSync(new URL(`../${file}`,import.meta.url),'utf8');
+  const pin = JSON.parse(get('.github/dependency-tools.json')).buf;
+  const source = get('cmd/pbschema-lens/main.go');
+  const changed = source.replace(`version: "${pin.replace(/^v/,'')}"`,'version: "999.0.0"');
+  assert.notEqual(changed,source);
+  assert.doesNotThrow(()=>inventory(get));
+  assert.throws(()=>inventory(file=>file==='cmd/pbschema-lens/main.go'?changed:get(file)),/Generated Pages Buf version must match/);
 });
 
 
