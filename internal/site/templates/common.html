@@ -33,5 +33,12 @@
 {{end}}</pre></details>{{end}}</td></tr>{{range .Members}}{{template "field-row" (dict "Field" . "Prefix" $prefix "Oneof" $o)}}{{end}}{{else}}{{template "field-row" .}}{{end}}
 {{else}}<tr><td colspan="6" class="text-[color:var(--fg-muted)]">This message has no fields.</td></tr>{{end}}</tbody></table></div>{{end}}
 
-{{define "symbol-list"}}<section class="mt-8"><h2 class="text-lg font-semibold mb-2">{{.Title}}</h2><ul class="space-y-1">{{range .IDs}}{{$e := entry .}}{{if $e.Shard}}<li><a href="{{href $e.URLPath}}">{{$e.Name}}</a></li>{{end}}{{end}}</ul></section>{{end}}
+{{define "symbol-list"}}
+<section class="mt-8"><h2 class="text-lg font-semibold mb-2">{{.Title}}</h2>
+{{$entries := published .IDs}}
+{{if $entries}}<ul class="{{if eq .Style "relative"}}columns-1 sm:columns-2 gap-6 {{end}}space-y-1">
+{{range $entries}}<li><a href="{{href .URLPath}}">{{if eq $.Style "relative"}}{{relativeName .FullName $.Package}}{{else if eq $.Style "full"}}{{.FullName}}{{else}}{{.Name}}{{end}}</a></li>{{end}}
+</ul>{{else}}<p class="text-sm text-[color:var(--fg-muted)]">{{.Empty}}</p>{{end}}
+</section>{{end}}
+
 {{define "nested-list"}}{{if .IDs}}<section class="mt-8"><h2 class="text-lg font-semibold mb-2">{{.Title}}</h2><ul>{{range .IDs}}{{$e := entry .}}{{if $e.Shard}}<li><a href="{{href $e.URLPath}}">{{$e.Name}}</a></li>{{end}}{{end}}</ul></section>{{end}}{{end}}

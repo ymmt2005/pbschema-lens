@@ -268,3 +268,79 @@ func TestNoWellKnownNavigationWhenDisabled(t *testing.T) {
 		t.Fatal("disabled WKT navigation remains")
 	}
 }
+
+func TestPackageListsPreserveNestedNamesAndEmptyStates(t *testing.T) {
+	s := renderFixture()
+	s.Messages[1].ShortName = "Preferences"
+	for i := range s.SymbolIndex {
+		if s.SymbolIndex[i].ID == "nested" {
+			s.SymbolIndex[i].Name = "Preferences"
+		}
+	}
+	s.Packages[0].ExtensionIDs = []string{"ext"}
+	s.Extensions[0].ShortName = "pii"
+	for i := range s.SymbolIndex {
+		if s.SymbolIndex[i].ID == "ext" {
+			s.SymbolIndex[i].Name = "pii"
+		}
+	}
+	r, err := newRenderer(s, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := r.fragment("package", s.Packages[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	for _, want := range []string{">User.Preferences</a>", ">demo.pii</a>", "No enums in this package.", "columns-1 sm:columns-2"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("package listing missing %q", want)
+		}
+	}
+}
+func TestNoScriptMobileNavigationIncludesStandardLibraryAndDiff(t *testing.T) {
+	s := renderFixture()
+	p := &model.DocPackage{}
+	testSymbol(p, "wkt", "package", "google.protobuf", "/reference/packages/google.protobuf/")
+	p.Domain = "well-known"
+	s.Packages = append(s.Packages, p)
+	r, err := newRenderer(s, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := r.page("/", []byte(`<div id="app"></div>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := html.ParseWithOptions(strings.NewReader(string(raw)), html.ParseOptionEnableScripting(false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mobile *html.Node
+	walkHTML(doc, func(n *html.Node) {
+		if n.Data == "nav" {
+			for _, a := range n.Attr {
+				if a.Key == "aria-label" && a.Val == "Mobile navigation" {
+					mobile = n
+				}
+			}
+		}
+	})
+	if mobile == nil {
+		t.Fatal("missing mobile navigation fallback")
+	}
+	found := map[string]bool{}
+	walkHTML(mobile, func(n *html.Node) {
+		for _, a := range n.Attr {
+			if a.Key == "href" {
+				found[a.Val] = true
+			}
+		}
+	})
+	for _, want := range []string{"/reference/packages/google.protobuf/", "/diff/", "/source/", "/explore/"} {
+		if !found[want] {
+			t.Errorf("mobile fallback missing %s", want)
+		}
+	}
+}

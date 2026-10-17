@@ -65,7 +65,9 @@ func newRenderer(schema *model.SchemaModel, opts Options) (*renderer, error) {
 			return false
 		},
 		"href": r.href, "symbol": func(id string) any { return schema.Symbols[id] },
-		"entry": func(id string) indexedSymbol { return r.entries[id] }, "pkg": func(n string) *model.DocPackage { return r.packages[n] }, "file": func(n string) *model.DocFile { return r.files[n] },
+		"published":    r.publishedEntries,
+		"relativeName": func(fullName, pkg string) string { return strings.TrimPrefix(fullName, pkg+".") },
+		"entry":        func(id string) indexedSymbol { return r.entries[id] }, "pkg": func(n string) *model.DocPackage { return r.packages[n] }, "file": func(n string) *model.DocFile { return r.files[n] },
 		"dict": dict, "comment": commentHTML, "note": func(name string) template.HTML {
 			// WKT notes are built-in Markdown sanitized by the model, never schema HTML.
 			return template.HTML(schema.WKTNotes[name])
@@ -355,6 +357,16 @@ func graphCards(g packageGraph) []graphCard {
 	}
 	return out
 }
+func (r *renderer) publishedEntries(ids []string) []indexedSymbol {
+	var entries []indexedSymbol
+	for _, id := range ids {
+		if e := r.entries[id]; e.Shard != "" {
+			entries = append(entries, e)
+		}
+	}
+	return entries
+}
+
 func (r *renderer) exploreEntries() []model.SymbolIndexEntry {
 	var out []model.SymbolIndexEntry
 	for _, e := range r.index.SymbolIndex {

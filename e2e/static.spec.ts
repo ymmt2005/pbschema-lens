@@ -3,6 +3,15 @@ import { expect, test } from '@playwright/test';
 // This suite deliberately disables JS: a JSON-backed shell cannot satisfy it.
 test.describe('complete static documents', () => {
   test.use({ javaScriptEnabled: false });
+  test('mobile fallback provides native standard-library navigation', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto('/reference/messages/acme.user.v1.User/');
+    await expect(page.locator('#search-open')).toBeHidden();
+    const navigation = page.getByRole('navigation', { name: 'Mobile navigation' });
+    await expect(navigation.getByRole('link', { name: 'Source', exact: true })).toBeVisible();
+    await navigation.getByRole('link', { name: 'google.protobuf', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('google.protobuf');
+  });
   for (const base of ['/', '/pbschema-lens/']) {
     test(`page content and native navigation work without JavaScript at ${base}`, async ({ page }) => {
       await page.goto(base);

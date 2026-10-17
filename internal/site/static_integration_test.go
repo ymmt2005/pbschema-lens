@@ -45,6 +45,7 @@ func TestAcmeStaticHTMLAndLinks(t *testing.T) {
 			}
 			pages := map[string]map[string]bool{}
 			links := map[string][]string{}
+			titles := map[string]string{}
 			err = filepath.WalkDir(out, func(p string, d os.DirEntry, err error) error {
 				if err != nil {
 					return err
@@ -67,6 +68,20 @@ func TestAcmeStaticHTMLAndLinks(t *testing.T) {
 				var walk func(*html.Node)
 				walk = func(n *html.Node) {
 					if n.Type == html.ElementNode {
+						if n.Data == "title" {
+							var text strings.Builder
+							var readText func(*html.Node)
+							readText = func(node *html.Node) {
+								if node.Type == html.TextNode {
+									text.WriteString(node.Data)
+								}
+								for c := node.FirstChild; c != nil; c = c.NextSibling {
+									readText(c)
+								}
+							}
+							readText(n)
+							titles[route] = text.String()
+						}
 						if n.Data == "h1" {
 							hasHeading = true
 						}
@@ -104,6 +119,15 @@ func TestAcmeStaticHTMLAndLinks(t *testing.T) {
 				if _, ok := pages[u.Path]; !ok {
 					t.Errorf("symbol %s has no static document at %s", e.ID, u.Path)
 				}
+				// A generic not-found document also has an h1 and valid links.
+				// Assert the identity of each top-level symbol page as well.
+				if e.Kind != "field" && e.Kind != "oneof" && e.Kind != "enum-value" {
+					want := e.FullName + " · " + result.Model.Title
+					if titles[u.Path] != want {
+						t.Errorf("%s: title = %q, want %q", u.Path, titles[u.Path], want)
+					}
+				}
+
 			}
 			for from, hrefs := range links {
 				source, _ := url.Parse("https://static.test" + from)

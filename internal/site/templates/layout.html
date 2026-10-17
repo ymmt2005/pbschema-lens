@@ -2,18 +2,7 @@
     <div class="lg:grid lg:grid-cols-[18rem_1fr] min-h-screen">
       <aside id="sidebar" class="hidden lg:flex flex-col border-r border-[color:var(--line)] bg-[color:var(--bg-raised)] px-4 py-5 gap-6">
         <a href="{{href "/"}}" class="no-underline text-[color:var(--fg)]"><div class="text-[11px] tracking-[0.12em] text-[color:var(--accent)] font-semibold">pbschema-lens</div><div class="text-lg font-semibold leading-tight mt-1">{{.Index.Title}}</div></a>
-        <nav id="side-nav" class="text-sm space-y-4 overflow-y-auto">
-          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div><div data-package-nav>{{.Navigation}}</div></div>
-          {{if hasWKT}}<div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Protobuf standard library</div><ul class="space-y-1">{{range .Index.Packages}}{{if and (eq .Domain "well-known") .GeneratePage}}<li><a class="block rounded-md px-2 py-1 no-underline text-[color:var(--fg)]" href="{{href .URLPath}}">{{.FullName}}</a></li>{{end}}{{end}}</ul></div>{{end}}
-          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Explore</div>
-            <ul class="space-y-1">
-              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/explore/"}}">Used-by explorer</a></li>
-              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/graph/"}}">Package graph</a></li>
-              {{if .Index.HasSource}}<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/source/"}}">Source</a></li>{{end}}
-              {{if .Index.HasDiff}}<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/diff/"}}">Schema diff</a></li>{{end}}
-            </ul>
-          </div>
-        </nav>
+        <nav id="side-nav" class="text-sm space-y-4 overflow-y-auto">{{template "navigation" .}}</nav>
       </aside>
       <div class="min-w-0">
         <header class="sticky top-0 z-20 border-b border-[color:var(--line)] bg-[color:var(--bg)]/90 backdrop-blur">
@@ -31,18 +20,8 @@
         <main id="main" class="w-full min-w-0 px-4 py-8 sm:px-8">{{.Content}}</main>
       </div>
     </div>
-    <noscript><nav aria-label="Mobile navigation" class="lg:hidden p-4">{{.Navigation}}<a href="{{href "/explore/"}}">Used-by explorer</a> · <a href="{{href "/graph/"}}">Package graph</a>{{if .Index.HasSource}} · <a href="{{href "/source/"}}">Source</a>{{end}}</nav></noscript>
-    <div id="mobile-nav" class="hidden fixed inset-0 z-30 bg-black/50 lg:hidden"><div id="mobile-panel" class="h-full w-72 bg-[color:var(--bg-raised)] p-4 overflow-y-auto"><button id="menu-close" class="mb-4 text-sm" type="button">Close</button><a href="{{href "/"}}" class="block font-semibold mb-4 no-underline text-[color:var(--fg)]">{{.Index.Title}}</a>
-          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div><div data-package-nav>{{.Navigation}}</div></div>
-          {{if hasWKT}}<div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Protobuf standard library</div><ul class="space-y-1">{{range .Index.Packages}}{{if and (eq .Domain "well-known") .GeneratePage}}<li><a class="block rounded-md px-2 py-1 no-underline text-[color:var(--fg)]" href="{{href .URLPath}}">{{.FullName}}</a></li>{{end}}{{end}}</ul></div>{{end}}
-          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Explore</div>
-            <ul class="space-y-1">
-              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/explore/"}}">Used-by explorer</a></li>
-              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/graph/"}}">Package graph</a></li>
-              {{if .Index.HasSource}}<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/source/"}}">Source</a></li>{{end}}
-              {{if .Index.HasDiff}}<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/diff/"}}">Schema diff</a></li>{{end}}
-            </ul>
-          </div>
+    <noscript><nav aria-label="Mobile navigation" class="lg:hidden p-4">{{template "navigation" .}}</nav></noscript>
+    <div id="mobile-nav" class="hidden fixed inset-0 z-30 bg-black/50 lg:hidden"><div id="mobile-panel" class="h-full w-72 bg-[color:var(--bg-raised)] p-4 overflow-y-auto"><button id="menu-close" class="mb-4 text-sm" type="button">Close</button><a href="{{href "/"}}" class="block font-semibold mb-4 no-underline text-[color:var(--fg)]">{{.Index.Title}}</a>{{template "navigation" .}}
         </div></div>
     <dialog id="search-dialog" class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-0 text-[color:var(--fg)] shadow-[var(--shadow)]" aria-label="Search">
       <div class="flex shrink-0 items-start gap-3 border-b border-[color:var(--line)] p-3">
@@ -57,3 +36,16 @@
 
   {{end}}
 {{define "canonical"}}<link rel="canonical" href="{{.}}">{{end}}
+
+{{define "navigation"}}
+          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div><div data-package-nav>{{.Navigation}}</div></div>
+          {{if hasWKT}}<div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Protobuf standard library</div><ul class="space-y-1">{{range .Index.Packages}}{{if and (eq .Domain "well-known") .GeneratePage}}<li><a class="block rounded-md px-2 py-1 no-underline text-[color:var(--fg)]" href="{{href .URLPath}}">{{.FullName}}</a></li>{{end}}{{end}}</ul></div>{{end}}
+          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Explore</div>
+            <ul class="space-y-1">
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/explore/"}}">Used-by explorer</a></li>
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/graph/"}}">Package graph</a></li>
+              {{if .Index.HasSource}}<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/source/"}}">Source</a></li>{{end}}
+              {{if .Index.HasDiff}}<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/diff/"}}">Schema diff</a></li>{{end}}
+            </ul>
+          </div>
+        {{end}}
