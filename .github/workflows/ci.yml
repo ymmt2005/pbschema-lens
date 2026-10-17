@@ -16,23 +16,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24"
+          node-version-file: package.json
           cache: npm
+      - name: Read pinned tool versions
+        id: tools
+        run: node scripts/dependency-updates.mjs tools >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
       - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
         with:
           setup_only: true
+          version: ${{ steps.tools.outputs.buf }}
           github_token: ${{ github.token }}
       - name: Install
         run: npm ci
+      - name: Test dependency update policy
+        run: npm run test:updates
       - name: Test display helpers
         run: npm test
       - name: Install aqua and checksum-pinned lychee
         uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e # v4.0.5
         with:
-          aqua_version: v2.63.0
+          aqua_version: ${{ steps.tools.outputs.aqua }}
           aqua_opts: ""
         env:
           AQUA_ENFORCE_CHECKSUM: "true"
@@ -90,14 +96,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24"
+          node-version-file: package.json
           cache: npm
+      - name: Read pinned tool versions
+        id: tools
+        run: node scripts/dependency-updates.mjs tools >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
       - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
         with:
           setup_only: true
+          version: ${{ steps.tools.outputs.buf }}
           github_token: ${{ github.token }}
       - name: Install
         run: npm ci

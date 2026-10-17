@@ -116,7 +116,7 @@ buf build examples/acme -o - --as-file-descriptor-set | go run ./cmd/pbschema-le
 buf build examples/acme -o - --as-file-descriptor-set | go run ./cmd/pbschema-lens build --config examples/acme/pbschema-lens.yaml --out examples/acme/dist --source examples/acme/proto
 ```
 
-Root `tsconfig.json` typechecks `src/`. `ui/tsconfig.json` typechecks the browser UI. `e2e/tsconfig.json` typechecks the Playwright suite. `engines.node` is `>=24`. TypeScript 7 defaults `types` to `[]`; the root config keeps `compilerOptions.types: ["node"]`.
+Root `tsconfig.json` typechecks `src/`. `ui/tsconfig.json` typechecks the browser UI. `e2e/tsconfig.json` typechecks the Playwright suite. `engines.node` pins the exact Node LTS runtime. CI reads it through `node-version-file: package.json`; Go reads the exact patch release from `go.mod`. TypeScript 7 defaults `types` to `[]`; the root config keeps `compilerOptions.types: ["node"]`.
 
 ## Generated output — do not commit
 
@@ -148,7 +148,7 @@ These are gitignored and rewritten on every build:
 
 `pbschema-lens init --github-pages` writes `.github/workflows/protobuf-docs.yml` from the `pagesWorkflow` string in `cmd/pbschema-lens/main.go`. If you change that workflow, edit that string, not a checked-in copy. Keep `examples/github-pages/README.md` in sync. The generated workflow pins each action to a release commit, installs Buf with `buf-action` (`setup_only: true`), downloads `pbschema-lens_linux_amd64.tar.gz` from `releases/latest/download`, and runs `buf build -o - --as-file-descriptor-set | pbschema-lens build --out dist --base "$base" --commit "$GITHUB_SHA"`. It does not pass `--source`.
 
-This repository’s own CI is `.github/workflows/ci.yml` on Node 24 and Go 1.26. The test job runs display-helper tests, typecheck, `npm run build:ui`, `go test`, doctor, the Acme example build, and offline lychee checks at both base paths. Lychee is pinned and checksum-managed by aqua. The e2e job runs the Playwright suite. Pages deploy from `main` only, after both jobs pass.
+This repository’s own CI is `.github/workflows/ci.yml`, using the Go and Node versions in their manifests. The test job runs display-helper tests, typecheck, `npm run build:ui`, `go test`, doctor, the Acme example build, and offline lychee checks at both base paths. Lychee is pinned and checksum-managed by aqua. The e2e job runs the Playwright suite. Pages deploy from `main` only, after both jobs pass.
 
 `.github/workflows/release.yml` runs on every push to `main`. `scripts/release-detect.sh` compares `package.json` on HEAD to `HEAD^`. That is enough because `main` only accepts squash merges via PR (no merge commits, no rebase merges, no direct pushes), so each push is one commit. It treats HEAD as a release only when the version changed to a new `x.y.z` and `gh release view vX.Y.Z` does not already exist. Then the job tests, builds the UI, runs `go test`, creates annotated tag `vX.Y.Z` on `$GITHUB_SHA` (or fails if that tag already points at a different commit), pushes it, and runs `goreleaser/goreleaser-action` (`release --clean`) from `.goreleaser.yaml`. GoReleaser publishes `CGO_ENABLED=0` binaries for Linux, Windows, and macOS on amd64 and arm64. Archive names are `pbschema-lens_<os>_<arch>.tar.gz` (`.zip` on Windows). Those live at `/releases/download/…`, not GitHub’s `/archive/refs/tags/…` source snapshot. Do not add a `prepare` script. Document consumer install as a pinned `/releases/download/vX.Y.Z/pbschema-lens_<os>_<arch>.tar.gz`.
 
@@ -171,3 +171,26 @@ Go renderer tests own page markup, field grouping, titles, escaping, and navigat
 Playwright checks progressive controls, no-JavaScript documents, native anchors below the header at desktop/320px, narrow layouts, configuration variants, and a real descriptor diff. Tests import the shared browser-error monitor from `e2e/fixtures.ts`; intentional HTTP failures use exact per-test exceptions. Read [`scripts/README.md`](scripts/README.md) for the matrix, build layout, tools, ports, reports, and local commands.
 
 Install Chromium with `npx playwright install --with-deps chromium`; an existing browser can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`. Both check workflows rebuild embedded Vite assets before compiling Go. Outputs are under `.pbschema-lens/`; Playwright artifacts remain in `e2e/.results/`.
+
+## Dependency updates
+
+The monthly/manual workflow is `.github/workflows/update-dependencies.yml`, using
+`scripts/dependency-updates.mjs` and `scripts/dependency-pr.mjs`. It is fully
+mechanical, with no agent or compiler. Read `scripts/README.md` before updating
+pins. `npm run test:updates` tests selection, reporting, and publication guards.
+
+Automated PRs can change runtime/dependency/tool version pins and checksums.
+Explicit Go upgrades target direct requirements only; indirect requirements change
+only as a consequence. Git timestamp fallbacks have an accepted backdating risk
+that generated PRs must explain. Actions and workflow files are outside automatic
+scope: `GITHUB_TOKEN` cannot be granted the workflow-write access needed to publish
+workflow edits, even from a regular workflow. Maintain those pins manually.
+Updates cannot change policy/package scripts,
+application version, or application code, except the generated Pages Buf version.
+Failures require human investigation. Never disable checksum verification or
+bypass the 72-hour embargo to make an update pass.
+
+Preparation installs and tests candidate dependencies with read-only permissions.
+Publishing uses a separate clean job: load trusted scripts before applying the
+artifact, validate its scope and metadata, then create a draft PR and dispatch CI.
+Never approve, merge, or force-push update PRs. Skip while a monthly PR is open.

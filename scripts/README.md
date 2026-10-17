@@ -1,6 +1,6 @@
 # Development checks
 
-Use Node >=24, Go >=1.26, and Buf. Install [aqua](https://aquaproj.github.io/docs/install/) (CI pins v2.63.0), then run from the repository root:
+Use the exact Node runtime in `package.json` (`engines.node`) and Go patch release in `go.mod`. Buf, aqua, and GoReleaser are pinned in `.github/dependency-tools.json`. Install [aqua](https://aquaproj.github.io/docs/install/), then run from the repository root:
 
 ```sh
 aqua install
@@ -42,3 +42,112 @@ npm run test:e2e
 Every browser test imports `e2e/fixtures.ts`. Its automatic monitor fails on JavaScript errors, failed same-origin requests, and HTTP error responses; diagnostics are attached to the Playwright result. Intentional 404 navigations declare their exact pathname/status in that test's `allowedHTTPFailures` list. API requests explicitly used to assert omitted files are tested directly. The JSON-blocking navigation test expects no JSON requests at all, so an unexpected aborted request still fails. Third-party font/network availability is outside this monitor's same-origin scope.
 
 Failure screenshots and retry traces remain in `e2e/.results/` and are uploaded by the E2E job. External link availability checks are an optional separate workflow, not part of these commands.
+
+# Monthly dependency updates
+
+The regular GitHub Actions workflow `.github/workflows/update-dependencies.yml`
+runs at 12:17 JST (03:17 UTC) on the first day of each month, or manually with
+`workflow_dispatch`. It uses deterministic Node scripts and the built-in
+`GITHUB_TOKEN`. There is no agent, inference API key, GitHub App, PAT, or Renovate.
+
+The selector enforces:
+
+- A 72-hour embargo; prereleases, API-visible drafts, deprecated npm releases,
+  future dates, and missing evidence are ineligible. Date-only Go/Node release dates wait until
+  the end of the publication day plus 72 hours.
+- Go comes from the exact `go` directive in `go.mod` and skips every `1.x.0`.
+  Node comes from exact `engines.node` in `package.json`, selects LTS, and skips
+  the first LTS-designated release in each major line. `@types/node` follows the
+  selected Node major. The setup Actions read those same manifests.
+- npm uses registry publication times for every new lockfile version, including
+  transitives. Tools and aqua use GitHub Release publication times. Go toolchains
+  use the official release history; Node uses the official distribution index.
+- Go modules prefer the exact tag's GitHub Release `published_at`. When the API
+  returns a Release, its timestamp and draft/prerelease flags take precedence
+  over older Git dates. If the API returns 404, use the Git fallback below; a
+  draft the token cannot see is indistinguishable from an absent Release.
+  Without an API-visible Release, use the annotated tag's tagger date, or the
+  target commit's committer date for lightweight tags. Modules without a known
+  GitHub mapping use the Go proxy's
+  commit timestamp. Missing or invalid dates still hold the update.
+- **Accepted timestamp risk:** Git dates can be backdated, and a new lightweight
+  tag can point to an old commit. These dates do not prove 72 hours of public
+  availability, and an inaccessible draft may trigger this fallback. The generated
+  PR identifies fallback sources and explains the risk. New Go transitives undergo
+  the same age checks; an ineligible transitive restores both Go dependency files
+  to their pre-`go get` snapshot. Independent runtime/npm/tool updates proceed.
+- Discover and explicitly upgrade only direct Go requirements. Never target
+  `// indirect` requirements or use `go get -u`. Run `go mod tidy` only after a
+  direct update; indirect requirements and Go checksums may change as its
+  consequences. Runtime-only updates do not refresh Go dependencies.
+- Preserve existing Go/npm/aqua checksum values. New npm/aqua artifacts must
+  match upstream digests. Go's native download also verifies the checksum database.
+
+Automatic scope includes Go/Node runtimes, direct Go requirements, npm
+dependencies, aqua and its registry/packages, Buf, and GoReleaser. GitHub Actions
+are maintained manually. Their pins live in `.github/workflows/`, where GitHub
+requires additional workflow-write access. The built-in `GITHUB_TOKEN` cannot
+be granted that access; `actions: write` permits operations on workflow runs,
+not editing workflow files. Using a regular workflow does not change this limit.
+Automatically publishing those changes would require an App token or PAT with
+workflow-write access, outside this updater's token-only authentication policy.
+See [GitHub's file-update requirements](https://docs.github.com/en/rest/repos/contents#create-or-update-file-contents)
+and [available token permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions).
+
+Automated patches cannot change workflow files, policy
+scripts, package scripts, application version, or application code. Only the Buf
+CLI version in the generated Pages template may change in Go source.
+That embedded version must match the JSON Buf pin without its `v` prefix, so it
+receives the same release-age validation and appears in the generated update report.
+
+The read-only `prepare` job skips runs while a same-repository `deps/monthly-`
+PR against `main` remains open. Otherwise it applies eligible updates, verifies
+scope/age/checksums, activates the candidate's Go, Node, aqua and Buf versions,
+and runs npm installation, policy/unit/Go tests, typechecks, UI build, offline
+links and Playwright. A second policy check runs after the tests. Only a successful,
+nonempty candidate is uploaded as a patch artifact. No-change runs open no PR;
+failures stop the run and require human investigation rather than code edits or
+weakened checks.
+
+A separate `publish` job has the write permissions. It checks out the exact tested
+base and loads its trusted built-in-only scripts before applying the artifact.
+It revalidates the patch, then pushes a unique `deps/monthly-<run>-<attempt>`
+branch and opens a draft PR. It checks again for an existing update PR and never
+force-pushes or rewrites review edits. The PR body is generated from actual version
+and lockfile changes with timestamps, fallback risks, checksum counts, and a link
+to preparation logs for results and held candidates. No dependency installation or
+test execution runs with the publishing token.
+
+Since `GITHUB_TOKEN` PR/push events do not start workflows, publication explicitly
+dispatches `ci.yml` on the update branch. CI's existing guards skip Pages deployment
+there. This workflow never approves or merges PRs. A run stops if PR creation or CI
+dispatch fails; if publication succeeded before dispatch failed, CI can be run
+manually on the published branch.
+
+Local commands:
+
+```sh
+npm run test:updates
+node scripts/dependency-updates.mjs plan
+node scripts/dependency-updates.mjs apply
+node scripts/dependency-updates.mjs verify "$(git rev-parse HEAD)" --updates-only
+node scripts/dependency-updates.mjs report "$(git rev-parse HEAD)"
+```
+
+`plan` writes its report under ignored `.pbschema-lens/dependency-updates/`.
+`apply` recomputes the plan, refreshes the npm lockfile without lifecycle scripts,
+and refreshes aqua checksums. `report` describes the current candidate; it does
+not execute tests. To validate manual Action-pin maintenance, use `verify` without
+`--updates-only`; it also checks SHA/version comments against GitHub tags.
+
+## Enable the workflow
+
+After merging, enable **Settings → Actions → General → Workflow permissions →
+Allow GitHub Actions to create and approve pull requests**, then run the workflow
+manually on `main` and inspect its draft PR and CI. GitHub combines creation and
+approval in one switch; it has no creation-only setting. The workflow creates PRs
+and contains no approval or merge calls. No additional repository secret is needed.
+
+Local tests and API-stub publication tests do not validate actual token-based PR
+creation or downstream CI dispatch; those require a real workflow run with that
+repository setting enabled.
