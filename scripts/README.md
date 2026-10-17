@@ -94,6 +94,14 @@ workflow-write access, outside this updater's token-only authentication policy.
 See [GitHub's file-update requirements](https://docs.github.com/en/rest/repos/contents#create-or-update-file-contents)
 and [available token permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions).
 
+For an interactive Codex update, invoke `$update-github-actions` (for example,
+"Use $update-github-actions to upgrade eligible Actions and open a PR"). The
+repository skill lives in
+[`.agents/skills/update-github-actions/SKILL.md`](../.agents/skills/update-github-actions/SKILL.md).
+It covers workflow files and the generated Pages template, checks the 72-hour
+embargo and exact tag/SHA pairs, reviews upstream behavior changes, and prepares
+a draft PR with release evidence and validation results.
+
 Automated patches cannot change workflow files, policy
 scripts, package scripts, application version, or application code. Only the Buf
 CLI version in the generated Pages template may change in Go source.

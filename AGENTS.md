@@ -185,7 +185,10 @@ only as a consequence. Git timestamp fallbacks have an accepted backdating risk
 that generated PRs must explain. Actions and workflow files are outside automatic
 scope: `GITHUB_TOKEN` cannot be granted the workflow-write access needed to publish
 workflow edits, even from a regular workflow. Maintain those pins manually.
-Updates cannot change policy/package scripts,
+Use the repository skill
+[update-github-actions](.agents/skills/update-github-actions/SKILL.md) for those
+interactive updates, including the generated Pages workflow.
+Automatic updates cannot change policy/package scripts,
 application version, or application code, except the generated Pages Buf version.
 Failures require human investigation. Never disable checksum verification or
 bypass the 72-hour embargo to make an update pass.
