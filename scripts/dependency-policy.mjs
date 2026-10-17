@@ -111,7 +111,10 @@ export function finishCompiledWorkflow(text, sourceRefs) {
     const version = versions.get(ref[2]);
     if (!version) throw new Error(`Generated action has no known version: ${ref[2]}`);
     return `${ref[1]}${ref[2]} # ${version}`;
-  }).join('\n').replace(/^(\s+)node-version:\s*[^\n]+$/gm, '$1node-version-file: package.json')
+  }).join('\n')
+    // Detection can also run for a noop output. Its manifest must exist then.
+    .replace(/(- name: Checkout repository for patch context\n)\s*if: [^\n]+\n/g, '$1')
+    .replace(/^(\s+)node-version:\s*[^\n]+$/gm, '$1node-version-file: package.json')
     .replace(/npm install --ignore-scripts -g /g, 'npm install --ignore-scripts --before="$(date -u -d \'72 hours ago\' +%FT%TZ)" -g ');
   actionReferences(output, 'compiled workflow');
   return output;

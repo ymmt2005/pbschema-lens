@@ -57,6 +57,7 @@ test('compiled output restores source comments and reads Node from package.json'
   assert.match(result,/node-version-file: package.json/);
   assert.match(result,/--before=.*72 hours ago/);
   assert.equal(finishCompiledWorkflow(result,source),result);
+  assert.doesNotMatch(finishCompiledWorkflow('  - name: Checkout repository for patch context\n    if: needs.agent.outputs.has_patch == true\n    run: echo manifest',[]), /if:/);
   assert.throws(()=>finishCompiledWorkflow(text,[]));
 });
 

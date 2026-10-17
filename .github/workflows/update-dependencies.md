@@ -20,6 +20,8 @@ network:
     - github
     - node
     - go
+    - playwright
+    - buf.build
     - go.dev
     - nodejs.org
     - registry.npmjs.org
@@ -39,6 +41,8 @@ safe-outputs:
     allowed-branches: ["deps/**"]
     allowed-base-branches: ["main"]
     draft: true
+    base-branch: main
+    stacked: false
     fallback-as-issue: false
     github-token-for-extra-empty-commit: none
     max: 1
@@ -89,6 +93,10 @@ steps:
       version: ${{ steps.tools.outputs.buf }}
       setup_only: true
       github_token: ${{ github.token }}
+  - name: Prepare browser test prerequisites
+    run: |
+      npm ci
+      npx playwright install --with-deps chromium
   - name: Record the trusted base
     run: git rev-parse HEAD > /tmp/dependency-update-base
 post-steps:
@@ -134,7 +142,7 @@ Go modules without GitHub release publication times use the append-only
 first; updates can use them only after that PR is merged and its base commit has
 aged 72 hours. Never use a Go module's commit timestamp as its release age.
 
-When no eligible changes or new observations exist, use the noop safe output. Otherwise open a draft
+When no eligible changes or new observations exist, use the noop safe output. Otherwise use a `deps/` source branch and open a draft
 PR listing old/new versions, publication timestamps and sources, checksum changes,
 test results, and any held updates. The publishing App triggers the ordinary CI
 and the independent trusted-base dependency policy check. Do not merge the PR.

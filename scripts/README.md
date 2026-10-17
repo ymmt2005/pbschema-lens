@@ -90,7 +90,8 @@ node scripts/dependency-updates.mjs verify "$(git rev-parse origin/main)"
 refreshes aqua checksums, and recompiles. The compiler is downloaded from its
 pinned official release and checked against both its committed SHA-256 and the
 GitHub asset digest. Compilation preserves Action version comments and reads
-Node from `package.json`, including the framework's runtime setup. Runtime Codex
+Node from `package.json`, including the framework's runtime setup. The detection
+job checks out that manifest even for a no-change run. Runtime Codex
 installation uses npm's 72-hour cutoff too. A compiler update that adds new
 secrets or Actions stops for human security review. Never automatically approve
 that warning or edit the generated jobs by hand.
@@ -101,7 +102,9 @@ and candidate separately, executes only the base's checker, and treats candidate
 files as data. All PRs get release/checksum/Action checks. Branches beginning
 `deps/` additionally have a strict file/content allowlist and must reproduce the
 compiled workflow byte for byte. The updater's own post-step must pass before
-safe outputs can publish. Regular CI runs unit, type, Go, link, and browser tests.
+safe outputs can publish. Browser prerequisites are installed before the agent starts; its network policy
+allows Playwright downloads and the Buf registry. Regular CI runs unit, type, Go,
+link, and browser tests.
 Updates requiring application/policy changes are held for a separate PR.
 
 ## Enable the workflow
