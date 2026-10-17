@@ -63,7 +63,9 @@ The deterministic helper, rather than the agent's judgment, selects versions:
   entry. Tool/aqua updates use GitHub Release publication times. Go toolchains
   use the official release history and Node uses the official distribution index.
 - A Go module's proxy timestamp can be an old commit date, so it cannot establish
-  release age. Prefer a GitHub Release publication time. Otherwise add its version
+  release age. Query the GitHub Release for the exact tag and use `published_at`
+  when it exists. A Release still under embargo waits without adding an observation.
+  Only when the Release is absent, add its version
   to `.github/dependency-observations.json` in a PR first. Only an observation
   already in the trusted base can qualify, after the commit that last changed
   that inventory has aged 72 hours. Adding observations conservatively resets

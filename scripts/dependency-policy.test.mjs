@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, finishCompiledWorkflow, unchangedChecksums, goSums, npmPackages, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease, githubToolOutputs, automatedDependency, maskVersionPins } from './dependency-policy.mjs';
+import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, finishCompiledWorkflow, unchangedChecksums, goSums, npmPackages, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease, githubToolOutputs, automatedDependency, maskVersionPins, goPublicationEvidence } from './dependency-policy.mjs';
 
 const now=Date.parse('2026-10-17T12:00:00Z');
 const old=new Date(now-embargoMs).toISOString();
@@ -171,4 +171,24 @@ test('CI dispatch refuses forks, unrelated branches, wrong bases, and invalid PR
     assert.equal(dispatched,false);
   }
   await assert.rejects(()=>dispatchCI({}, {}, {env:{PR_NUMBER:'invalid'}}),/Invalid update PR number/);
+});
+
+
+test('Go uses the exact GitHub Release publication date before observation evidence',()=>{
+  const fresh=new Date(now-embargoMs+1).toISOString();
+  const evidence=goPublicationEvidence('v1.2.3',{published_at:fresh},old);
+  assert.equal(evidence.published,fresh);
+  assert.equal(evidence.observe,false);
+  assert.deepEqual(eligibleReleases([evidence],{now}),[]);
+  assert.equal(eligibleReleases([goPublicationEvidence('v1.2.3',{published_at:old},undefined)],{now}).length,1);
+  assert.equal(goPublicationEvidence('v1.2.3',{published_at:null,draft:true},old).published,null);
+});
+
+test('Go records an observation only when a GitHub Release and aged observation are absent',()=>{
+  const unseen=goPublicationEvidence('v1.2.3',null,undefined);
+  assert.equal(unseen.observe,true);
+  assert.deepEqual(eligibleReleases([unseen],{now}),[]);
+  const seen=goPublicationEvidence('v1.2.3',null,old);
+  assert.equal(seen.observe,false);
+  assert.equal(eligibleReleases([seen],{now}).length,1);
 });

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { setGlobalProxyFromEnv } from 'node:http';
-import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, npmPackages, finishCompiledWorkflow, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease, githubToolOutputs, automatedDependency } from './dependency-policy.mjs';
+import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, npmPackages, finishCompiledWorkflow, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease, githubToolOutputs, automatedDependency, goPublicationEvidence } from './dependency-policy.mjs';
 
 // Honor the cloud/agent sandbox's proxy without changing TLS verification.
 setGlobalProxyFromEnv();
@@ -32,8 +32,8 @@ export function run(command, args, options = {}) {
 }
 
 const cache = new Map();
-async function metadata(url, { text = false } = {}) {
-  const key = `${url}:${text}`;
+async function metadata(url, { text = false, allowNotFound = false } = {}) {
+  const key = `${url}:${text}:${allowNotFound}`;
   if (!cache.has(key)) cache.set(key, (async () => {
     const host = new URL(url).hostname;
     if (!['api.github.com','registry.npmjs.org','proxy.golang.org','go.dev','nodejs.org'].includes(host)) throw new Error(`Unapproved metadata host: ${host}`);
@@ -41,12 +41,13 @@ async function metadata(url, { text = false } = {}) {
     if (host === 'api.github.com' && text) headers.Accept = 'application/vnd.github.raw+json';
     if (host === 'api.github.com' && process.env.GH_TOKEN) headers.Authorization = `Bearer ${process.env.GH_TOKEN}`;
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(60_000) });
+    if (allowNotFound && response.status === 404) return null;
     if (!response.ok) throw new Error(`Metadata request failed: ${response.status} ${url}`);
     return text ? response.text() : response.json();
   })());
   return cache.get(key);
 }
-const github = path => metadata(`https://api.github.com/${path}`);
+const github = (path,options) => metadata(`https://api.github.com/${path}`,options);
 const npm = name => metadata(`https://registry.npmjs.org/${encodeURIComponent(name)}`);
 const numeric = version => /(?:^|[-])v?(\d+\.\d+\.\d+)$/.exec(version)?.[1] ?? version;
 const goEscape = text => text.replace(/[A-Z]/g, char => `!${char.toLowerCase()}`);
@@ -121,8 +122,8 @@ async function choices(item) {
       if (eligibleReleases([release]).length) return [release];
       // Record only the newest held candidate, not the entire module history.
       if(!observedLatest) {
-        observations.add(`${item.name}@${version}`);
-        held.push({ id:item.id, version, reason:'No aged publication or merged observation' });
+        if(release.observe) observations.add(`${item.name}@${version}`);
+        held.push({ id:item.id, version, reason:release.observe ? 'No GitHub Release; awaiting merged observation' : 'Release is not yet eligible' });
         observedLatest=true;
       }
     }
@@ -143,8 +144,8 @@ async function modulePublication(name,version) {
   // Prefer GitHub's server-stamped release time; otherwise wait for a trusted
   // merged observation to age. Unknown evidence always holds the update.
   const source=goModuleRelease(name,version);
-  const release=source ? (await releases(source.repository)).find(r=>r.tag===source.tag) : undefined;
-  return {...release,version,published:release?.published ?? observedPublication(`${name}@${version}`,observedVersions())};
+  const release=source ? await github(`repos/${source.repository}/releases/tags/${encodeURIComponent(source.tag)}`,{allowNotFound:true}) : null;
+  return goPublicationEvidence(version,release,observedPublication(`${name}@${version}`,observedVersions()));
 }
 
 async function publication(item, version) {
@@ -203,13 +204,15 @@ async function apply() {
   const previousSums=goSums(savedSum);
   for(const key of Object.keys(goSums(read('go.sum')))) if(!(key in previousSums)) {
     const at=key.lastIndexOf('@'), name=key.slice(0,at), version=key.slice(at+1).replace(/\/go.mod$/,'');
-    if(!eligibleReleases([await modulePublication(name,version)]).length) {
-      observations.add(`${name}@${version}`); holdGo=true;
+    const evidence=await modulePublication(name,version);
+    if(!eligibleReleases([evidence]).length) {
+      if(evidence.observe) observations.add(`${name}@${version}`);
+      holdGo=true;
     }
   }
   if(holdGo) {
     writeFileSync(join(repo,'go.mod'),savedMod); writeFileSync(join(repo,'go.sum'),savedSum);
-    console.log('Held Go dependency changes pending merged observations for new transitive versions.');
+    console.log('Held Go dependency changes until new transitive versions satisfy the release/observation embargo.');
   }
   const ledger=json(observationFile);
   ledger.go=[...new Set([...ledger.go,...observations])].sort();

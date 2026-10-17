@@ -196,3 +196,13 @@ export function goModuleRelease(name, version) {
 export function githubToolOutputs(tools) {
   return Object.entries(tools).map(([key,value])=>`${key.replaceAll('-','_')}=${key==='buf'?value.replace(/^v/,''):value}`);
 }
+
+// A published Release always takes precedence, including while under embargo.
+// Only an absent Release can use observation-based evidence.
+export function goPublicationEvidence(version, release, observed) {
+  return {
+    ...release, version,
+    published: release ? release.published_at : observed,
+    observe: !release && !observed,
+  };
+}
