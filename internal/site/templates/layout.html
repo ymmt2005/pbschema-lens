@@ -1,0 +1,59 @@
+{{define "layout"}}
+    <div class="lg:grid lg:grid-cols-[18rem_1fr] min-h-screen">
+      <aside id="sidebar" class="hidden lg:flex flex-col border-r border-[color:var(--line)] bg-[color:var(--bg-raised)] px-4 py-5 gap-6">
+        <a href="{{href "/"}}" class="no-underline text-[color:var(--fg)]"><div class="text-[11px] tracking-[0.12em] text-[color:var(--accent)] font-semibold">pbschema-lens</div><div class="text-lg font-semibold leading-tight mt-1">{{.Index.Title}}</div></a>
+        <nav id="side-nav" class="text-sm space-y-4 overflow-y-auto">
+          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div><div data-package-nav>{{.Navigation}}</div></div>
+          {{if hasWKT}}<div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Protobuf standard library</div><ul class="space-y-1">{{range .Index.Packages}}{{if and (eq .Domain "well-known") .GeneratePage}}<li><a class="block rounded-md px-2 py-1 no-underline text-[color:var(--fg)]" href="{{href .URLPath}}">{{.FullName}}</a></li>{{end}}{{end}}</ul></div>{{end}}
+          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Explore</div>
+            <ul class="space-y-1">
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/explore/"}}">Used-by explorer</a></li>
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/graph/"}}">Package graph</a></li>
+              {{if .Index.HasSource}}<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/source/"}}">Source</a></li>{{end}}
+              {{if .Index.HasDiff}}<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/diff/"}}">Schema diff</a></li>{{end}}
+            </ul>
+          </div>
+        </nav>
+      </aside>
+      <div class="min-w-0">
+        <header class="sticky top-0 z-20 border-b border-[color:var(--line)] bg-[color:var(--bg)]/90 backdrop-blur">
+          <div class="flex items-center gap-3 px-4 py-3">
+            <button hidden data-interactive id="menu-btn" class="lg:hidden rounded-md border border-[color:var(--line)] px-2 py-1 text-sm" type="button">Menu</button>
+            <button hidden data-interactive id="search-open" class="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[color:var(--line)] px-2 py-1 text-sm text-[color:var(--fg)]" type="button" aria-haspopup="dialog" aria-controls="search-dialog">Search <kbd class="hidden sm:inline rounded border border-[color:var(--line)] px-1 text-[11px] text-[color:var(--fg-muted)]">/</kbd></button>
+            <div class="relative shrink-0">
+              <button hidden data-interactive id="theme-menu-button" class="rounded-md border border-[color:var(--line)] px-2 py-1 text-sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="theme-menu">Theme</button>
+              <div id="theme-menu" class="absolute right-0 z-30 mt-1 min-w-44 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-raised)] py-1 text-sm shadow-[var(--shadow)]" role="menu" aria-label="Theme" hidden>
+                {{range themeChoices}}{{$value := .Value}}{{$label := .Label}}<button class="grid w-full grid-cols-[1rem_1fr] items-center gap-2 px-3 py-1.5 text-left whitespace-nowrap text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] aria-checked:bg-[color:var(--bg-muted)]" type="button" role="menuitemradio" data-theme-choice="{{$value}}" aria-checked="false"><span class="theme-mark text-[color:var(--accent)]" aria-hidden="true"></span>{{$label}}</button>{{end}}
+              </div>
+            </div>
+          </div>
+        </header>
+        <main id="main" class="w-full min-w-0 px-4 py-8 sm:px-8">{{.Content}}</main>
+      </div>
+    </div>
+    <noscript><nav aria-label="Mobile navigation" class="lg:hidden p-4">{{.Navigation}}<a href="{{href "/explore/"}}">Used-by explorer</a> · <a href="{{href "/graph/"}}">Package graph</a>{{if .Index.HasSource}} · <a href="{{href "/source/"}}">Source</a>{{end}}</nav></noscript>
+    <div id="mobile-nav" class="hidden fixed inset-0 z-30 bg-black/50 lg:hidden"><div id="mobile-panel" class="h-full w-72 bg-[color:var(--bg-raised)] p-4 overflow-y-auto"><button id="menu-close" class="mb-4 text-sm" type="button">Close</button><a href="{{href "/"}}" class="block font-semibold mb-4 no-underline text-[color:var(--fg)]">{{.Index.Title}}</a>
+          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">API Reference</div><div data-package-nav>{{.Navigation}}</div></div>
+          {{if hasWKT}}<div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Protobuf standard library</div><ul class="space-y-1">{{range .Index.Packages}}{{if and (eq .Domain "well-known") .GeneratePage}}<li><a class="block rounded-md px-2 py-1 no-underline text-[color:var(--fg)]" href="{{href .URLPath}}">{{.FullName}}</a></li>{{end}}{{end}}</ul></div>{{end}}
+          <div><div class="text-[11px] uppercase tracking-wider text-[color:var(--fg-muted)] mb-2">Explore</div>
+            <ul class="space-y-1">
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/explore/"}}">Used-by explorer</a></li>
+              <li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/graph/"}}">Package graph</a></li>
+              {{if .Index.HasSource}}<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/source/"}}">Source</a></li>{{end}}
+              {{if .Index.HasDiff}}<li><a class="block px-2 py-1 no-underline text-[color:var(--fg)] hover:bg-[color:var(--bg-muted)] rounded-md" href="{{href "/diff/"}}">Schema diff</a></li>{{end}}
+            </ul>
+          </div>
+        </div></div>
+    <dialog id="search-dialog" class="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-raised)] p-0 text-[color:var(--fg)] shadow-[var(--shadow)]" aria-label="Search">
+      <div class="flex shrink-0 items-start gap-3 border-b border-[color:var(--line)] p-3">
+        <form id="search-form" class="min-w-0 flex-1" role="search" autocomplete="off">
+          <input id="search-input" class="w-full bg-transparent outline-none text-base" type="search" name="protobuf-symbol-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Search symbols and comments" placeholder="Search symbols and comments…" />
+          <div id="search-filters" class="flex flex-wrap gap-1 mt-2 text-xs"></div>
+        </form>
+        <button id="search-close" class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-muted)] px-2 py-1 text-xs text-[color:var(--fg)]" type="button" aria-label="Close search">Close <kbd class="rounded border border-[color:var(--line)] bg-[color:var(--bg-raised)] px-1 text-[11px] text-[color:var(--fg-muted)]">Esc</kbd></button>
+      </div>
+      <div id="search-results" class="p-2 text-sm"></div>
+    </dialog>
+
+  {{end}}
+{{define "canonical"}}<link rel="canonical" href="{{.}}">{{end}}

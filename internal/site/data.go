@@ -11,7 +11,8 @@ import (
 	"github.com/ymmt2005/pbschema-lens/internal/model"
 )
 
-// The browser loads these files instead of one model.json.
+// Compatible JSON exports for search, interactive controls, and external consumers.
+// Go renders page content directly; ordinary page loads do not fetch these files.
 // index.json is the nav and search catalog. Symbol and source filenames are
 // SHA-256 keys stored on the index, so a long protobuf name cannot exceed a
 // filesystem component limit. Diff, references, the package graph, and comment

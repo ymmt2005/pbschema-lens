@@ -11,3 +11,4 @@ e2e/.bin/
 e2e/.results/
 agent-tools/
 uploads/
+e2e/.site-prefixed/

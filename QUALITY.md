@@ -23,7 +23,7 @@ In this repository that security target means:
 
 A change is finished when all of these hold:
 
-1. The behavior lives in the layer that owns it (see Where to change what in [`AGENTS.md`](AGENTS.md)). `SchemaModel` is the contract between the pipeline and the site. The site projects that model. A model field nothing reads is unfinished. A page that invents a fact the model does not have is unfinished.
+1. The behavior lives in the layer that owns it (see Where to change what in [`AGENTS.md`](AGENTS.md)). `SchemaModel` is the contract between the pipeline and the site. Go HTML templates project that model; JavaScript enhances interactive controls. A model field nothing reads is unfinished. A page that invents a fact the model does not have is unfinished.
 2. Removing the behavior makes `npm test` or `go test ./...` fail. The assertion states the required outcome. Pasting today's output into the test records the current code, including a bug, and the suite stays green.
 3. The result still holds after every later pass. Model build classifies, then links, then may publish, then builds the symbol index. An early decision that a later pass puts back is not done.
 4. The security target above still holds, and its tests still fail if the guard is removed. Comments stay sanitized HTML. Options stay data. Site output still refuses the working directory and filesystem root, and a generated path that leaves the output directory is rejected. Plugins stay unloaded.
@@ -38,13 +38,13 @@ Pick the smallest test that goes red when the change is reverted. Size is a reso
 |---|---|---|---|
 | Small | One process. No socket, no sleep, no subprocess, no site build. | One function: parse, classify, sanitize, build a URL, shape a nav or source tree, group a field table, render an option, rank a search hit, accept or reject a path. | `src/**/*.test.ts` or `internal/**/*_test.go` next to that module |
 | Medium | Disk and localhost. Compiling a fixture with Buf is medium. | The model after every pass, when a later pass can publish, link, or index something an earlier pass rejected. Loading yaml. Writing an artifact file. | `internal/model/build_test.go` and `fixtures/` |
-| Large | `pipeline.Build`, a browser, or a release archive. | The rendered page, and only when a smaller test cannot see the failure. | CI builds Acme. `npm run test:e2e` drives that site in Chromium for shell, dialog, menu, drawer, and routing behavior. |
+| Large | `pipeline.Build`, a browser, or a release archive. | The rendered page, and only when a smaller test cannot see the failure. | Go integration tests audit Acme static HTML and internal links at two base paths. Playwright checks controls, native navigation, and JavaScript-disabled documents. |
 
 Call the production function. A test that reimplements the condition stays green when that function is never called. A test that only reads a config value back has the same hole.
 
 Add a proto under `fixtures/` when the case is about descriptors. Third-party option protos (`google.api`, `buf.validate`, and the same kind of dependency) are Buf dependencies. Do not vendor a copy under `examples/` to feed a test. Go model tests invoke `buf` (or `$BUF`) to produce the descriptor set. The product binary does not.
 
-When the change is layout, routing, or rendered data, also use the page in a browser. That check confirms the projection. The small or medium test is what locks the decision. Walking the default Acme home page does not cover a branch that page never takes.
+Page markup, field grouping, navigation trees, and document metadata are tested in Go beside the production renderer. When the change is layout, routing, or rendered data, also use the page in a browser. That check confirms the projection. The small or medium test is what locks the decision. Walking the default Acme home page does not cover a branch that page never takes.
 
 When you fix a bug, add the test that failed on the old code in the same change. Start at small size. Step up a row only when the failure is invisible there. A bug in a pure function that is caught only by reading HTML means the suite is aimed at the wrong layer, and the next similar bug will ship.
 

@@ -11,17 +11,17 @@ import (
 	"github.com/ymmt2005/pbschema-lens/internal/model"
 )
 
-func TestWriteShellsIncludes404AndOmitsSearch(t *testing.T) {
+func TestWritePagesIncludes404AndOmitsSearch(t *testing.T) {
 	dir := t.TempDir()
-	shell := []byte("<!doctype html><title>shell</title>")
-	if err := writeShells(dir, shell, &model.SchemaModel{}); err != nil {
+	shell := []byte(`<!doctype html><title>__PAGE_TITLE__</title><div id="app"></div>`)
+	if err := writePages(dir, shell, &model.SchemaModel{}, Options{}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(filepath.Join(dir, "404.html"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != string(shell) {
+	if !strings.Contains(string(got), "Page not found") {
 		t.Fatalf("404.html = %q", got)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "search", "index.html")); !os.IsNotExist(err) {

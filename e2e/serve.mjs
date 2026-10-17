@@ -39,13 +39,12 @@ function buildSite() {
     process.stderr.write(descriptor.stderr ?? "");
     process.exit(descriptor.status ?? 1);
   }
-  const built = spawnSync(
-    bin,
-    ["build", "--config", "examples/acme/pbschema-lens.yaml", "--out", siteDir, "--source", "examples/acme/proto", "--base", "/"],
-    { cwd: repo, input: descriptor.stdout, stdio: ["pipe", "inherit", "inherit"] },
-  );
-  if (built.error) throw built.error;
-  if (built.status !== 0) process.exit(built.status ?? 1);
+  for (const [base, out] of [["/", siteDir], ["/pbschema-lens/", siteDir + "-prefixed"]]) {
+    run(bin, ["build", "--config", "examples/acme/pbschema-lens.yaml", "--out", out,
+      "--source", "examples/acme/proto", "--base", base],
+      { input: descriptor.stdout, stdio: ["pipe", "inherit", "inherit"] });
+  }
+
 }
 
 function inside(root, target) {
@@ -60,8 +59,11 @@ function resolveFile(urlPath) {
   } catch {
     return null;
   }
-  const target = resolve(siteDir, `.${pathname}`);
-  if (!inside(siteDir, target) || !existsSync(target)) return null;
+  const prefixed = pathname.startsWith("/pbschema-lens/");
+  const root = prefixed ? siteDir + "-prefixed" : siteDir;
+  if (prefixed) pathname = pathname.slice("/pbschema-lens".length);
+  const target = resolve(root, `.${pathname}`);
+  if (!inside(root, target) || !existsSync(target)) return null;
   if (statSync(target).isDirectory()) {
     const index = join(target, "index.html");
     return existsSync(index) ? index : null;
@@ -71,12 +73,13 @@ function resolveFile(urlPath) {
 
 buildSite();
 const fallback = readFileSync(join(siteDir, "404.html"));
+const prefixedFallback = readFileSync(join(siteDir + "-prefixed", "404.html"));
 
 createServer((request, response) => {
   const file = resolveFile(request.url ?? "/");
   if (!file) {
     response.writeHead(404, { "content-type": types[".html"] });
-    response.end(fallback);
+    response.end(request.url?.startsWith("/pbschema-lens/") ? prefixedFallback : fallback);
     return;
   }
   response.writeHead(200, { "content-type": types[extname(file)] ?? "application/octet-stream" });
