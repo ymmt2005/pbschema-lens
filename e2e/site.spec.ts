@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./fixtures";
 
 // These tests drive the built Acme site. Ranking, title strings, theme choice,
 // field tables, nav trees, sanitizing, and page HTML stay in the vitest and Go
@@ -169,7 +169,7 @@ test.describe("mobile navigation", () => {
 });
 
 test.describe("routing", () => {
-  test("the loaded site sets the document title for each kind of route", async ({ page }) => {
+  test("the loaded site sets the document title for each kind of route", async ({ page, allowedHTTPFailures }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(siteTitle);
     await expect(page.getByRole("heading", { level: 1, name: siteTitle })).toBeVisible();
@@ -190,6 +190,7 @@ test.describe("routing", () => {
     await page.getByRole("link", { name: "Source", exact: true }).click();
     await expect(page).toHaveTitle(`Source · ${siteTitle}`);
 
+    allowedHTTPFailures.push({pathname:"/search/",status:404});
     const missing = await page.goto("/search/");
     expect(missing?.status()).toBe(404);
     await expect(page).toHaveTitle(`Not found · ${siteTitle}`);

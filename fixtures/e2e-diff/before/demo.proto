@@ -1,0 +1,5 @@
+syntax = "proto3";
+package e2e.v1;
+message Item {
+  string id = 1;
+}

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 // This suite deliberately disables JS: a JSON-backed shell cannot satisfy it.
 test.describe('complete static documents', () => {
@@ -13,7 +13,7 @@ test.describe('complete static documents', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('google.protobuf');
   });
   for (const base of ['/', '/pbschema-lens/']) {
-    test(`page content and native navigation work without JavaScript at ${base}`, async ({ page }) => {
+    test(`page content and native navigation work without JavaScript at ${base}`, async ({ page, allowedHTTPFailures }) => {
       await page.goto(base);
       await expect(page.getByRole('heading', {level: 1})).toHaveText('Acme Protobuf API');
       await page.goto(`${base}reference/messages/acme.user.v1.User/`);
@@ -31,6 +31,7 @@ test.describe('complete static documents', () => {
         await page.goto(base + route);
         await expect(page.getByRole('heading', {level: 1})).toHaveText(title);
       }
+      allowedHTTPFailures.push({pathname:base+'not-a-symbol/',status:404});
       const missing = await page.goto(base + 'not-a-symbol/');
       expect(missing?.status()).toBe(404);
       await expect(page.getByRole('heading', {level: 1})).toHaveText('Page not found');
