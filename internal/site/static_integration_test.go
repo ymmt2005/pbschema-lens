@@ -13,8 +13,8 @@ import (
 )
 
 // These checks read the produced files, with no browser or JSON hydration. They
-// catch a shell-only build, missing pages, broken fragment links, and base leaks.
-func TestAcmeStaticHTMLAndLinks(t *testing.T) {
+// check page identity and duplicate IDs. Lychee owns generic link/fragment validation.
+func TestAcmeStaticHTMLAndIdentity(t *testing.T) {
 	buf, err := exec.LookPath("buf")
 	if err != nil {
 		if os.Getenv("CI") != "" {
@@ -44,7 +44,6 @@ func TestAcmeStaticHTMLAndLinks(t *testing.T) {
 				t.Fatal(err)
 			}
 			pages := map[string]map[string]bool{}
-			links := map[string][]string{}
 			titles := map[string]string{}
 			err = filepath.WalkDir(out, func(p string, d os.DirEntry, err error) error {
 				if err != nil {
@@ -92,9 +91,6 @@ func TestAcmeStaticHTMLAndLinks(t *testing.T) {
 								}
 								ids[a.Val] = true
 							}
-							if a.Key == "href" {
-								links[route] = append(links[route], a.Val)
-							}
 						}
 					}
 					for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -128,35 +124,6 @@ func TestAcmeStaticHTMLAndLinks(t *testing.T) {
 					}
 				}
 
-			}
-			for from, hrefs := range links {
-				source, _ := url.Parse("https://static.test" + from)
-				for _, href := range hrefs {
-					u, err := url.Parse(href)
-					if err != nil {
-						t.Errorf("%s: invalid href %q", from, href)
-						continue
-					}
-					target := source.ResolveReference(u)
-					if target.Host != "static.test" || target.Scheme != "https" {
-						continue
-					}
-					if !strings.HasPrefix(target.Path, base) {
-						t.Errorf("%s: link escapes base: %s", from, href)
-						continue
-					}
-					ids, ok := pages[target.Path]
-					if !ok {
-						rel := strings.TrimPrefix(target.Path, base)
-						if _, err := os.Stat(filepath.Join(out, filepath.FromSlash(rel))); err != nil {
-							t.Errorf("%s: missing target %s", from, href)
-						}
-						continue
-					}
-					if target.Fragment != "" && !ids[target.Fragment] {
-						t.Errorf("%s: missing fragment %s", from, href)
-					}
-				}
 			}
 		})
 	}
