@@ -94,7 +94,10 @@ Node from `package.json`, including the framework's runtime setup. The detection
 job checks out that manifest even for a no-change run. Runtime Codex
 installation uses npm's 72-hour cutoff too. A compiler update that adds new
 secrets or Actions stops for human security review. Never automatically approve
-that warning or edit the generated jobs by hand.
+that warning or edit the generated jobs by hand. Failed compilation restores its
+previous outputs. The trusted-base check also compares security manifests and
+requires new secrets or Action repositories to land in a separate human-reviewed
+PR; a candidate cannot approve its own new access by recompiling.
 
 An independent **Dependency release policy / dependency-policy** check runs on
 `pull_request_target` with read-only permissions. It checks out the immutable base

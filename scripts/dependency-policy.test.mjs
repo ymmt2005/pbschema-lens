@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, finishCompiledWorkflow, unchangedChecksums, goSums, npmPackages, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease } from './dependency-policy.mjs';
+import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, finishCompiledWorkflow, unchangedChecksums, goSums, npmPackages, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease, assertCompilerReview, githubToolOutputs, maskVersionPins } from './dependency-policy.mjs';
 
 const now=Date.parse('2026-10-17T12:00:00Z');
 const old=new Date(now-embargoMs).toISOString();
@@ -108,4 +108,24 @@ test('Go submodules use their own release tag, never the older root-module relea
   assert.deepEqual(goModuleRelease('github.com/acme/project/v3','v3.1.0'),{repository:'acme/project',tag:'v3.1.0'});
   assert.deepEqual(goModuleRelease('golang.org/x/net','v0.61.0'),{repository:'golang/net',tag:'v0.61.0'});
   assert.equal(goModuleRelease('example.com/mod','v1.0.0'),undefined);
+});
+
+
+test('candidate compiler manifests cannot approve new secrets or Actions by recompiling',()=>{
+  const base={secrets:['OPENAI_API_KEY'],actions:[{repo:'actions/checkout',sha:'old'}]};
+  const line=m=>'# gh-aw-manifest: '+JSON.stringify(m);
+  assert.doesNotThrow(()=>assertCompilerReview(line(base),line({...base,actions:[{repo:'actions/checkout',sha:'new'}]})));
+  const changed={...base,secrets:[...base.secrets,'NEW_PUBLISH_KEY']};
+  for(let retry=0;retry<2;retry++) assert.throws(()=>assertCompilerReview(line(base),line(changed)),/separate human-reviewed PR/);
+  assert.throws(()=>assertCompilerReview(line(base),line({...base,actions:[...base.actions,{repo:'unknown/new-action'}]})),/human-reviewed/);
+  assert.throws(()=>assertCompilerReview(line(base),'# missing manifest'),/security manifest/);
+});
+
+
+test('Buf Action input omits v while release metadata and other tools retain their tag prefix',()=>{
+  const output=githubToolOutputs({buf:'v1.73.0',aqua:'v2.63.0','gh-aw':'v0.91.12'});
+  assert.deepEqual(output,['buf=1.73.0','aqua=v2.63.0','gh_aw=v0.91.12']);
+  const buf=output[0].split('=')[1];
+  assert.equal(`https://github.com/bufbuild/buf/releases/download/v${buf}/buf-Linux-x86_64`,'https://github.com/bufbuild/buf/releases/download/v1.73.0/buf-Linux-x86_64');
+  assert.equal(maskVersionPins('version: "1.73.0"'),maskVersionPins('version: "1.74.0"'));
 });

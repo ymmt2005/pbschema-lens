@@ -128,7 +128,7 @@ export const updateFiles = ['package.json','package-lock.json','go.mod','go.sum'
 
 export function maskVersionPins(text) {
   return text.replace(/(uses:\s*[^\s@]+)@[a-f0-9]{40}\s+#\s*v\d+\.\d+\.\d+/g,'$1@VERSION')
-    .replace(/(version:\s*")v\d+\.\d+\.\d+("\s*)/g,'$1VERSION$2')
+    .replace(/(version:\s*")v?\d+\.\d+\.\d+("\s*)/g,'$1VERSION$2')
     .replace(/(aquaproj\/aqua\/)v\d+\.\d+\.\d+(\/json-schema)/g,'$1VERSION$2')
     .replace(/(\bref:\s*)v\d+\.\d+\.\d+/g,'$1VERSION')
     .replace(/(\bname:\s*[\w.-]+\/[\w.-]+@)[^\s]+/g,'$1VERSION');
@@ -188,4 +188,20 @@ export function goModuleRelease(name, version) {
   else return undefined;
   if(/^v\d+$/.test(suffix.at(-1)??'') && Number(suffix.at(-1).slice(1))>=2) suffix.pop();
   return {repository, tag:[...suffix,version.replace(/\+incompatible$/,'')].join('/')};
+}
+
+// Compare against trusted history, not the candidate's claim that its generated
+// manifest was already reviewed. Retrying compilation cannot approve new access.
+export function assertCompilerReview(before, after) {
+  const parse=text=>JSON.parse(/^# gh-aw-manifest: (.+)$/m.exec(text)?.[1] ?? 'null');
+  const old=parse(before), next=parse(after);
+  if(!old || !next || !Array.isArray(next.secrets) || !Array.isArray(next.actions)) throw new Error('Missing compiler security manifest');
+  const addedSecrets=next.secrets.filter(s=>!old.secrets.includes(s));
+  const knownActions=new Set(old.actions.map(a=>a.repo));
+  const addedActions=next.actions.map(a=>a.repo).filter(a=>!knownActions.has(a));
+  if(addedSecrets.length || addedActions.length) throw new Error(`Compiler access requires a separate human-reviewed PR: ${[...addedSecrets,...addedActions].join(', ')}`);
+}
+
+export function githubToolOutputs(tools) {
+  return Object.entries(tools).map(([key,value])=>`${key.replaceAll('-','_')}=${key==='buf'?value.replace(/^v/,''):value}`);
 }

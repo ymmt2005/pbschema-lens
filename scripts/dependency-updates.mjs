@@ -1,10 +1,10 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, readdirSync, rmSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { setGlobalProxyFromEnv } from 'node:http';
-import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, npmPackages, finishCompiledWorkflow, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease } from './dependency-policy.mjs';
+import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, npmPackages, finishCompiledWorkflow, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease, assertCompilerReview, githubToolOutputs } from './dependency-policy.mjs';
 
 // Honor the cloud/agent sandbox's proxy without changing TLS verification.
 setGlobalProxyFromEnv();
@@ -201,7 +201,7 @@ async function apply() {
     writeFileSync(join(repo,file),text);
   }
   // Keep the generated Pages template's Buf pin aligned with repository CI.
-  writeFileSync(join(repo,'cmd/pbschema-lens/main.go'),read('cmd/pbschema-lens/main.go').replace(/version: "v\d+\.\d+\.\d+"/,`version: "${tools.buf}"`));
+  writeFileSync(join(repo,'cmd/pbschema-lens/main.go'),read('cmd/pbschema-lens/main.go').replace(/version: "v?\d+\.\d+\.\d+"/,`version: "${tools.buf.replace(/^v/,'')}"`));
   // The schema pin is the same aqua release used by the installer.
   writeFileSync(join(repo,'aqua.yaml'),read('aqua.yaml').replace(/aquaproj\/aqua\/v[\d.]+\/json-schema/,`aquaproj/aqua/${tools.aqua}/json-schema`));
   const savedMod=read('go.mod'), savedSum=read('go.sum');
@@ -251,13 +251,20 @@ async function compiler() {
 }
 
 async function compile() {
-  const result=spawnSync(await compiler(),['compile','update-dependencies','--no-check-update','--action-mode','release'],{cwd:repo,encoding:'utf8'});
-  const log=(result.stdout??'')+(result.stderr??'');
-  console.log(log);
-  if(result.error) throw result.error;
-  if(result.status!==0) throw new Error(`gh-aw compilation exited ${result.status}`);
-  if(log.includes('SECURITY REVIEW REQUIRED')) throw new Error('New compiler permissions/actions/secrets require human review before recompilation');
-  writeFileSync(join(repo,compiled),finishCompiledWorkflow(read(compiled),sources.flatMap(file=>actionReferences(read(file),file))));
+  const files=[compiled,'.github/aw/actions-lock.json','.gitattributes'].map(f=>join(repo,f));
+  const saved=new Map(files.map(f=>[f,existsSync(f)?readFileSync(f):null]));
+  try {
+    const result=spawnSync(await compiler(),['compile','update-dependencies','--no-check-update','--action-mode','release'],{cwd:repo,encoding:'utf8'});
+    const log=(result.stdout??'')+(result.stderr??'');
+    console.log(log);
+    if(result.error) throw result.error;
+    if(result.status!==0) throw new Error(`gh-aw compilation exited ${result.status}`);
+    if(log.includes('SECURITY REVIEW REQUIRED')) throw new Error('New compiler permissions/actions/secrets require human review before recompilation');
+    writeFileSync(join(repo,compiled),finishCompiledWorkflow(read(compiled),sources.flatMap(file=>actionReferences(read(file),file))));
+  } catch(error) {
+    for(const [file,contents] of saved) if(contents===null) rmSync(file,{force:true}); else writeFileSync(file,contents);
+    throw error;
+  }
 }
 
 async function verify(base) {
@@ -333,6 +340,7 @@ async function verify(base) {
     if (await tagSHA(repository,entry.version)!==entry.sha) throw new Error(`Action cache SHA mismatch: ${entry.repo}`);
   }
   if (process.argv.includes('--updates-only')) {
+    assertCompilerReview(previous(compiled),read(compiled));
     const before=read(compiled);
     await compile();
     if (read(compiled)!==before) throw new Error('Generated workflow differs from the pinned compiler output');
@@ -347,7 +355,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     else if (command === 'apply') await apply();
     else if (command === 'verify') await verify(process.argv[3]);
     else if (command === 'compile') await compile();
-    else if (command === 'tools') for (const [key,value] of Object.entries(json(toolFile))) console.log(`${key.replaceAll('-','_')}=${value}`);
+    else if (command === 'tools') for (const line of githubToolOutputs(json(toolFile))) console.log(line);
     else throw new Error('Usage: node scripts/dependency-updates.mjs plan|apply|verify BASE_SHA|compile|tools');
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }
