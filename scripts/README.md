@@ -62,16 +62,20 @@ The deterministic helper, rather than the agent's judgment, selects versions:
 - npm uses registry publication times, including every new transitive lockfile
   entry. Tool/aqua updates use GitHub Release publication times. Go toolchains
   use the official release history and Node uses the official distribution index.
-- A Go module's proxy timestamp can be an old commit date, so it cannot establish
-  release age. Query the GitHub Release for the exact tag and use `published_at`
-  when it exists. A Release still under embargo waits without adding an observation.
-  Only when the Release is absent, add its version
-  to `.github/dependency-observations.json` in a PR first. Only an observation
-  already in the trusted base can qualify, after the commit that last changed
-  that inventory has aged 72 hours. Adding observations conservatively resets
-  that clock for the whole inventory. A later manual/monthly run can apply the
-  update. New unaged Go transitives hold the Go dependency bump and get observed
-  for a later run; other updates may proceed.
+- For Go modules, use the exact tag's GitHub Release `published_at` first. A
+  fresh or draft Release cannot be bypassed with an older Git timestamp. Without
+  a Release, use the annotated tag's tagger date, or the target commit's committer
+  date for lightweight tags. Modules without a known GitHub mapping use the Go
+  proxy's commit timestamp. Missing or invalid dates still hold the update.
+  **Accepted risk:** Git dates can be backdated, and a newly created lightweight
+  tag can point to an old commit. These dates do not prove the version has been
+  public for 72 hours. Update PRs must identify fallback sources and explain this
+  risk. New Go transitives still undergo the same embargo check; an ineligible
+  transitive holds the Go dependency bump while other updates proceed.
+- Discover and explicitly upgrade only direct Go requirements. Never target
+  `// indirect` requirements or use `go get -u`. Run `go mod tidy` only after a
+  direct dependency update, allowing indirect requirements and checksums to change
+  as its consequences. Runtime-only updates do not refresh Go dependencies.
 - Preserve existing Go/npm/aqua checksums. New npm/aqua artifacts must match
   upstream digests. Go's native download also checks `go.sum` against the checksum
   database.
@@ -126,12 +130,14 @@ After merging this implementation:
 
 1. Add repository secret `OPENAI_API_KEY` for Codex inference.
 2. In **Settings → Actions → General → Workflow permissions**, enable
-   **Allow GitHub Actions to create and approve pull requests**. The updater
-   requests the write permissions needed for publishing and CI dispatch only in
-   the framework's publishing/reporting jobs; the agent's token stays read-only.
+   **Allow GitHub Actions to create and approve pull requests**. GitHub combines
+   creation and approval in this one setting; it has no creation-only switch.
+   This workflow exposes no approval or merge operation and instructs Codex never
+   to approve or merge PRs. The updater requests the write permissions needed for
+   publishing and CI dispatch only in the framework's publishing/reporting jobs;
+   the agent's token stays read-only.
 3. Run the workflow manually once and inspect the draft PR and CI before relying
-   on the monthly schedule. First-seen Go observations can need an initial merge
-   and a second run at least 72 hours later.
+   on the monthly schedule.
 
 Store credentials only in repository settings, never in files or PR bodies. A
 compiler validation/local dry run does not validate inference or PR publication;

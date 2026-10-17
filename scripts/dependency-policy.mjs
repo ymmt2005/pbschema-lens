@@ -86,6 +86,23 @@ export function goSums(text) {
   }));
 }
 
+export function goRequirements(text) {
+  const result = [];
+  let block = false;
+  for (const raw of text.split('\n')) {
+    const [code, comment = ''] = raw.split('//');
+    const line = code.trim();
+    if (/^require\s*\($/.test(line)) { block = true; continue; }
+    if (line === ')') { block = false; continue; }
+    const entry = block ? line : /^require\s+(.+)$/.exec(line)?.[1];
+    if (!entry) continue;
+    const match = /^(\S+)\s+(\S+)$/.exec(entry);
+    if (!match) throw new Error(`Invalid Go requirement: ${raw}`);
+    result.push({ name: match[1], version: match[2], indirect: /^\s*indirect\s*$/.test(comment) });
+  }
+  return result;
+}
+
 export function npmPackages(lock) {
   if(lock.lockfileVersion!==3 || !lock.packages || Array.isArray(lock.packages) || !lock.packages['']) throw new Error('Expected npm lockfile v3 with a complete packages inventory');
   const packages = new Map();
@@ -122,10 +139,10 @@ export function finishCompiledWorkflow(text, sourceRefs) {
 }
 
 export const updateFiles = ['package.json','package-lock.json','go.mod','go.sum','aqua.yaml','aqua-checksums.json',
-  '.github/dependency-tools.json','.github/dependency-observations.json','cmd/pbschema-lens/main.go'];
+  '.github/dependency-tools.json','cmd/pbschema-lens/main.go'];
 
 export function automatedDependency(item) {
-  return item.kind!=='action' && item.id!=='tool:gh-aw';
+  return item.kind!=='action' && item.id!=='tool:gh-aw' && !(item.kind==='module' && item.indirect);
 }
 
 export function maskVersionPins(text) {
@@ -137,6 +154,10 @@ export function maskVersionPins(text) {
 }
 
 export function assertUpdateScope(changes) {
+  const mod = changes.find(([file]) => file === 'go.mod');
+  const direct = text => goRequirements(text).filter(r => !r.indirect);
+  const updatedDirect = mod && direct(mod[1]).some(r => direct(mod[2]).some(next => next.name === r.name && next.version !== r.version));
+  if (changes.some(([file]) => file === 'go.sum') && !updatedDirect) throw new Error('Go checksums can change only as a consequence of direct dependency updates');
   for (const [file, before, after] of changes) {
     if (!updateFiles.includes(file)) throw new Error(`Update cannot change ${file}`);
     if (['package-lock.json','go.sum','aqua-checksums.json'].includes(file)) continue;
@@ -148,13 +169,13 @@ export function assertUpdateScope(changes) {
         return JSON.stringify(pkg);
       };
       if (strip(before) !== strip(after)) throw new Error('Update changed package metadata, scripts, or dependency names');
-    } else if (file === '.github/dependency-observations.json') {
-      assertObservationChange(JSON.parse(before), JSON.parse(after));
     } else if (file === '.github/dependency-tools.json') {
       const a=JSON.parse(before), b=JSON.parse(after);
       if (JSON.stringify(Object.keys(a).sort()) !== JSON.stringify(Object.keys(b).sort())) throw new Error('Update changed the tool inventory');
       for(const key of ['gh-aw','gh-aw-linux-amd64-sha256']) if(a[key]!==b[key]) throw new Error('Agentic-workflow compiler updates are outside automatic update scope');
     } else if (file === 'go.mod') {
+      if (JSON.stringify(direct(before).map(r => r.name).sort()) !== JSON.stringify(direct(after).map(r => r.name).sort())) throw new Error('Update changed direct Go dependency names');
+      if (!updatedDirect && JSON.stringify(goRequirements(before)) !== JSON.stringify(goRequirements(after))) throw new Error('Indirect Go dependencies can change only as a consequence of direct dependency updates');
       const module = /^module\s+(.+)$/m.exec(before)?.[1];
       if (/^module\s+(.+)$/m.exec(after)?.[1] !== module) throw new Error('Update changed the Go module identity');
       for (const line of after.split('\n').map(s=>s.replace(/\/\/.*$/,'').trim()).filter(Boolean)) {
@@ -167,18 +188,6 @@ export function assertUpdateScope(changes) {
       if(maskBuf(before)!==maskBuf(after)) throw new Error('Update changed more than the generated Pages Buf version');
     } else if (maskVersionPins(before) !== maskVersionPins(after)) throw new Error(`Update changed more than version pins in ${file}`);
   }
-}
-
-// No caller-supplied timestamps: age comes from the trusted base commit that
-// last changed this append-only inventory. Any addition resets the whole clock.
-export function assertObservationChange(before, after) {
-  if (JSON.stringify(Object.keys(after)) !== '["go"]' || !Array.isArray(after.go)) throw new Error('Invalid observation inventory');
-  if (new Set(after.go).size !== after.go.length || after.go.some(key => !/^[\w./~-]+@v\d+\.\d+\.\d+(?:\+incompatible)?$/.test(key))) throw new Error('Invalid Go observation');
-  if ((before.go ?? []).some(key => !after.go.includes(key))) throw new Error('Cannot remove prior observations');
-}
-
-export function observedPublication(key, { versions, committed }, now = Date.now()) {
-  return versions.includes(key) && oldEnough(committed, now) ? committed : undefined;
 }
 
 export function goModuleRelease(name, version) {
@@ -198,11 +207,12 @@ export function githubToolOutputs(tools) {
 }
 
 // A published Release always takes precedence, including while under embargo.
-// Only an absent Release can use observation-based evidence.
-export function goPublicationEvidence(version, release, observed) {
+// Only an absent Release can use Git timestamps, whose backdating risk the
+// maintainer accepts. They do not prove when the tag became public.
+export function goPublicationEvidence(version, release, fallback) {
   return {
     ...release, version,
-    published: release ? release.published_at : observed,
-    observe: !release && !observed,
+    published: release ? release.published_at : fallback?.published,
+    source: release ? 'github-release' : fallback?.source,
   };
 }

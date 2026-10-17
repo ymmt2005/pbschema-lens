@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, finishCompiledWorkflow, unchangedChecksums, goSums, npmPackages, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease, githubToolOutputs, automatedDependency, maskVersionPins, goPublicationEvidence } from './dependency-policy.mjs';
+import { embargoMs, oldEnough, eligibleReleases, nodeLTSReleases, goReleases, actionReferences, finishCompiledWorkflow, unchangedChecksums, goSums, goRequirements, npmPackages, assertUpdateScope, goModuleRelease, githubToolOutputs, automatedDependency, maskVersionPins, goPublicationEvidence } from './dependency-policy.mjs';
+import { gitTagPublication } from './dependency-updates.mjs';
 
 const now=Date.parse('2026-10-17T12:00:00Z');
 const old=new Date(now-embargoMs).toISOString();
@@ -91,16 +92,33 @@ test('update scope rejects policy changes, package scripts, new dependencies and
 });
 
 
-test('Go observation age comes only from the trusted base, never a new candidate or commit date in module metadata',()=>{
-  const key='golang.org/x/net@v0.61.0';
-  assert.equal(observedPublication(key,{versions:[],committed:old},now),undefined);
-  assert.equal(observedPublication(key,{versions:[key],committed:new Date(now).toISOString()},now),undefined);
-  assert.equal(observedPublication(key,{versions:[key],committed:old},now),old);
-  assert.doesNotThrow(()=>assertObservationChange({go:[]},{go:[key]}));
-  assert.throws(()=>assertObservationChange({go:[key]},{go:[]}));
-  assert.throws(()=>assertObservationChange({go:[]},{go:[key],published:old}));
-  assert.throws(()=>assertObservationChange({go:[]},{go:[key+'-rc.1']}));
-  assert.throws(()=>assertObservationChange({go:[]},{go:[key,key]}));
+test('only direct Go requirements are update candidates, in both block and single-line forms',()=>{
+  const requirements=goRequirements(`module example.com/project
+go 1.26.9
+require (
+  example.com/direct v1.0.0
+  example.com/transitive v2.0.0 // indirect
+)
+require example.com/single v3.0.0
+require example.com/another v4.0.0 // indirect
+`);
+  assert.deepEqual(requirements,[
+    {name:'example.com/direct',version:'v1.0.0',indirect:false},
+    {name:'example.com/transitive',version:'v2.0.0',indirect:true},
+    {name:'example.com/single',version:'v3.0.0',indirect:false},
+    {name:'example.com/another',version:'v4.0.0',indirect:true},
+  ]);
+  assert.deepEqual(requirements.map(r=>({...r,kind:'module'})).filter(automatedDependency).map(r=>r.name),['example.com/direct','example.com/single']);
+});
+
+test('indirect requirements and Go checksums change only with a direct dependency update',()=>{
+  const before='module example.com/project\ngo 1.26.9\nrequire example.com/direct v1.0.0\nrequire example.com/indirect v2.0.0 // indirect\n';
+  const indirect=before.replace('v2.0.0','v2.1.0');
+  assert.throws(()=>assertUpdateScope([['go.mod',before,indirect]]),/Indirect Go dependencies/);
+  assert.throws(()=>assertUpdateScope([['go.sum','old','new']]),/consequence of direct/);
+  assert.throws(()=>assertUpdateScope([['go.mod',before,before.replace('1.26.9','1.27.2')],['go.sum','old','new']]),/consequence of direct/);
+  assert.doesNotThrow(()=>assertUpdateScope([['go.mod',before,indirect.replace('v1.0.0','v1.1.0')],['go.sum','old','new']]));
+  assert.throws(()=>assertUpdateScope([['go.mod',before,before.replace(' // indirect','')]]),/direct Go dependency names/);
 });
 
 
@@ -174,21 +192,39 @@ test('CI dispatch refuses forks, unrelated branches, wrong bases, and invalid PR
 });
 
 
-test('Go uses the exact GitHub Release publication date before observation evidence',()=>{
+test('Go uses the exact GitHub Release publication date before an older Git timestamp',()=>{
   const fresh=new Date(now-embargoMs+1).toISOString();
-  const evidence=goPublicationEvidence('v1.2.3',{published_at:fresh},old);
+  const fallback={published:old,source:'git-tag'};
+  const evidence=goPublicationEvidence('v1.2.3',{published_at:fresh},fallback);
   assert.equal(evidence.published,fresh);
-  assert.equal(evidence.observe,false);
+  assert.equal(evidence.source,'github-release');
   assert.deepEqual(eligibleReleases([evidence],{now}),[]);
   assert.equal(eligibleReleases([goPublicationEvidence('v1.2.3',{published_at:old},undefined)],{now}).length,1);
-  assert.equal(goPublicationEvidence('v1.2.3',{published_at:null,draft:true},old).published,null);
+  assert.equal(goPublicationEvidence('v1.2.3',{published_at:null,draft:true},fallback).published,null);
 });
 
-test('Go records an observation only when a GitHub Release and aged observation are absent',()=>{
-  const unseen=goPublicationEvidence('v1.2.3',null,undefined);
-  assert.equal(unseen.observe,true);
-  assert.deepEqual(eligibleReleases([unseen],{now}),[]);
-  const seen=goPublicationEvidence('v1.2.3',null,old);
-  assert.equal(seen.observe,false);
-  assert.equal(eligibleReleases([seen],{now}).length,1);
+test('Go accepts old fallback timestamps but holds missing and fresh timestamps',()=>{
+  for(const source of ['git-tag','git-commit','go-proxy-commit']) {
+    const evidence=goPublicationEvidence('v1.2.3',null,{published:old,source});
+    assert.equal(evidence.source,source);
+    assert.equal(eligibleReleases([evidence],{now}).length,1);
+  }
+  for(const published of [undefined,'invalid',new Date(now).toISOString()])
+    assert.deepEqual(eligibleReleases([goPublicationEvidence('v1.2.3',null,{published,source:'git-tag'})],{now}),[]);
+});
+
+test('GitHub tag metadata uses annotated tagger dates and lightweight target committer dates',async()=>{
+  for(const type of ['tag','commit']) {
+    const paths=[];
+    const request=async path=>{
+      paths.push(path);
+      if(path.includes('/git/ref/')) return {object:{type,sha:'abc'}};
+      return {tagger:{date:old},committer:{date:'2026-01-01T00:00:00Z'},author:{date:'2000-01-01T00:00:00Z'}};
+    };
+    const evidence=await gitTagPublication('acme/project','sub/v1.2.3',request);
+    assert.deepEqual(evidence,{published:type==='tag'?old:'2026-01-01T00:00:00Z',source:type==='tag'?'git-tag':'git-commit'});
+    assert.deepEqual(paths,['repos/acme/project/git/ref/tags/sub%2Fv1.2.3',`repos/acme/project/git/${type==='tag'?'tags':'commits'}/abc`]);
+  }
+  assert.equal(await gitTagPublication('acme/project','v1.2.3',async()=>null),undefined);
+  await assert.rejects(()=>gitTagPublication('acme/project','v1.2.3',async()=>{throw new Error('HTTP 403');}),/403/);
 });

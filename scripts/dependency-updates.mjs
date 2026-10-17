@@ -4,17 +4,14 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { setGlobalProxyFromEnv } from 'node:http';
-import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, npmPackages, finishCompiledWorkflow, assertUpdateScope, assertObservationChange, observedPublication, goModuleRelease, githubToolOutputs, automatedDependency, goPublicationEvidence } from './dependency-policy.mjs';
+import { stableVersion, compareVersions, eligibleReleases, nodeLTSReleases, goReleases, assertEligible, actionReferences, unchangedChecksums, goSums, goRequirements, npmPackages, finishCompiledWorkflow, assertUpdateScope, goModuleRelease, githubToolOutputs, automatedDependency, goPublicationEvidence } from './dependency-policy.mjs';
 
 // Honor the cloud/agent sandbox's proxy without changing TLS verification.
 setGlobalProxyFromEnv();
 
 export const repo = resolve(process.env.DEPENDENCY_REPO ?? resolve(dirname(fileURLToPath(import.meta.url)), '..'));
 const work = join(repo, '.pbschema-lens/dependency-updates');
-const observationFile = '.github/dependency-observations.json';
-const observations = new Set();
 const held = [];
-let observationBase = 'HEAD';
 const toolFile = '.github/dependency-tools.json';
 const workflow = '.github/workflows/update-dependencies.md';
 const compiled = '.github/workflows/update-dependencies.lock.yml';
@@ -59,6 +56,22 @@ async function tagSHA(repository, tag) {
   return object.sha;
 }
 
+export async function gitTagPublication(repository, tag, request = github) {
+  const ref = await request(`repos/${repository}/git/ref/tags/${encodeURIComponent(tag)}`, { allowNotFound: true });
+  if (!ref) return undefined;
+  if (ref.object.type === 'tag') {
+    const object = await request(`repos/${repository}/git/tags/${ref.object.sha}`);
+    return { published: object.tagger?.date, source: 'git-tag' };
+  }
+  if (ref.object.type === 'commit') {
+    // Lightweight tags have no tagger date; their target commit can be much
+    // older than the tag. Both dates can be backdated by their authors.
+    const object = await request(`repos/${repository}/git/commits/${ref.object.sha}`);
+    return { published: object.committer?.date, source: 'git-commit' };
+  }
+  return undefined;
+}
+
 async function releases(repository) {
   const result = [];
   // Include enough history to get past the embargo for frequently released tools.
@@ -84,9 +97,9 @@ function inventory(get = read, { baseline = false } = {}) {
     if (!stableVersion(version)) throw new Error(`Unsupported npm dependency range: ${name} ${range}`);
     items.push({ id: `npm:${name}`, kind: 'npm', name, section, current: version });
   }
-  for (const [, name, version] of mod.matchAll(/^\s*([^\s()]+)\s+(v\d+\.\d+\.\d+[^\s]*)/gm)) {
+  for (const { name, version, indirect } of goRequirements(mod)) {
     if (!stableVersion(version)) throw new Error(`Unstable Go module: ${name}@${version}`);
-    items.push({ id: `go:${name}`, kind: 'module', name, current: version });
+    items.push({ id: `go:${name}`, kind: 'module', name, indirect, current: version });
   }
   const tools = JSON.parse(get(toolFile) || '{}');
   for (const [name, repository] of Object.entries(repositories)) if (tools[name]) items.push({ id: `tool:${name}`, kind: 'github', repository, name, current: tools[name] });
@@ -115,16 +128,14 @@ async function choices(item) {
   }
   if (item.kind === 'module') {
     const versions = (await metadata(`https://proxy.golang.org/${goEscape(item.name)}/@v/list`, { text: true })).trim().split('\n').filter(v => stableVersion(v));
-    let observedLatest=false;
+    let heldLatest=false;
     for (const version of versions.sort((a,b) => compareVersions(b,a))) {
       if (compareVersions(version,item.current) <= 0) break;
       const release = await modulePublication(item.name,version);
       if (eligibleReleases([release]).length) return [release];
-      // Record only the newest held candidate, not the entire module history.
-      if(!observedLatest) {
-        if(release.observe) observations.add(`${item.name}@${version}`);
-        held.push({ id:item.id, version, reason:release.observe ? 'No GitHub Release; awaiting merged observation' : 'Release is not yet eligible' });
-        observedLatest=true;
+      if(!heldLatest) {
+        held.push({ id:item.id, version, reason:'Release is not yet eligible or has no usable timestamp' });
+        heldLatest=true;
       }
     }
     return [];
@@ -132,20 +143,18 @@ async function choices(item) {
   return eligibleReleases(await releases(item.repository));
 }
 
-function observedVersions() {
-  const result=spawnSync('git',['show',`${observationBase}:${observationFile}`],{cwd:repo,encoding:'utf8'});
-  if(result.status!==0) return {versions:[],committed:undefined};
-  const committed=run('git',['log','-1','--format=%cI',observationBase,'--',observationFile],{stdio:'pipe'}).trim();
-  return {versions:JSON.parse(result.stdout).go,committed};
-}
-
 async function modulePublication(name,version) {
-  // Proxy .info.Time is a VCS commit timestamp, NOT a publication timestamp.
-  // Prefer GitHub's server-stamped release time; otherwise wait for a trusted
-  // merged observation to age. Unknown evidence always holds the update.
   const source=goModuleRelease(name,version);
   const release=source ? await github(`repos/${source.repository}/releases/tags/${encodeURIComponent(source.tag)}`,{allowNotFound:true}) : null;
-  return goPublicationEvidence(version,release,observedPublication(`${name}@${version}`,observedVersions()));
+  let fallback;
+  if (!release) {
+    if (source) fallback = await gitTagPublication(source.repository,source.tag);
+    else {
+      const info = await metadata(`https://proxy.golang.org/${goEscape(name)}/@v/${goEscape(version)}.info`);
+      fallback = { published: info.Time, source: 'go-proxy-commit' };
+    }
+  }
+  return goPublicationEvidence(version,release,fallback);
 }
 
 async function publication(item, version) {
@@ -168,13 +177,13 @@ async function plan() {
   for (const item of inventory().filter(automatedDependency)) {
     const selected = (await choices(item))[0];
     if (!selected || compareVersions(selected.version, numeric(item.current)) <= 0) continue;
-    const next = { ...item, next: selected.tag ?? selected.version.replace(/^go/, '').replace(/^v/, ''), published: selected.published };
+    const next = { ...item, next: selected.tag ?? selected.version.replace(/^go/, '').replace(/^v/, ''), published: selected.published, source: selected.source };
     if (item.kind === 'module') next.next = selected.version;
     updates.push(next);
   }
   mkdirSync(work, { recursive: true });
-  writeFileSync(join(work,'plan.json'),JSON.stringify({ generated: new Date().toISOString(), updates, held, observations:[...observations] },null,2)+'\n');
-  console.log(JSON.stringify({updates,held,observations:[...observations]},null,2));
+  writeFileSync(join(work,'plan.json'),JSON.stringify({ generated: new Date().toISOString(), updates, held },null,2)+'\n');
+  console.log(JSON.stringify({updates,held},null,2));
   return updates;
 }
 
@@ -197,27 +206,24 @@ async function apply() {
   // The schema pin is the same aqua release used by the installer.
   writeFileSync(join(repo,'aqua.yaml'),read('aqua.yaml').replace(/aquaproj\/aqua\/v[\d.]+\/json-schema/,`aquaproj/aqua/${tools.aqua}/json-schema`));
   const savedMod=read('go.mod'), savedSum=read('go.sum');
-  const modules = updates.filter(i => i.kind === 'module').map(i => `${i.name}@${i.next}`);
-  if (modules.length) run('go',['get',...modules]);
-  run('go',['mod','tidy']);
+  const modules = updates.filter(i => i.kind === 'module' && !i.indirect).map(i => `${i.name}@${i.next}`);
+  if (modules.length) {
+    run('go',['get',...modules]);
+    run('go',['mod','tidy']);
+  }
   let holdGo=false;
   const previousSums=goSums(savedSum);
   for(const key of Object.keys(goSums(read('go.sum')))) if(!(key in previousSums)) {
     const at=key.lastIndexOf('@'), name=key.slice(0,at), version=key.slice(at+1).replace(/\/go.mod$/,'');
     const evidence=await modulePublication(name,version);
     if(!eligibleReleases([evidence]).length) {
-      if(evidence.observe) observations.add(`${name}@${version}`);
       holdGo=true;
     }
   }
   if(holdGo) {
     writeFileSync(join(repo,'go.mod'),savedMod); writeFileSync(join(repo,'go.sum'),savedSum);
-    console.log('Held Go dependency changes until new transitive versions satisfy the release/observation embargo.');
+    console.log('Held Go dependency changes until new transitive versions satisfy the release embargo.');
   }
-  const ledger=json(observationFile);
-  ledger.go=[...new Set([...ledger.go,...observations])].sort();
-  assertObservationChange(json(observationFile),ledger);
-  writeJSON(observationFile,ledger);
   run('npm',['install','--package-lock-only','--ignore-scripts','--before',new Date(Date.now()-72*60*60*1000).toISOString()]);
   // Registry release hashes must be reviewed just like tool artifact hashes.
   run('aqua',['update-checksum']);
@@ -262,15 +268,13 @@ async function compile() {
 
 async function verify(base) {
   if (!/^[a-f0-9]{40}$/.test(base ?? '')) throw new Error('verify needs an immutable base commit SHA');
-  observationBase=base;
   const previous = file => {
     const result=spawnSync('git',['show',`${base}:${file}`],{cwd:repo,encoding:'utf8'});
-    if(result.status!==0 && ([toolFile,observationFile].includes(file) || file.startsWith('.github/workflows/'))) return '';
+    if(result.status!==0 && (file === toolFile || file.startsWith('.github/workflows/'))) return '';
     if(result.status!==0) throw new Error(`Cannot read base file: ${file}`);
     return result.stdout;
   };
   const old = inventory(previous,{baseline:true}), current = inventory();
-  assertObservationChange(JSON.parse(previous(observationFile)||'{"go":[]}'),json(observationFile));
   if (process.argv.includes('--updates-only')) {
     const files=run('git',['diff','--name-only',base,'--'],{stdio:'pipe'}).trim().split('\n').filter(Boolean);
     assertUpdateScope(files.map(file=>[file,previous(file),read(file)]));
