@@ -57,7 +57,7 @@ for (const width of [1440,320]) {
     test('RPC navigation reaches the dedicated method and its request field',async({page})=>{
       await page.goto('/reference/services/acme.user.v1.UserService/');
       await page.getByRole('link',{name:'GetUser',exact:true}).click();
-      await expect(page).toHaveURL(/\/methods\/acme\.user\.v1\.UserService.GetUser\/$/);
+      await expect(page).toHaveURL(/\/methods\/acme\.user\.v1\.UserService\.GetUser\/$/);
       await expect(page.getByRole('heading',{level:1})).toHaveText('GetUser');
       await expect(page.locator('main')).toContainText('rpc GetUser(');
       await page.locator('a[href="#request-id"]').click();

@@ -8,7 +8,7 @@ npm ci
 npm run test:links
 ```
 
-`aqua.yaml` pins lychee v0.24.2 and the standard registry. `aqua-checksums.json` is committed and checksums are required. For an intentional tool update, change the pin, run `aqua update-checksum`, review the checksum changes, and rerun the checks. CI fails if installation changes the committed checksums. Never disable verification to resolve installation failures.
+`aqua.yaml` pins lychee v0.24.2 and the standard registry. `aqua-checksums.json` is committed and checksums are required. For an intentional tool update, change the pin, run `aqua update-checksum`, review the checksum changes, and rerun the checks. CI checks for committed-checksum changes after the link checks, including when they fail, so the guard covers both installer setup and later `aqua exec` calls. Never disable verification to resolve installation failures.
 
 `test:links` first runs six checks against the real aqua-managed lychee: a valid document, a missing page, and a missing fragment at each base. The valid cases include an external `.invalid` URL that must be skipped offline. It then builds Acme at `/` and `/pbschema-lens/` and checks every generated HTML document, including fragment targets. External availability is not a PR gate, and there are no internal-link exclusions.
 

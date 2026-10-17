@@ -37,9 +37,6 @@ jobs:
         env:
           AQUA_ENFORCE_CHECKSUM: "true"
           AQUA_ENFORCE_REQUIRE_CHECKSUM: "true"
-      - name: Check fixed tool checksums
-        run: git diff --exit-code -- aqua-checksums.json
-
       - name: Typecheck
         run: npm run typecheck
       - name: Build UI
@@ -55,6 +52,9 @@ jobs:
       - name: Offline internal links at both base paths
         id: links
         run: npm run test:links
+      - name: Check fixed tool checksums
+        if: always() && steps.links.outcome != 'skipped'
+        run: git diff --exit-code -- aqua-checksums.json
       - name: Publish internal-link diagnostics
         if: always() && steps.links.outcome != 'skipped'
         env:
