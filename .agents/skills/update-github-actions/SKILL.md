@@ -18,7 +18,6 @@ without a worktree, and record its full base SHA before editing:
 
 ```sh
 action_update_base=$(git rev-parse HEAD)
-grep -Rn 'uses:' .github cmd/pbschema-lens/main.go
 node scripts/action-updates.mjs plan
 ```
 
