@@ -10,7 +10,7 @@
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p ui/tsconfig.json --noEmit && tsc -p e2e/tsconfig.json --noEmit",
     "test:links": "node --test scripts/check-links.test.mjs && node scripts/check-links.mjs",
-    "test:updates": "node --test scripts/dependency-policy.test.mjs"
+    "test:updates": "node --test scripts/dependency-policy.test.mjs scripts/action-updates.test.mjs"
   },
   "repository": {
     "type": "git",
