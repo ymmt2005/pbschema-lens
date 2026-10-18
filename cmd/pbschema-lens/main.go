@@ -17,7 +17,7 @@ import (
 	"github.com/ymmt2005/pbschema-lens/internal/site"
 )
 
-var version = "0.7.0"
+var version = "0.7.1"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
