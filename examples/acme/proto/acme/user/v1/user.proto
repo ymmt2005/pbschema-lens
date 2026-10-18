@@ -1,5 +1,24 @@
 syntax = "proto3";
 
+// User accounts and profile data for the Acme identity platform.
+//
+// ## In this package
+//
+// | Type | Purpose |
+// | --- | --- |
+// | [User](../../messages/acme.user.v1.User/) | Identity, lifecycle, and profile data. |
+// | [Address](../../messages/acme.user.v1.Address/) | Postal and billing details. |
+// | [UserState](../../enums/acme.user.v1.UserState/) | Account lifecycle values. |
+// | [UserService](../../services/acme.user.v1.UserService/) | Read, list, create, and watch accounts. |
+//
+// ## Getting started
+//
+// 1. Read the User page for a JSON example and field validation rules.
+// 2. Follow UserService to inspect request types and HTTP bindings.
+// 3. Explore [v2 sessions](../acme.user.v2/) to see this account schema reused.
+//
+// > **Shared types:** the session API imports the v1 User definition rather
+// > than duplicating account fields in another version.
 package acme.user.v1;
 
 import "acme/security/options.proto";

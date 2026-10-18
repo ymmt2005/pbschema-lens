@@ -113,9 +113,20 @@ func TestEscapeHTML(t *testing.T) {
 }
 
 func TestCommentStars(t *testing.T) {
-	got := CommentsToMarkdown(" * line one\n * line two")
-	if !strings.Contains(got, "line one") || strings.Contains(got, "* line") {
-		t.Fatalf("got %q", got)
+	for _, tc := range []struct{ name, source, want string }{
+		{"explicit block", "/**\n * line one\n * line two\n */", "line one\nline two"},
+		{"plain block with code", "/*\n```c\n* item\n```\n*/", "```c\n* item\n```"},
+		{"asterisk list", " * line one\n * line two\n", "* line one\n* line two"},
+		{"bold first word", " **bold** intro\n", "**bold** intro"},
+		{"compiled Doxygen", "*\n Intro\n\n * item\n", "Intro\n\n* item"},
+		{"fenced pointer code", " ```c\n *ptr = 1;\n   **nested = 2;\n ```\n", "```c\n*ptr = 1;\n  **nested = 2;\n```"},
+		{"indented pointer code", "     *ptr = 1;\n       **nested = 2;\n", "    *ptr = 1;\n      **nested = 2;"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := CommentsToMarkdown(tc.source); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

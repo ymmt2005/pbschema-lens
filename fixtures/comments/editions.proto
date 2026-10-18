@@ -1,0 +1,10 @@
+// EDITIONS_FILE_LEADING **overview**.
+edition = "2023";
+
+package fixtures.comments.editions;
+
+// EDITIONS_MESSAGE_LEADING **overview**.
+message Modern {
+  // EDITIONS_FIELD_LEADING **overview**.
+  string nickname = 1; // EDITIONS_FIELD_TRAILING **note**.
+}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,8 +12,6 @@ import (
 	"github.com/ymmt2005/pbschema-lens/internal/markdown"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
-
-var starLine = regexp.MustCompile(`(?m)^\s*\*\s?`)
 
 func fieldRanges(list protoreflect.FieldRanges) []ReservedRange {
 	out := make([]ReservedRange, 0, list.Len())

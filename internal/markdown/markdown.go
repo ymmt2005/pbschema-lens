@@ -38,21 +38,57 @@ var (
 	)
 )
 
-var starLine = regexp.MustCompile(`(?m)^\s*\*\s?`)
+var blockStarLine = regexp.MustCompile(`(?m)^[\t ]*\*(?:[\t ]|$)`)
 
 // CommentsToMarkdown joins proto comment fragments after stripping comment markers.
 func CommentsToMarkdown(parts ...string) string {
 	var kept []string
 	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
+		part = strings.ReplaceAll(part, "\r\n", "\n")
+		if strings.TrimSpace(part) == "" {
 			continue
 		}
-		part = strings.TrimPrefix(part, "/**")
-		part = strings.TrimPrefix(part, "/*")
-		part = strings.TrimSuffix(part, "*/")
-		part = starLine.ReplaceAllString(part, "")
-		kept = append(kept, strings.TrimSpace(part))
+		// Only strip decorative stars when explicit block delimiters establish
+		// that they are comment decoration. Otherwise stars are Markdown/code.
+		trimmed := strings.TrimSpace(part)
+		if strings.HasPrefix(trimmed, "/*") && strings.HasSuffix(trimmed, "*/") {
+			part = strings.TrimPrefix(strings.TrimPrefix(trimmed, "/**"), "/*")
+			part = strings.TrimSuffix(part, "*/")
+			decorated := false
+			for _, line := range strings.Split(part, "\n")[1:] {
+				if strings.TrimSpace(line) == "" {
+					continue
+				}
+				if !blockStarLine.MatchString(line) {
+					decorated = false
+					break
+				}
+				decorated = true
+			}
+			if decorated {
+				part = blockStarLine.ReplaceAllString(part, "")
+			}
+		} else if first := strings.IndexByte(part, '\n'); first >= 0 && strings.TrimSpace(part[:first]) == "*" {
+			// Compilers can leave the opening Doxygen star on its own line.
+			part = part[first+1:]
+		}
+		lines := strings.Split(strings.Trim(part, "\n"), "\n")
+		margin := true
+		for _, line := range lines {
+			if strings.TrimSpace(line) != "" && !strings.HasPrefix(line, " ") {
+				margin = false
+			}
+		}
+		if margin {
+			// Remove the shared space after //, preserving relative indentation.
+			for i := range lines {
+				lines[i] = strings.TrimPrefix(lines[i], " ")
+			}
+		}
+		part = strings.Trim(strings.TrimRight(strings.Join(lines, "\n"), " \t"), "\n")
+		if strings.TrimSpace(part) != "" {
+			kept = append(kept, part)
+		}
 	}
 	return strings.Join(kept, "\n\n")
 }

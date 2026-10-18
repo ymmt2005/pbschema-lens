@@ -33,12 +33,13 @@ type FileSource interface {
 // Build walks a resolved file registry into a SchemaModel.
 func Build(files FileSource, options BuildOptions) (*SchemaModel, error) {
 	b := &builder{
-		options:    options,
-		symbols:    map[string]any{},
-		byFullName: map[string]string{},
-		packages:   map[string]*DocPackage{},
-		extTypes:   extensionTypes(files),
-		extOrder:   extensionOrder(files),
+		options:         options,
+		symbols:         map[string]any{},
+		byFullName:      map[string]string{},
+		packages:        map[string]*DocPackage{},
+		packageComments: map[string]*DocComment{},
+		extTypes:        extensionTypes(files),
+		extOrder:        extensionOrder(files),
 	}
 	var walkErr error
 	files.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
@@ -52,22 +53,23 @@ func Build(files FileSource, options BuildOptions) (*SchemaModel, error) {
 }
 
 type builder struct {
-	options    BuildOptions
-	symbols    map[string]any
-	byFullName map[string]string
-	packages   map[string]*DocPackage
-	files      []*DocFile
-	messages   []*DocMessage
-	fields     []*DocField
-	oneofs     []*DocOneof
-	enums      []*DocEnum
-	values     []*DocEnumValue
-	services   []*DocService
-	methods    []*DocMethod
-	exts       []*DocExtension
-	forward    []SymbolReference
-	extTypes   *protoregistry.Types
-	extOrder   map[string]int
+	options         BuildOptions
+	symbols         map[string]any
+	byFullName      map[string]string
+	packages        map[string]*DocPackage
+	packageComments map[string]*DocComment
+	files           []*DocFile
+	messages        []*DocMessage
+	fields          []*DocField
+	oneofs          []*DocOneof
+	enums           []*DocEnum
+	values          []*DocEnumValue
+	services        []*DocService
+	methods         []*DocMethod
+	exts            []*DocExtension
+	forward         []SymbolReference
+	extTypes        *protoregistry.Types
+	extOrder        map[string]int
 }
 
 func (b *builder) optionsOf(msg proto.Message, target string) []*DocOption {
@@ -102,7 +104,7 @@ func (b *builder) walkFile(fd protoreflect.FileDescriptor) error {
 		Syntax:     syntax,
 	}
 	doc.GeneratePage = class.GeneratePage && hasSource
-	doc.Comments = commentFrom(loc)
+	doc.Comments = fileComment(fd)
 	doc.Source = sourceFrom(fileName, loc)
 	doc.SourceLink, doc.RepositoryLink = sourceRefs(fileName, lineOf(doc.Source), b.options.Source, hasSource)
 	doc.Options = b.optionsOf(fd.Options(), "file")
@@ -136,8 +138,17 @@ func (b *builder) walkFile(fd protoreflect.FileDescriptor) error {
 	}
 	b.files = append(b.files, doc)
 	b.remember(doc, &doc.baseSymbol)
-	pkg := b.ensurePackage(pkgName, class, doc.Comments)
+	fileComments := doc.Comments
+	if !class.GeneratePage {
+		fileComments = nil
+	}
+	pkg := b.ensurePackage(pkgName, class, fileComments)
 	pkg.FileIDs = append(pkg.FileIDs, doc.ID)
+	// FileDescriptorProto.package is field 2 in SourceCodeInfo. It has its
+	// own comment location, separate from the file header at the empty path.
+	if class.GeneratePage && b.packageComments[pkgName] == nil {
+		b.packageComments[pkgName] = commentFrom(fd.SourceLocations().ByPath(protoreflect.SourcePath{2}))
+	}
 
 	for i := 0; i < fd.Messages().Len(); i++ {
 		b.walkMessage(fd.Messages().Get(i), nil, class, fileName, pkgName, hasSource)
@@ -156,6 +167,9 @@ func (b *builder) walkFile(fd protoreflect.FileDescriptor) error {
 
 func (b *builder) ensurePackage(packageName string, class classify.Result, comments *DocComment) *DocPackage {
 	if existing, ok := b.packages[packageName]; ok {
+		if existing.Comments == nil {
+			existing.Comments = comments
+		}
 		if class.GeneratePage {
 			existing.GeneratePage = true
 		}
@@ -266,7 +280,7 @@ func (b *builder) walkField(fd protoreflect.FieldDescriptor, parent *DocMessage,
 	loc := locationFor(fd.ParentFile(), fd)
 	path, anchor := urlPathFor("field", full, parent.FullName)
 	doc := &DocField{baseSymbol: newBase("field", full, string(fd.Name()), pkgName, fileName, string(class.Domain), false, false, deprecatedField(fd))}
-	doc.Comments = commentFrom(loc)
+	doc.Comments = fieldComment(fd, loc)
 	doc.Source = sourceFrom(fileName, loc)
 	doc.SourceLink, doc.RepositoryLink = sourceRefs(fileName, lineOf(doc.Source), b.options.Source, hasSource)
 	doc.Options = b.optionsOf(fd.Options(), "field")
@@ -377,7 +391,7 @@ func (b *builder) walkExtension(ext protoreflect.ExtensionDescriptor, class clas
 	target := optionTargetOf(ext.ContainingMessage().FullName())
 	page := class.GeneratePage
 	doc := &DocExtension{baseSymbol: newBase("extension", full, string(ext.Name()), pkgName, fileName, string(class.Domain), page, class.InNav, deprecatedField(ext))}
-	doc.Comments = commentFrom(loc)
+	doc.Comments = withCommentContext(extendBlockComment(ext.ParentFile(), loc), fieldComment(ext, loc))
 	doc.Source = sourceFrom(fileName, loc)
 	doc.SourceLink, doc.RepositoryLink = sourceRefs(fileName, lineOf(doc.Source), b.options.Source, hasSource)
 	doc.Options = b.optionsOf(ext.Options(), "field")
@@ -522,6 +536,11 @@ func (b *builder) addRef(kind, from, to, label string) {
 func (b *builder) finish() *SchemaModel {
 	packages := make([]*DocPackage, 0, len(b.packages))
 	for _, pkg := range b.packages {
+		// Explicit package documentation takes precedence over file headers,
+		// even when a header-only file was visited first.
+		if comments := b.packageComments[pkg.FullName]; comments != nil {
+			pkg.Comments = comments
+		}
 		packages = append(packages, pkg)
 	}
 	sort.Slice(packages, func(i, j int) bool { return packages[i].FullName < packages[j].FullName })
@@ -708,14 +727,87 @@ func commentFrom(loc protoreflect.SourceLocation) *DocComment {
 		Leading:      leading,
 		Trailing:     trailing,
 		Detached:     detached,
-		MarkdownHTML: markdown.RenderSafe(markdown.CommentsToMarkdown(strings.Join(detached, "\n\n"), leading, trailing)),
+		MarkdownHTML: renderComment(leading, trailing, detached),
 	}
 }
 
 func normalizeComment(text string) string {
-	text = strings.ReplaceAll(text, "\r\n", "\n")
-	text = starLine.ReplaceAllString(text, "")
-	return strings.TrimSpace(text)
+	return markdown.CommentsToMarkdown(text)
+}
+
+func renderComment(leading, trailing string, detached []string) string {
+	parts := append([]string{}, detached...)
+	for _, part := range []string{leading, trailing} {
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return markdown.RenderSafe(strings.Join(parts, "\n\n"))
+}
+
+func withCommentContext(context, own *DocComment) *DocComment {
+	if context == nil {
+		return own
+	}
+	if own == nil {
+		return context
+	}
+	parts := append([]string{}, context.Detached...)
+	if context.Leading != "" {
+		parts = append(parts, context.Leading)
+	}
+	copy := *own
+	copy.Detached = append(parts, own.Detached...)
+	if context.Trailing != "" {
+		if copy.Trailing != "" {
+			copy.Trailing += "\n\n"
+		}
+		copy.Trailing += context.Trailing
+	}
+	copy.MarkdownHTML = renderComment(copy.Leading, copy.Trailing, copy.Detached)
+	return &copy
+}
+
+func fileComment(fd protoreflect.FileDescriptor) *DocComment {
+	locations := fd.SourceLocations()
+	header := commentFrom(locations.ByDescriptor(fd))
+	// Syntax/edition declarations carry file headers in normal compiler output.
+	keyword := commentFrom(locations.ByPath(protoreflect.SourcePath{12}))
+	if keyword == nil {
+		keyword = commentFrom(locations.ByPath(protoreflect.SourcePath{14}))
+	}
+	return withCommentContext(header, keyword)
+}
+
+func fieldComment(fd protoreflect.FieldDescriptor, loc protoreflect.SourceLocation) *DocComment {
+	comment := commentFrom(loc)
+	if comment == nil && fd.Kind() == protoreflect.GroupKind {
+		// A group declaration is also a nested message. Compilers may attach
+		// its comment only to the message location, not to the field location.
+		comment = commentFrom(locationFor(fd.ParentFile(), fd.Message()))
+	}
+	return comment
+}
+
+func extendBlockComment(fd protoreflect.FileDescriptor, field protoreflect.SourceLocation) *DocComment {
+	if len(field.Path) == 0 {
+		return nil
+	}
+	locations := fd.SourceLocations()
+	block := locations.ByPath(field.Path[:len(field.Path)-1])
+	for len(block.Path) > 0 {
+		// Multiple extend blocks share a path. Match the containing source
+		// span so another block's documentation cannot bleed into this field.
+		if (block.StartLine < field.StartLine || block.StartLine == field.StartLine && block.StartColumn <= field.StartColumn) &&
+			(block.EndLine > field.EndLine || block.EndLine == field.EndLine && block.EndColumn >= field.EndColumn) {
+			return commentFrom(block)
+		}
+		if block.Next == 0 {
+			break
+		}
+		block = locations.Get(block.Next)
+	}
+	return nil
 }
 
 func sourceFrom(fileName string, loc protoreflect.SourceLocation) *SourceLocation {
