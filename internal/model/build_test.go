@@ -51,6 +51,79 @@ func TestEmptyCollectionsMarshalAsArrays(t *testing.T) {
 	}
 }
 
+func TestPackageDeclarationComments(t *testing.T) {
+	file := func(name, header, comment string) *descriptorpb.FileDescriptorProto {
+		fd := &descriptorpb.FileDescriptorProto{
+			Name: proto.String(name), Package: proto.String("demo"), Syntax: proto.String("proto3"),
+			SourceCodeInfo: &descriptorpb.SourceCodeInfo{Location: []*descriptorpb.SourceCodeInfo_Location{
+				{Path: []int32{}, Span: []int32{0, 0, 10, 0}, LeadingComments: proto.String(header)},
+				{Path: []int32{2}, Span: []int32{2, 0, 13}, LeadingComments: proto.String(comment)},
+			}},
+		}
+		return fd
+	}
+	const packageDoc = "Package **overview**.\n\n## Getting started\n\n<script>alert(1)</script>\n\n[Unsafe](javascript:alert)"
+	for _, tc := range []struct {
+		name    string
+		files   []*descriptorpb.FileDescriptorProto
+		want    string
+		exclude string
+	}{
+		{"package declaration", []*descriptorpb.FileDescriptorProto{file("a.proto", "", packageDoc)}, packageDoc, ""},
+		{"later file", []*descriptorpb.FileDescriptorProto{file("a.proto", "", ""), file("b.proto", "", packageDoc)}, packageDoc, ""},
+		{"package before file header", []*descriptorpb.FileDescriptorProto{file("a.proto", "", packageDoc), file("b.proto", "File header.", "")}, packageDoc, ""},
+		{"package after file header", []*descriptorpb.FileDescriptorProto{file("a.proto", "File header.", ""), file("b.proto", "", packageDoc)}, packageDoc, ""},
+		{"same file header", []*descriptorpb.FileDescriptorProto{file("a.proto", "File header.", packageDoc)}, packageDoc, ""},
+		{"file header fallback", []*descriptorpb.FileDescriptorProto{file("a.proto", "File header.", "")}, "File header.", ""},
+		{"later file header fallback", []*descriptorpb.FileDescriptorProto{file("a.proto", "", ""), file("b.proto", "File header.", "")}, "File header.", ""},
+		{"first package comment", []*descriptorpb.FileDescriptorProto{file("a.proto", "", packageDoc), file("b.proto", "", "Another overview.")}, packageDoc, ""},
+		{"excluded package comment", []*descriptorpb.FileDescriptorProto{file("a.proto", "", packageDoc), file("b.proto", "", "Public overview.")}, "Public overview.", "a.proto"},
+		{"excluded file header", []*descriptorpb.FileDescriptorProto{file("a.proto", "Excluded header.", ""), file("b.proto", "Public header.", "")}, "Public header.", "a.proto"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			registry, err := protodesc.NewFiles(&descriptorpb.FileDescriptorSet{File: tc.files})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ordered descriptorOrder
+			for _, fd := range tc.files {
+				desc, err := registry.FindFileByPath(fd.GetName())
+				if err != nil {
+					t.Fatal(err)
+				}
+				ordered.list = append(ordered.list, desc)
+			}
+			options := BuildOptions{}
+			if tc.exclude != "" {
+				options.Classification.Exclude = []string{tc.exclude}
+			}
+			model, err := Build(ordered, options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pkg := model.Packages[0]
+			if pkg.Comments == nil || pkg.Comments.Leading != tc.want {
+				t.Fatalf("package comments = %+v, want %q", pkg.Comments, tc.want)
+			}
+			if tc.want == packageDoc {
+				html := pkg.Comments.MarkdownHTML
+				if !strings.Contains(html, "<strong>overview</strong>") || !strings.Contains(html, "<h3>Getting started</h3>") {
+					t.Fatalf("package Markdown was not rendered: %s", html)
+				}
+				if strings.Contains(html, "<script") || strings.Contains(html, "javascript:") {
+					t.Fatalf("unsafe package Markdown: %s", html)
+				}
+			}
+			for i, fd := range model.Files {
+				want := tc.files[i].SourceCodeInfo.Location[0].GetLeadingComments()
+				if want != "" && (fd.Comments == nil || fd.Comments.Leading != want) {
+					t.Fatalf("file comment was replaced by package comment: %+v", fd.Comments)
+				}
+			}
+		})
+	}
+}
+
 func TestEditionsFeatures(t *testing.T) {
 	model := buildDir(t, filepath.Join(root(t), "fixtures/editions"), BuildOptions{Title: "editions", InputLabel: "editions"})
 	name := findField(model, "fixtures.editions.Widget.name")

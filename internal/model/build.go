@@ -33,12 +33,13 @@ type FileSource interface {
 // Build walks a resolved file registry into a SchemaModel.
 func Build(files FileSource, options BuildOptions) (*SchemaModel, error) {
 	b := &builder{
-		options:    options,
-		symbols:    map[string]any{},
-		byFullName: map[string]string{},
-		packages:   map[string]*DocPackage{},
-		extTypes:   extensionTypes(files),
-		extOrder:   extensionOrder(files),
+		options:         options,
+		symbols:         map[string]any{},
+		byFullName:      map[string]string{},
+		packages:        map[string]*DocPackage{},
+		packageComments: map[string]*DocComment{},
+		extTypes:        extensionTypes(files),
+		extOrder:        extensionOrder(files),
 	}
 	var walkErr error
 	files.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
@@ -52,22 +53,23 @@ func Build(files FileSource, options BuildOptions) (*SchemaModel, error) {
 }
 
 type builder struct {
-	options    BuildOptions
-	symbols    map[string]any
-	byFullName map[string]string
-	packages   map[string]*DocPackage
-	files      []*DocFile
-	messages   []*DocMessage
-	fields     []*DocField
-	oneofs     []*DocOneof
-	enums      []*DocEnum
-	values     []*DocEnumValue
-	services   []*DocService
-	methods    []*DocMethod
-	exts       []*DocExtension
-	forward    []SymbolReference
-	extTypes   *protoregistry.Types
-	extOrder   map[string]int
+	options         BuildOptions
+	symbols         map[string]any
+	byFullName      map[string]string
+	packages        map[string]*DocPackage
+	packageComments map[string]*DocComment
+	files           []*DocFile
+	messages        []*DocMessage
+	fields          []*DocField
+	oneofs          []*DocOneof
+	enums           []*DocEnum
+	values          []*DocEnumValue
+	services        []*DocService
+	methods         []*DocMethod
+	exts            []*DocExtension
+	forward         []SymbolReference
+	extTypes        *protoregistry.Types
+	extOrder        map[string]int
 }
 
 func (b *builder) optionsOf(msg proto.Message, target string) []*DocOption {
@@ -136,8 +138,17 @@ func (b *builder) walkFile(fd protoreflect.FileDescriptor) error {
 	}
 	b.files = append(b.files, doc)
 	b.remember(doc, &doc.baseSymbol)
-	pkg := b.ensurePackage(pkgName, class, doc.Comments)
+	fileComments := doc.Comments
+	if !class.GeneratePage {
+		fileComments = nil
+	}
+	pkg := b.ensurePackage(pkgName, class, fileComments)
 	pkg.FileIDs = append(pkg.FileIDs, doc.ID)
+	// FileDescriptorProto.package is field 2 in SourceCodeInfo. It has its
+	// own comment location, separate from the file header at the empty path.
+	if class.GeneratePage && b.packageComments[pkgName] == nil {
+		b.packageComments[pkgName] = commentFrom(fd.SourceLocations().ByPath(protoreflect.SourcePath{2}))
+	}
 
 	for i := 0; i < fd.Messages().Len(); i++ {
 		b.walkMessage(fd.Messages().Get(i), nil, class, fileName, pkgName, hasSource)
@@ -156,6 +167,9 @@ func (b *builder) walkFile(fd protoreflect.FileDescriptor) error {
 
 func (b *builder) ensurePackage(packageName string, class classify.Result, comments *DocComment) *DocPackage {
 	if existing, ok := b.packages[packageName]; ok {
+		if existing.Comments == nil {
+			existing.Comments = comments
+		}
 		if class.GeneratePage {
 			existing.GeneratePage = true
 		}
@@ -522,6 +536,11 @@ func (b *builder) addRef(kind, from, to, label string) {
 func (b *builder) finish() *SchemaModel {
 	packages := make([]*DocPackage, 0, len(b.packages))
 	for _, pkg := range b.packages {
+		// Explicit package documentation takes precedence over file headers,
+		// even when a header-only file was visited first.
+		if comments := b.packageComments[pkg.FullName]; comments != nil {
+			pkg.Comments = comments
+		}
 		packages = append(packages, pkg)
 	}
 	sort.Slice(packages, func(i, j int) bool { return packages[i].FullName < packages[j].FullName })

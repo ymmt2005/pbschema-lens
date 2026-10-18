@@ -174,6 +174,8 @@ Comments are treated as untrusted data. Go renders them as Markdown with a sanit
 
 Source-wrapped comment paragraphs reflow naturally. Use a blank line for a new paragraph, two trailing spaces or a backslash for an explicit Markdown line break, and fenced code blocks for examples or ASCII diagrams whose whitespace matters. Comment headings appear one level below their Markdown level, capped at `h6`, reserving `h1` for the page title. Wide Markdown tables and code examples scroll within their own containers.
 
+To document a package, place a Markdown comment immediately above its `package` declaration in one `.proto` file. A package spanning multiple files needs only one overview. Package-declaration comments take precedence over file-header comments; file headers remain a fallback when no package comment is supplied.
+
 ## Security notes
 
 The security target is current practice for a static site built from untrusted schema text. When a sanitizer bypass or a new HTML, URL, or path sink becomes known, the allowlist and its tests move with it. The full bar is [`QUALITY.md`](QUALITY.md).

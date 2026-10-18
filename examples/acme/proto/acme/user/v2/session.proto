@@ -1,5 +1,22 @@
 syntax = "proto3";
 
+// Session lookup for accounts defined in the Acme v1 user API.
+//
+// ## In this package
+//
+// | Type | Purpose |
+// | --- | --- |
+// | [Session](../../messages/acme.user.v2.Session/) | An account session and its expiration time. |
+// | [SessionService](../../services/acme.user.v2.SessionService/) | Read a session by identifier. |
+//
+// ## Getting started
+//
+// 1. Read the Session page for its fields and JSON representation.
+// 2. Follow SessionService to inspect the `GetSession` HTTP binding.
+// 3. Visit the [v1 user package](../acme.user.v1/) for the embedded account type.
+//
+// > **Versioning:** `acme.user.v2.Session` refers to `acme.user.v1.User`.
+// > The package version identifies the session API; it does not replace v1.
 package acme.user.v2;
 
 import "acme/user/v1/user.proto";
