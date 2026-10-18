@@ -1,6 +1,6 @@
 {
   "name": "pbschema-lens",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Open-source static schema explorer for Protocol Buffers",
   "type": "module",
   "scripts": {
