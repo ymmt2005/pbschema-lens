@@ -41,14 +41,14 @@ async function metadata(url, { text = false, allowNotFound = false } = {}) {
   })());
   return cache.get(key);
 }
-const github = (path,options) => metadata(`https://api.github.com/${path}`,options);
+export const github = (path,options) => metadata(`https://api.github.com/${path}`,options);
 const npm = name => metadata(`https://registry.npmjs.org/${encodeURIComponent(name)}`);
 const numeric = version => /(?:^|[-])v?(\d+\.\d+\.\d+)$/.exec(version)?.[1] ?? version;
 const goEscape = text => text.replace(/[A-Z]/g, char => `!${char.toLowerCase()}`);
 
-async function tagSHA(repository, tag) {
-  let object = (await github(`repos/${repository}/git/ref/tags/${encodeURIComponent(tag)}`)).object;
-  for (let depth = 0; object.type === 'tag' && depth < 8; depth++) object = (await github(`repos/${repository}/git/tags/${object.sha}`)).object;
+export async function tagSHA(repository, tag, request = github) {
+  let object = (await request(`repos/${repository}/git/ref/tags/${encodeURIComponent(tag)}`)).object;
+  for (let depth = 0; object.type === 'tag' && depth < 8; depth++) object = (await request(`repos/${repository}/git/tags/${object.sha}`)).object;
   if (object.type !== 'commit' || !/^[a-f0-9]{40}$/.test(object.sha)) throw new Error(`Tag does not resolve to a commit: ${repository}@${tag}`);
   return object.sha;
 }

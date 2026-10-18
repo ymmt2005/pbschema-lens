@@ -98,9 +98,32 @@ For an interactive Codex update, invoke `$update-github-actions` (for example,
 "Use $update-github-actions to upgrade eligible Actions and open a PR"). The
 repository skill lives in
 [`.agents/skills/update-github-actions/SKILL.md`](../.agents/skills/update-github-actions/SKILL.md).
-It covers workflow files and the generated Pages template, checks the 72-hour
-embargo and exact tag/SHA pairs, reviews upstream behavior changes, and prepares
-a draft PR with release evidence and validation results.
+It uses `scripts/action-updates.mjs` for deterministic inventory, selection, and
+pin rewriting, leaving upstream behavior and migration review to Codex.
+
+```sh
+node scripts/action-updates.mjs plan
+# After reviewing upstream behavior for eligible candidates, name those to apply:
+node scripts/action-updates.mjs apply actions/checkout actions/setup-go
+```
+
+The helper discovers YAML workflows, local Action definitions (also following
+repository-local references), and the generated Pages template in Go. It groups
+repeated references, checks current pins, selects the highest stable GitHub
+Release outside the 72-hour embargo, and peels annotated tags to commits.
+Actions require API-visible Releases; errors and moved tags stop the command.
+Planning writes `plan.json` and `plan.md` under ignored
+`.pbschema-lens/action-updates/`. Applying requires explicitly named planned
+repositories, rejects stale source snapshots, revalidates publication evidence
+and tag hashes before any writes, and changes only SHA/version-comment pairs.
+Nested Action subpaths, local references, runtime/CLI pins, dependency manifests,
+lockfiles, and Go code outside the template are preserved. `applied.json` and
+`applied.md` record the actual selected updates for the PR; the original plan
+remains available. These commands do not create a PR or publish workflow edits.
+
+`npm run test:updates` includes fixture-based tests of discovery, pagination,
+embargo selection, annotated tags, selective application, preserved content,
+stale inventories, metadata failures, and changed tags/publication evidence.
 
 Automated patches cannot change workflow files, policy
 scripts, package scripts, application version, or application code. Only the Buf
