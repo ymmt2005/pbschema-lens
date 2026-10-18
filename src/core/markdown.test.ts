@@ -53,8 +53,16 @@ describe("markdown sanitization", () => {
     expect(escapeHtml(`<foo & "bar">`)).toBe("&lt;foo &amp; &quot;bar&quot;&gt;");
   });
 
-  it("normalizes proto comment stars", () => {
-    expect(commentsToMarkdown([" * line one\n * line two"])).toContain("line one");
+  it("preserves Markdown stars and relative indentation while removing known comment decoration", () => {
+    for (const [source, expected] of [
+      ["/**\n * line one\n * line two\n */", "line one\nline two"],
+      ["/*\n```c\n* item\n```\n*/", "```c\n* item\n```"],
+      [" * line one\n * line two\n", "* line one\n* line two"],
+      [" **bold** intro\n", "**bold** intro"],
+      ["*\n Intro\n\n * item\n", "Intro\n\n* item"],
+      [" ```c\n *ptr = 1;\n   **nested = 2;\n ```\n", "```c\n*ptr = 1;\n  **nested = 2;\n```"],
+      ["     *ptr = 1;\n       **nested = 2;\n", "    *ptr = 1;\n      **nested = 2;"],
+    ]) expect(commentsToMarkdown([source])).toBe(expected);
   });
 
   it("drops links whose scheme is outside http, https, and mailto", () => {

@@ -1,0 +1,92 @@
+// FILE_DETACHED **license**.
+
+// FILE_LEADING **overview**.
+syntax = "proto2"; // FILE_TRAILING **syntax**.
+
+// PACKAGE_LEADING **overview**.
+package fixtures.comments;
+
+// MESSAGE_DETACHED_ONE **context**.
+
+// MESSAGE_DETACHED_TWO **context**.
+
+// MESSAGE_LEADING **overview**.
+message Envelope {
+  // FIELD_LEADING **overview**.
+  optional string name = 1; // FIELD_TRAILING **note**.
+
+  // MAP_LEADING **overview**.
+  map<string, string> labels = 2;
+
+  // ONEOF_LEADING **overview**.
+  oneof choice {
+    // ONEOF_FIELD_LEADING **overview**.
+    string email = 3; // ONEOF_FIELD_TRAILING **note**.
+  }
+
+  // NESTED_MESSAGE_LEADING **overview**.
+  message Child {
+    // NESTED_FIELD_LEADING **overview**.
+    optional string value = 1;
+  }
+
+  // NESTED_ENUM_LEADING **overview**.
+  enum State {
+    // NESTED_VALUE_LEADING **overview**.
+    STATE_UNKNOWN = 0; // NESTED_VALUE_TRAILING **note**.
+  }
+
+  // GROUP_LEADING **overview**.
+  optional group LegacyGroup = 4 {
+    // GROUP_FIELD_LEADING **overview**.
+    optional string value = 1;
+  }
+
+  extensions 100 to 199;
+}
+
+// ENUM_LEADING **overview**.
+enum Status {
+  // VALUE_LEADING **overview**.
+  STATUS_UNKNOWN = 0; // VALUE_TRAILING **note**.
+}
+
+// EXTEND_BLOCK_LEADING **overview**.
+extend Envelope {
+  // EXTENSION_LEADING **overview**.
+  optional string extra = 100; // EXTENSION_TRAILING **note**.
+}
+
+// SECOND_EXTEND_BLOCK_LEADING **overview**.
+extend Envelope {
+  // SECOND_EXTENSION_LEADING **overview**.
+  optional int32 other = 101;
+}
+
+// HOLDER_LEADING **overview**.
+message Holder {
+  // NESTED_EXTEND_BLOCK_LEADING **overview**.
+  extend Envelope {
+    // NESTED_EXTENSION_LEADING **overview**.
+    optional bool enabled = 102; // NESTED_EXTENSION_TRAILING **note**.
+  }
+}
+
+// GROUP_EXTEND_BLOCK_LEADING **overview**.
+extend Envelope {
+  // GROUP_EXTENSION_LEADING **overview**.
+  optional group ExtraGroup = 103 {
+    // GROUP_EXTENSION_FIELD_LEADING **overview**.
+    optional string value = 1;
+  }
+}
+
+// SERVICE_LEADING **overview**.
+service Catalog {
+  // METHOD_LEADING **overview**.
+  rpc Get(Envelope) returns (Envelope); // METHOD_TRAILING **note**.
+
+  // STREAM_METHOD_LEADING **overview**.
+  rpc Watch(Envelope) returns (stream Envelope) {
+  }
+}

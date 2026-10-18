@@ -36,13 +36,26 @@ const ALLOWED_TAGS = [
 export function commentsToMarkdown(parts: Array<string | undefined>): string {
   return parts
     .filter((part): part is string => Boolean(part && part.trim()))
-    .map((part) =>
-      part
-        .replace(/^\s*\*\s?/gm, "")
-        .replace(/^\/\*\*?/, "")
-        .replace(/\*\/$/, "")
-        .trim(),
-    )
+    .map((part) => {
+      part = part.replace(/\r\n/g, "\n");
+      const trimmed = part.trim();
+      if (trimmed.startsWith("/*") && trimmed.endsWith("*/")) {
+        part = trimmed.replace(/^\/\*\*?/, "").replace(/\*\/$/, "");
+        const body = part.split("\n").slice(1).filter(line => Boolean(line.trim()));
+        if (body.length && body.every(line => /^[\t ]*\*(?:[\t ]|$)/.test(line))) {
+          part = part.replace(/^[\t ]*\*(?:[\t ]|$)/gm, "");
+        }
+      } else {
+        const first = part.indexOf("\n");
+        if (first >= 0 && part.slice(0, first).trim() === "*") part = part.slice(first + 1);
+      }
+      let lines = part.replace(/^\n+|\n+$/g, "").split("\n");
+      if (lines.every(line => !line.trim() || line.startsWith(" "))) {
+        lines = lines.map(line => line.replace(/^ /, ""));
+      }
+      return lines.join("\n").replace(/[ \t]+$/, "").replace(/^\n+|\n+$/g, "");
+    })
+    .filter(part => Boolean(part.trim()))
     .join("\n\n");
 }
 

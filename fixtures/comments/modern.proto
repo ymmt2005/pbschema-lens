@@ -1,0 +1,32 @@
+// MODERN_FILE_LEADING **overview**.
+syntax = "proto3";
+
+package fixtures.comments.modern;
+
+// MODERN_MESSAGE_LEADING **overview**.
+message Modern {
+  // OPTIONAL_FIELD_LEADING **overview**.
+  optional string nickname = 1; // OPTIONAL_FIELD_TRAILING **note**.
+}
+
+// Markdown prose.
+//
+// * STAR_LIST_ONE
+// * STAR_LIST_TWO
+//
+// ```c
+// *ptr = 1;
+//   **nested = 2;
+// ```
+message Markdown {}
+
+/* BLOCK_COMMENT_LEADING **overview**. */
+message Block {}
+
+/**
+ * DECORATED_BLOCK_LEADING **overview**.
+ *
+ * * DECORATED_LIST_ONE
+ * * DECORATED_LIST_TWO
+ */
+message DecoratedBlock {}

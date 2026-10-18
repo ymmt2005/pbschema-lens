@@ -138,6 +138,40 @@ func TestStaticPagesContainContentAndAnchors(t *testing.T) {
 		})
 	}
 }
+
+func TestCommentsAreRenderedForEveryObject(t *testing.T) {
+	schema := renderFixture()
+	for id, symbol := range schema.Symbols {
+		model.SymbolMetadata(symbol).Comments = &model.DocComment{MarkdownHTML: markdown.RenderSafe("**comment-" + id + "**")}
+	}
+	checks := map[string][]string{
+		"/reference/packages/demo/":                  {"p"},
+		"/reference/messages/demo.User/":             {"m", "f", "g", "o"},
+		"/reference/messages/demo.User.Preferences/": {"nested"},
+		"/reference/enums/demo.State/":               {"e", "v"},
+		"/reference/services/demo.Users/":            {"s"},
+		"/reference/methods/demo.Users.Get/":         {"rpc", "f", "g", "o"},
+		"/reference/extensions/demo.pii/":            {"ext"},
+		"/source/demo/user.proto/":                   {"file"},
+	}
+	for _, base := range []string{"/", "/pbschema-lens/"} {
+		r, err := newRenderer(schema, Options{Base: base})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for route, ids := range checks {
+			raw, err := r.page(route, []byte(`<html><head><title>__PAGE_TITLE__</title></head><body><div id="app"></div></body></html>`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range ids {
+				if !strings.Contains(string(raw), "<strong>comment-"+id+"</strong>") {
+					t.Errorf("%s at %s is missing the rendered comment for %s", route, base, id)
+				}
+			}
+		}
+	}
+}
 func walkHTML(n *html.Node, fn func(*html.Node)) {
 	fn(n)
 	for c := n.FirstChild; c != nil; c = c.NextSibling {

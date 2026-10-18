@@ -176,6 +176,10 @@ Source-wrapped comment paragraphs reflow naturally. Use a blank line for a new p
 
 To document a package, place a Markdown comment immediately above its `package` declaration in one `.proto` file. A package spanning multiple files needs only one overview. Package-declaration comments take precedence over file-header comments; file headers remain a fallback when no package comment is supplied.
 
+Leading, trailing, and detached comments are supported on messages (including nested types and groups), fields, oneofs, enums and values, services, RPCs, and extensions. File headers above `syntax` or `edition` render on source pages. Comments on an `extend` block provide context for each extension in that block. Markdown list markers, emphasis, and code whitespace are preserved.
+
+Only comments included in the descriptor set's `SourceCodeInfo` can be rendered. Imports, option assignments, reserved declarations, and extension ranges have no separate comment section; their comments can be read in the embedded source browser when sources are supplied.
+
 ## Security notes
 
 The security target is current practice for a static site built from untrusted schema text. When a sanitizer bypass or a new HTML, URL, or path sink becomes known, the allowlist and its tests move with it. The full bar is [`QUALITY.md`](QUALITY.md).
