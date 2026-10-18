@@ -10,22 +10,94 @@ import "google/protobuf/timestamp.proto";
 option go_package = "acme.example/user/v2;userv2";
 
 // A signed-in session for a v1 user account.
+//
+// ## Session fields
+//
+// | Field | Direction | Purpose |
+// | --- | --- | --- |
+// | `id` | Output only | Identifier of this session. |
+// | `user` | Required | The account associated with the session. |
+// | `expires_at` | Optional | Expiration time, when supplied. |
+//
+// The v2 session API reuses the [v1 User message](../acme.user.v1.User/).
+// A new API package can introduce session operations without duplicating the
+// account schema or changing the version of every related message.
+//
+// ## Example JSON
+//
+// This illustrates the `session` value inside a `GetSessionResponse`.
+// Timestamps use RFC 3339 strings in the
+// [ProtoJSON mapping](https://protobuf.dev/programming-guides/json/).
+//
+// ```json
+// {
+//   "id": "session-example-001",
+//   "user": {
+//     "id": "550e8400-e29b-41d4-a716-446655440000",
+//     "email": "alex@example.com",
+//     "displayName": "Alex Chen",
+//     "state": "USER_STATE_ACTIVE"
+//   },
+//   "expiresAt": "2026-01-15T10:30:00Z"
+// }
+// ```
+//
+// ## Working with expiration
+//
+// - Check whether `expires_at` is present before reading its value.
+// - Interpret a supplied timestamp as an instant, independent of display zone.
+// - Keep authentication and expiration enforcement in the service implementation.
+//
+// > **Versioning:** the embedded user still uses the v1 definition, including
+// > its validation rules and PII annotations. The session itself belongs to v2.
 message Session {
+  // Session identifier. **Output only**; keep it opaque to clients.
   string id = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Associated account, using the shared `acme.user.v1.User` schema.
   acme.user.v1.User user = 2 [(google.api.field_behavior) = REQUIRED];
+  // Expiration instant, if supplied; format with the reader's time zone.
   google.protobuf.Timestamp expires_at = 3;
 }
 
+// Identifies the session to read. The `id` field is **required**.
 message GetSessionRequest {
   string id = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
+// Wraps the returned account session in the `session` field.
 message GetSessionResponse {
   Session session = 1;
 }
 
 // Reads active sessions.
+//
+// ## Reading a session
+//
+// 1. Put the session identifier in `GetSessionRequest.id`.
+// 2. Call `GetSession` over gRPC or use its HTTP binding.
+// 3. Inspect the returned [Session message](../../messages/acme.user.v2.Session/)
+//    and its embedded [v1 User](../../messages/acme.user.v1.User/).
+//
+// | RPC | HTTP binding | Response field |
+// | --- | --- | --- |
+// | `GetSession` | `GET /v2/sessions/{id}` | `session` |
+//
+// > This is an example API definition. The generated documentation does not
+// > run a session service or issue session identifiers.
 service SessionService {
+  // Read a session by its identifier, without side effects.
+  //
+  // ## HTTP example
+  //
+  // For a deployment at `https://api.example.com`:
+  //
+  // ```sh
+  // curl --request GET \
+  //   'https://api.example.com/v2/sessions/session-example-001'
+  // ```
+  //
+  // The HTTP annotation binds `{id}` to the request field. The method is marked
+  // `NO_SIDE_EFFECTS`; authentication and error responses are not specified here.
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
     option (google.api.http) = { get: "/v2/sessions/{id}" };
     option idempotency_level = NO_SIDE_EFFECTS;

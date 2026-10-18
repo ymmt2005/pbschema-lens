@@ -8,8 +8,39 @@ import "google/api/annotations.proto";
 option go_package = "acme.example/user/v1;userv1";
 
 // Manages user accounts for the Acme identity platform.
+//
+// ## Operations at a glance
+//
+// | RPC | HTTP binding | Use |
+// | --- | --- | --- |
+// | `GetUser` | `GET /v1/users/{id}` | Read one account. |
+// | `ListUsers` | `GET /v1/users` | Read a page of accounts. |
+// | `CreateUser` | `POST /v1/users` | Submit a new account. |
+// | `WatchUsers` | No HTTP binding | Stream account changes over gRPC. |
+//
+// ## Exploring the API
+//
+// 1. Start with the [User message](../../messages/acme.user.v1.User/) for the
+//    account shape and a JSON example.
+// 2. Inspect each RPC's request and response types.
+// 3. Follow **View source** to see the HTTP and idempotency options in context.
+//
+// > These bindings describe an example API. The documentation site does not
+// > host a running user service.
 service UserService {
   // Fetch a user by id.
+  //
+  // ## HTTP example
+  //
+  // For a deployment at `https://api.example.com`, the binding maps to:
+  //
+  // ```sh
+  // curl --request GET \
+  //   'https://api.example.com/v1/users/550e8400-e29b-41d4-a716-446655440000'
+  // ```
+  //
+  // The request `id` must be a UUID. The response wraps the account in `user`.
+  // This method is marked `NO_SIDE_EFFECTS`.
   rpc GetUser(GetUserRequest) returns (GetUserResponse) {
     option (google.api.http) = {
       get: "/v1/users/{id}"
@@ -18,6 +49,15 @@ service UserService {
   }
 
   // List users with optional server-side filtering.
+  //
+  // ### Pagination
+  //
+  // - `page_size` accepts values from `0` through `100`.
+  // - Pass a returned `next_page_token` as `page_token` to request another page.
+  // - Treat page tokens as **opaque strings** rather than parsing their contents.
+  //
+  // Filter syntax and the default page size are implementation choices; this
+  // example schema does not define them.
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
     option (google.api.http) = {
       get: "/v1/users"

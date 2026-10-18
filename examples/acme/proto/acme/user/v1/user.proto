@@ -12,6 +12,15 @@ option java_package = "com.acme.user.v1";
 option (acme.security.owner) = "identity-platform";
 
 // Lifecycle state of a user account.
+//
+// ## State guide
+//
+// | Value | Meaning |
+// | --- | --- |
+// | `USER_STATE_UNSPECIFIED` | No lifecycle state has been supplied. |
+// | `USER_STATE_ACTIVE` | The account is active. |
+// | `USER_STATE_SUSPENDED` | The account is suspended. |
+// | `USER_STATE_DELETED` | Deprecated; retained for compatibility. |
 enum UserState {
   USER_STATE_UNSPECIFIED = 0;
   USER_STATE_ACTIVE = 1;
@@ -33,6 +42,43 @@ message Address {
 //
 // Users are the primary subject of authentication, billing, and support
 // workflows. Changing the shape of this message is a PACKAGE-breaking change.
+//
+// ## Reading a user
+//
+// - **Identity:** `id` is a stable UUID; `email` is the required login address.
+// - **Lifecycle:** `state`, `created_at`, and `updated_at` describe the account.
+// - **Profile:** `display_name`, `nickname`, and `preferences` hold presentation
+//   choices. Postal details use the [Address message](../acme.user.v1.Address/).
+//
+// ## Example JSON
+//
+// This response uses the [ProtoJSON mapping](https://protobuf.dev/programming-guides/json/):
+// field names become lower camel case and enum values remain strings.
+//
+// ```json
+// {
+//   "id": "550e8400-e29b-41d4-a716-446655440000",
+//   "email": "alex@example.com",
+//   "displayName": "Alex Chen",
+//   "state": "USER_STATE_ACTIVE",
+//   "createdAt": "2026-01-15T09:30:00Z",
+//   "preferences": {
+//     "marketingOptIn": false,
+//     "locale": "en-GB",
+//     "timeZone": "Europe/London"
+//   }
+// }
+// ```
+//
+// ## Creating an account
+//
+// 1. Set the required `email` and choose a `display_name` of 1 to 80 characters.
+// 2. Add profile preferences or up to five postal addresses as needed.
+// 3. Omit the output-only `id`, `created_at`, and `updated_at` fields from input.
+//
+// > **Privacy:** email and phone fields carry PII annotations. Their masking
+// > and hashing policies describe how consumers should handle sensitive data;
+// > the schema itself does not redact values.
 message User {
   option (acme.security.audit_required) = true;
 
@@ -46,7 +92,7 @@ message User {
     (buf.validate.field).string.uuid = true
   ];
 
-  // Login email. Treated as PII.
+  // Login email. **PII:** follow the `identity/email` masking policy.
   string email = 2 [
     (google.api.field_behavior) = REQUIRED,
     (acme.security.pii) = {
@@ -73,6 +119,12 @@ message User {
     (google.api.field_behavior) = OUTPUT_ONLY
   ];
 
+  // An optional contact channel in addition to the login email.
+  //
+  // - `phone` carries the `identity/phone` hashing policy.
+  // - `pager` is **deprecated** and remains only for compatibility.
+  //
+  // A `oneof` can contain at most one of these values at a time.
   oneof contact {
     string phone = 9 [
       (acme.security.pii) = {
@@ -89,6 +141,16 @@ message User {
   repeated Address addresses = 12 [(buf.validate.field).repeated.max_items = 5];
 
   // Nested profile preferences.
+  //
+  // ### Example choices
+  //
+  // | Field | Example | Purpose |
+  // | --- | --- | --- |
+  // | `marketing_opt_in` | `false` | Marketing preference. |
+  // | `locale` | `en-GB` | Language and regional formatting. |
+  // | `time_zone` | `Europe/London` | Local time presentation. |
+  //
+  // These strings have no validation rules in this example schema.
   message Preferences {
     bool marketing_opt_in = 1;
     string locale = 2;
